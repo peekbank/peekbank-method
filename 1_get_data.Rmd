@@ -156,9 +156,52 @@ d_trial$distractor_label[d_trial$distractor_label %in% c("sippycup")] <- "sippy"
 d_trial$distractor_label[d_trial$distractor_label %in% c("socks")] <- "sock"
 ```
 
-Save the key intermediate file. 
+
+# Get rid of useless timecourse info
+
+
+So datasets vary in missingness of data at the trial level because of:
+
+1. internal exclusion decisions (e.g., fmw_2013, which excluded trials <50%)
+2. amount of data given (adams_marchman_2018, which didn't provide times before -500ms)
+3. padding of trials with NAs (e.g., pomper_saffran_2016, which has some padding later in the trials). 
 
 ```{r}
+d_missing <- d_trial |>
+  group_by(dataset_name, t_norm) |>
+  summarise(prop_data = mean(!is.na(correct)), 
+            n = n()) 
+
+ggplot(d_missing,
+       aes(x = t_norm, y = prop_data)) + 
+  facet_wrap(~dataset_name) + 
+  ylab("Proportion trials that are not missing") + 
+  geom_line()
+```
+
+```{r}
+d_missing_clipped <- d_missing |>
+  filter(t_norm >= -2000, t_norm <= 4000, 
+         !(dataset_name == "adams_marchman_2018" & t_norm > 3750),
+         !(dataset_name == "fmw_2013" & (t_norm < 500)),
+         !(dataset_name == "potter-canine" & (t_norm > 3500)))
+
+ggplot(d_missing_clipped,
+       aes(x = t_norm, y = prop_data)) + 
+  facet_wrap(~dataset_name) + 
+  ylab("Proportion trials that are not missing") + 
+  geom_line()
+```
+
+FIXME - THESE FILTERS NEED TO BE CHECKED!
+
+```{r}
+d_trial <- d_trial |>
+  filter(t_norm >= -2000, t_norm <= 4000, 
+         !(dataset_name == "adams_marchman_2018" & t_norm > 3750),
+         !(dataset_name == "fmw_2013" & (t_norm < 500)),
+         !(dataset_name == "potter-canine" & (t_norm > 3500)))
+
 save(d_trial, file = here("cached_intermediates","1_d_trial.Rds"))
 ```
 

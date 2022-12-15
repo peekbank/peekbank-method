@@ -25,26 +25,10 @@ affiliation:
     institution   : "Konstanz Business School"
 
 authornote: |
-  Add complete departmental affiliations for each author here. Each new line herein must be indented, like this line.
-
   Enter author note here.
 
 abstract: |
-  One or two sentences providing a **basic introduction** to the field,  comprehensible to a scientist in any discipline.
-  
-  Two to three sentences of **more detailed background**, comprehensible  to scientists in related disciplines.
-  
-  One sentence clearly stating the **general problem** being addressed by  this particular study.
-  
-  One sentence summarizing the main result (with the words "**here we show**" or their equivalent).
-  
-  Two or three sentences explaining what the **main result** reveals in direct comparison to what was thought to be the case previously, or how the  main result adds to previous knowledge.
-  
-  One or two sentences to put the results into a more **general context**.
-  
-  Two or three sentences to provide a **broader perspective**, readily comprehensible to a scientist in any discipline.
-  
-  <!-- https://tinyurl.com/ybremelq -->
+  Lorem ipsum sit dolor hic sunt leones. 
   
 keywords          : "keywords"
 wordcount         : "X"
@@ -95,25 +79,20 @@ Core question is how to make decisions within the processing pipeline that maxim
 - how to handle "sticky" trials/ zoners
 
 Setup each recommendation:
-- 
+- What window should you use?
+- How to decide when to include trials and participants
+- whether to do baseline corrections
+- how to compute the most reliable reaction times
+- how to get the most stable estimates of accuracy and reaction time for individuals
 
 
+# Dataset and appraoch
 
+Subset of peekbank that we are using
 
+Descriptives on datasets/number of trials
 
-
-# Methods
-We report how we determined our sample size, all data exclusions (if any), all manipulations, and all measures in the study. <!-- 21-word solution (Simmons, Nelson & Simonsohn, 2012; retrieved from http://ssrn.com/abstract=2160588) -->
-
-## Participants
-
-## Material
-
-## Procedure
-
-## Data analysis
-We used `r cite_r("r-references.bib")` for all our analyses.
-
+Illustrate the ICC approach to reliability 
 
 # Results
 

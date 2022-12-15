@@ -1,0 +1,136 @@
+---
+title: "Exclusions"
+author: "Mike Frank"
+date: "2022-12-15"
+output: html_document
+---
+
+Goal: consider consequences for reliability of exclusion decisions related to data quantity and behavior.
+
+```{r}
+source(here::here("helper/common.R"))
+```
+
+
+There's a lot of missing data and a lot of "zoners" (kids who look only at one side). Zoners are not just missing data kids.
+
+```{r}
+d_summary <- d_trial |>
+  group_by(dataset_name, trial_id, dataset_id, subject_id, administration_id, 
+           target_label) |>
+  summarise(total_prop_target_looking = mean(correct, na.rm=TRUE),
+            pre_prop_target_looking = mean(correct[t_norm < 300], na.rm=TRUE),
+            prop_data = mean(!is.na(correct))) 
+```
+
+Plot total proportion target looking.
+
+```{r}
+ggplot(d_summary,
+       aes(x = total_prop_target_looking)) + 
+  geom_histogram()
+```
+
+In the pre-onset period. 
+
+```{r}
+ggplot(d_summary,
+       aes(x = pre_prop_target_looking)) + 
+  geom_histogram()
+```
+
+Plot total proportion of data
+
+```{r}
+ggplot(d_summary,
+       aes(x = prop_data)) + 
+  geom_histogram()
+```
+
+Break this down by dataset. 
+
+```{r}
+ggplot(d_summary,
+       aes(x = prop_data)) + 
+  geom_histogram() + 
+  facet_wrap(~dataset_name, scales = "free_y")
+```
+
+
+
+# Exclusions simulation
+
+Set up our measures for the simulation. 
+
+```{r}
+d_sim <- d_trial |>
+  group_by(dataset_name, trial_id, dataset_id, subject_id, administration_id, 
+           target_label) |>
+  summarise(total_target_prop = mean(correct, na.rm=TRUE),
+            prop_data = mean(!is.na(correct)), 
+            accuracy = mean(correct[t_norm > 300 & t_norm < 4000], na.rm=TRUE)) 
+```
+
+
+
+```{r}
+
+icc_sim <- function (zoners_included, exclude_less_than, object) 
+{
+  df <- d_sim |>
+    filter(prop_data > exclude_less_than)
+  
+  # drop zoners
+  if (zoners_included == FALSE) { 
+    df <- filter(df, total_target_prop > 0, total_target_prop < 1) 
+  }
+  
+  # compute ICCs
+  df |> 
+    group_by(dataset_name) |> 
+    nest() |>
+    mutate(icc = unlist(map(data, ~get_icc(., "accuracy", object)))) |>
+    select(-data) |>
+    unnest(cols = c()) 
+}
+
+```
+
+
+
+# Exclusions based on zoners
+
+
+
+Try to do this programmatically across all datasets.  
+
+```{r, eval= FALSE, error=FALSE, message=FALSE, warning=FALSE}
+excl_params <- expand_grid(zoners_included = c(FALSE, TRUE),
+                           exclude_less_than = c(.1, .3, .5, .7, .9), 
+                           object = c("stimulus", "administration")) |>
+  mutate(icc = pmap(list(zoners_included, exclude_less_than, object), icc_sim)) |>
+  unnest(col = icc)
+
+save(excl_params, file = "cached_intermediates/3_exclusions.Rds")
+```
+
+Plot resulting ICCs.
+
+```{r}
+load("cached_intermediates/3_exclusions.Rds")
+
+ggplot(excl_params,
+       aes(x = exclude_less_than, y = icc, 
+           group = interaction(dataset_name, zoners_included), 
+           col = zoners_included)) + 
+  geom_jitter(alpha = .3, width = .03) + 
+  geom_line(alpha = .3) + 
+  geom_smooth(aes(group = zoners_included), method = "lm") + 
+  facet_grid(.~object) + 
+  ylab("ICC") + 
+  xlab("Include trials with more than")
+
+```
+
+Looks to me like excluding zoners isn't a clear win (and a loss for stimulus ICC). Further, excluding on amount of data doesn't seem to gain us reliability. 
+
