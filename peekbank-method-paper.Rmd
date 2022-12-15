@@ -75,6 +75,31 @@ set.seed(42)
 knitr::opts_chunk$set(cache.extra = knitr::rand_seed)
 ```
 
+# Introduction
+
+goals:
+- make data-driven recommendations based on Peekbank for data analysis strategies that maximize reliability
+(- and validity? Would require incorporating some independent data/ trying to configure CDI pipeline)
+
+We consider three commonly used dependent variables:
+- accuracy (average accuracy within a fixed window)
+- baseline-corrected accuracy (average accuracy subtracting an average baseline)
+- reaction time (ms)
+
+Core question is how to make decisions within the processing pipeline that maximize key measure characteristics for these commonly used dependent variables.
+- exclusions
+-- missing data on a trial level
+-- missing data on a participant level
+-- other exclusion criteria
+- window size
+- how to handle "sticky" trials/ zoners
+
+Setup each recommendation:
+- 
+
+
+
+
 
 
 # Methods
@@ -92,7 +117,20 @@ We used `r cite_r("r-references.bib")` for all our analyses.
 
 # Results
 
+Recommendation 1: To maximize reliability, choose long time windows.
+
+Recommendation 2: [recommendation about how to set missingness criteria & how to deal with zoners - probably err on the side of including more data?]
+- how many trials?
+- how much data per trial?
+- zoning trials + zoning trials
+
+Recommendation 3: 
+
+Recommendation 4: 
+
 # Discussion
+
+- Validity questions - recommendations towards what we should do as a field to validate these measures
 
 
 \newpage
