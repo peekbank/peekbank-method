@@ -41,7 +41,7 @@ We're focused on familiar words here.
 
 ## Get data
 
-```{r, eval=FALSE}
+```{r, eval=TRUE}
 con <- connect_to_peekbank(db_version="peekbank_dev")
 all_aoi_timepoints <- get_aoi_timepoints(connection = con, rle=FALSE)
 
@@ -78,7 +78,7 @@ save(aoi_data_joined, file= here("cached_intermediates","1_aoi_data_joined.Rds")
 Check on number of datasets. 
 
 ```{r}
-load(here("cached_intermediates", "1_aoi_data_joined.Rds"))
+# load(here("cached_intermediates", "1_aoi_data_joined.Rds"))
 length(unique(aoi_data_joined$dataset_name))
 unique(aoi_data_joined$dataset_name)
 ```
