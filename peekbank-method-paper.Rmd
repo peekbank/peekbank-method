@@ -103,9 +103,14 @@ Recommendation 2: [recommendation about how to set missingness criteria & how to
 - how much data per trial?
 - zoning trials + zoning trials
 
-Recommendation 3: 
+Recommendation 3: RT guidance
+- Reliability
+- Windowing
 
-Recommendation 4: 
+Recommendation 4: Number of trials for stable individual kid measures and depending on research question- honing in on the individual differences question
+- stable overall kid values
+- within-participant designs/ detecting a condition difference
+- item-level effects
 
 # Discussion
 
