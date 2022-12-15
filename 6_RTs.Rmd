@@ -1,0 +1,330 @@
+---
+title: "RT Computation"
+author: "Mike Frank"
+date: "2022-12-15"
+output: html_document
+---
+
+
+```{r}
+source(here::here("helper/common.R"))
+```
+
+# Measure 3: Reaction time
+
+## Computing RT 
+First compute reaction time. 
+
+We need RLE data, then we use the RT helper from peekbank-shiny. 
+
+```{r}
+source("../peekbank-shiny/helpers/rt_helper.R")
+```
+
+Compute RTs, relying on the RLE workflow from the shiny app. 
+
+```{r}
+rle_data <- d_trial %>%
+  filter(any(t_norm == 0), # must have data at 0
+         t_norm >= 0) %>% # only pass data after 0
+  group_by(administration_id, trial_id, trial_order) %>%
+  summarise(lengths = rle(aoi)$lengths, 
+            values = rle(aoi)$values) 
+
+d_rt <- rle_data %>%
+  group_by(administration_id, trial_id, trial_order) %>%
+  nest() %>%
+  mutate(data = lapply(data, get_rt)) %>%
+  unnest(cols = c(data)) %>%
+  left_join(d_trial %>%
+              select(-t_norm, -correct, -aoi) %>%
+              distinct())
+```
+
+How many trials have RTs for them?
+
+Almost every trial makes it through the computation, but what prop do we have RTs for.
+
+```{r}
+rt_stats <- d_rt %>% 
+  ungroup() %>%
+  summarise(nas = mean(is.na(rt)), 
+            too_fast = mean(rt < 240, na.rm=TRUE), 
+            d_t = mean(shift_type == "D-T", na.rm=TRUE), 
+            t_d = mean(shift_type == "T-D", na.rm=TRUE),
+            other = mean(shift_type == "other", na.rm=TRUE),
+            no_shift = mean(shift_type == "no shift", na.rm=TRUE))
+
+knitr::kable(rt_stats, digits = 2)
+```
+
+## RT distribution & exclusion
+
+Examine RT distribution.
+
+```{r}
+ggplot(d_rt, aes(x = rt)) + 
+  geom_histogram()
+```
+
+Logs. 
+
+```{r}
+ggplot(d_rt, aes(x = rt)) + 
+  geom_histogram() +
+  scale_x_log10()
+```
+
+Probably should get rid of the RTs < 250ms or so. 
+
+```{r}
+mean(d_rt$rt<350, na.rm=TRUE)
+```
+
+Filter. 
+
+```{r}
+d_rt <- filter(d_rt, 
+               !is.na(rt), 
+               rt > 350)
+```
+
+Look by age.
+
+```{r}
+ggplot(d_rt, 
+       aes(x = age, y = rt)) + 
+  geom_point(alpha = .5) +
+  geom_smooth() 
+```
+Add dataset to try to figure out blockiness. 
+
+```{r}
+ggplot(d_rt, 
+       aes(x = age, y = rt)) + 
+  geom_point(alpha = .1) +
+  geom_smooth() + 
+  facet_wrap(~dataset_name)
+```
+
+Histogram by dataset. 
+
+```{r}
+ggplot(d_rt, 
+       aes(x = rt)) + 
+  geom_histogram() +
+  scale_x_log10() +
+  facet_wrap(~dataset_name, scales = "free_y")
+```
+
+
+
+## RT reliabilities
+
+Let's compute reliabilities now for D-T trials (standard approach, loses half of trials). 
+
+```{r}
+d_rt_dt <- d_rt |>
+  filter(shift_type == "D-T") |>
+  mutate(log_rt = log(rt)) 
+
+rt_iccs <- d_rt_dt |>
+  group_by(dataset_name) |> 
+  nest() |>
+  mutate(stimulus_rt = 
+           unlist(map(data, ~get_icc(.x, 
+                                     column = "rt",
+                                     object = "stimulus"))),
+         admin_rt = 
+           unlist(map(data, ~get_icc(.x, 
+                                     column = "rt",
+                                     object = "administration"))),
+         stimulus_log_rt = 
+           unlist(map(data, ~get_icc(.x, 
+                                     column = "log_rt",
+                                     object = "stimulus"))),
+         admin_log_rt = 
+           unlist(map(data, ~get_icc(.x, 
+                                     column = "log_rt",
+                                     object = "administration")))) |>
+  select(-data) |>
+  unnest(cols = c())
+
+rt_iccs_long <- rt_iccs |>
+  pivot_longer(names_to = "dimension", values_to = "icc", 
+               stimulus_rt:admin_log_rt) |>
+  ungroup() |>
+  separate(dimension, into = c("dimension","measure")) |>
+  mutate(dataset_name = fct_reorder(dataset_name, icc))
+
+```
+
+Plot. 
+
+```{r}
+ggplot(rt_iccs_long, 
+       aes(x = dataset_name, y = icc, col = measure)) +
+  geom_point(position = position_dodge(width = .5)) +
+  geom_line() + 
+  coord_flip() + 
+  facet_wrap(~dimension) 
+```
+Why are some ICCs zero? Let's look at Pomper SalientMe.
+
+```{r}
+ps <- d_rt |> 
+  filter(dataset_name == "pomper_salientme")
+
+ggplot(ps, 
+       aes(x = target_label, y = rt)) +
+  geom_jitter(alpha = .5, width = .2) + 
+  stat_summary(col = "red")
+
+ggplot(ps, 
+       aes(x = administration_id, y = rt)) +
+  geom_jitter(alpha = .5, width = .2) + 
+  stat_summary(col = "red")
+```
+
+Now check ICCs. They are zero. 
+
+```{r}
+# disaggregated
+get_icc(ps, object = "stimulus", column = "rt")
+get_icc(ps, object = "administration", column = "rt")
+```
+
+Is this the repeated trial thing again?
+
+```{r}
+ps_icc <- dim_icc(ps, 
+                  model = "2A", 
+                  type = "agreement", 
+                  unit = "average",
+                  object = administration_id, 
+                  rater = target_label,
+                  trial = trial_id, 
+                  score = rt, 
+                  bootstrap = 1000)
+
+summary(ps_icc)
+```
+
+OK, we think the issue here is that we are essentially at a correlation of zero because there is so much missing data in the kid x stimulus matrix that the overlap is too low to compute ICCs. RT is sparse because you get an RT on not that many trials. 
+
+But why do we get fewer zeros when we subset to D-T trials? Let's dig into this. 
+
+Pomper SalientMe shows this pattern. 
+
+```{r}
+ps
+
+ps_dt <- ps |>
+  filter(shift_type == "D-T")
+
+get_icc(ps, object = "stimulus", column = "rt")
+get_icc(ps_dt, object = "stimulus", column = "rt")
+```
+
+Let's look at the cross between subjects and trials for each. 
+
+```{r}
+ps |> 
+  ungroup() |>
+  select(subject_id, target_label, rt) |>
+  arrange(target_label) |>
+  pivot_wider(names_from = "target_label", values_from = "rt") |>
+  arrange(subject_id)
+
+ps_dt |> 
+  ungroup() |>
+  select(subject_id, target_label, rt) |>
+  arrange(target_label) |>
+  pivot_wider(names_from = "target_label", values_from = "rt") |>
+  arrange(subject_id) 
+```
+
+So the D-T dataframe is sparser, but looks more consistent. Let's check out the distributions. 
+
+```{r}
+ggplot(ps, aes(x = rt)) + 
+  geom_histogram() + 
+  facet_wrap(~shift_type)
+```
+This is consistent with the idea that T-D shifts are trash in this dataset. Let's look at all data. 
+
+```{r}
+ggplot(d_rt, aes(x = rt)) + 
+  geom_histogram() + 
+  facet_wrap(~shift_type)
+```
+Looks well-supported that T-D RTs are different. I now feel comfortable moving forward with D-T only. 
+Let's compare ICC from RTs to ICCs from accuracy. 
+
+```{r}
+trial_ns_acc <- bind_rows(d_summary |>
+                            group_by(dataset_name, subject_id) |>
+                            count() |>
+                            group_by(dataset_name) |>
+                            summarise(n = mean(n), 
+                                      dimension = "admin"),
+                          d_summary |>
+                            group_by(dataset_name, target_label) |>
+                            count() |>
+                            group_by(dataset_name) |>
+                            summarise(n = mean(n), 
+                                      dimension = "stimulus"))
+
+trial_ns_rt <- bind_rows(d_rt_dt |>
+                           group_by(dataset_name, subject_id) |>
+                           count() |>
+                           group_by(dataset_name) |>
+                           summarise(n = mean(n), 
+                                     dimension = "admin"),
+                         bind_rows(d_rt_dt |>
+                                     group_by(dataset_name, subject_id) |>
+                                     count() |>
+                                     group_by(dataset_name) |>
+                                     summarise(n = mean(n), 
+                                               dimension = "stimulus")))
+
+acc_rt_iccs <- bind_rows(filter(iccs_long, measure == "acc") |>
+                           left_join(trial_ns_acc), 
+                         rt_iccs_long |>
+                           left_join(trial_ns_rt)) |>
+  mutate(dataset_name = fct_reorder(as.factor(dataset_name), icc))
+
+
+ggplot(acc_rt_iccs, 
+       aes(x = dataset_name, y = icc, col = measure)) +
+  geom_point(aes(size = n), 
+             position = position_dodge(width = .5)) +
+  geom_line(aes(group = measure)) + 
+  facet_wrap(~dimension) +
+  theme(axis.text.x=element_text(angle=-90))
+
+acc_rt_iccs |> 
+  arrange(dataset_name) |>
+  mutate(icc = round(icc, digits = 2), 
+         n = round(n))
+```
+
+Let's plot by N. 
+
+```{r}
+ggplot(acc_rt_iccs, 
+       aes(x = n, y = icc, col = dataset_name)) + 
+  geom_point() + 
+  geom_smooth(aes(group = 1), method = "loess", span = 10,  se = FALSE) + 
+  # scale_x_log10() +
+  facet_wrap(dimension~measure, scales = "free_x") + 
+  xlab("N trials per child/word") + 
+  ylab("Intraclass Correlation Coefficient") + 
+  ylim(0,1)
+
+```
+This is interesting! We are getting a bunch of signal about individual participants from RT, actually higher ICC than accuracies. Not so much for stimulus information, where it seems like we are doing better from accuracy. Also, as predicted the number of trials per child or per word appears to relate across datasets to the ICC (though there's lots of variance at the bottom end that presumably relates to the variation in ability across kids/variation in difficulty across words). If you choose very different words you get high reliability on that dimension (see "reliability paradoxes" idea).
+
+```{r}
+save(d_rt_dt, file= here("cached_intermediates","2_d_rt_dt.Rds"))
+```
