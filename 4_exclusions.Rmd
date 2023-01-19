@@ -111,13 +111,13 @@ excl_params <- expand_grid(zoners_included = c(FALSE, TRUE),
   mutate(icc = pmap(list(zoners_included, exclude_less_than, object), icc_sim)) |>
   unnest(col = icc)
 
-save(excl_params, file = "cached_intermediates/3_exclusions.Rds")
+save(excl_params, file = "cached_intermediates/4_exclusions.Rds")
 ```
 
 Plot resulting ICCs.
 
 ```{r}
-load("cached_intermediates/3_exclusions.Rds")
+load("cached_intermediates/4_exclusions.Rds")
 
 ggplot(excl_params,
        aes(x = exclude_less_than, y = icc, 

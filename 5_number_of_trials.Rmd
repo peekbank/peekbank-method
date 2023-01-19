@@ -1,5 +1,5 @@
 ---
-title: "Reaction times"
+title: "Number of trials"
 author: "Mike Frank"
 date: "2022-12-15"
 output: html_document
@@ -9,67 +9,156 @@ output: html_document
 source(here::here("helper/common.R"))
 ```
 
+Goal is to find out how ICC varies with number of trials, both within and across datasets. 
+
+Want to look at test-retest in totlot (FM 2012) and Adams Marchman (2018)
+
+Look at condition differences across datasets
+
+# Across datasets - n observations
+
+Let's start by looking at number of trials per kid/per item as a predictor of ICC across datasets. 
 
 ```{r}
-trial_ns_acc <- bind_rows(d_summary |>
-                            group_by(dataset_name, subject_id) |>
-                            count() |>
-                            group_by(dataset_name) |>
-                            summarise(n = mean(n), 
-                                      dimension = "admin"),
-                          d_summary |>
-                            group_by(dataset_name, target_label) |>
-                            count() |>
-                            group_by(dataset_name) |>
-                            summarise(n = mean(n), 
-                                      dimension = "stimulus"))
-
-trial_ns_rt <- bind_rows(d_rt_dt |>
-                           group_by(dataset_name, subject_id) |>
-                           count() |>
-                           group_by(dataset_name) |>
-                           summarise(n = mean(n), 
-                                     dimension = "admin"),
-                         bind_rows(d_rt_dt |>
-                                     group_by(dataset_name, subject_id) |>
-                                     count() |>
-                                     group_by(dataset_name) |>
-                                     summarise(n = mean(n), 
-                                               dimension = "stimulus")))
-
-acc_rt_iccs <- bind_rows(filter(iccs_long, measure == "acc") |>
-                           left_join(trial_ns_acc), 
-                         rt_iccs_long |>
-                           left_join(trial_ns_rt)) |>
-  mutate(dataset_name = fct_reorder(as.factor(dataset_name), icc))
-
-
-ggplot(acc_rt_iccs, 
-       aes(x = dataset_name, y = icc, col = measure)) +
-  geom_point(aes(size = n), 
-             position = position_dodge(width = .5)) +
-  geom_line(aes(group = measure)) + 
-  facet_wrap(~dimension) +
-  theme(axis.text.x=element_text(angle=-90))
-
-acc_rt_iccs |> 
-  arrange(dataset_name) |>
-  mutate(icc = round(icc, digits = 2), 
-         n = round(n))
+d_sim <- d_trial |>
+  group_by(dataset_name, trial_id, dataset_id, subject_id, administration_id, 
+           target_label) |>
+  summarise(accuracy = mean(correct[t_norm > 300 & t_norm < 4000], na.rm=TRUE)) 
 ```
 
-Let's plot by N. 
+Now our simulation. 
 
 ```{r}
-ggplot(acc_rt_iccs, 
-       aes(x = n, y = icc, col = dataset_name)) + 
+get_n_trials <- function (x, column = "accuracy", object = "stimulus") {
+  if (object == "stimulus") {
+    n_trials <- x |>
+      group_by(target_label) |>
+      count() |>
+      ungroup() |>
+      summarise(n_trials = mean(n)) |>
+      pull(n_trials)
+      
+  } else {
+    n_trials <- x |>
+      group_by(administration_id) |>
+      count() |>
+      ungroup() |>
+      summarise(n_trials = mean(n)) |>
+      pull(n_trials)
+      
+  }
+  
+  return(n_trials)
+}
+
+icc_sim <- function (object) 
+{
+  # compute ICCs
+  d_sim |> 
+    group_by(dataset_name) |> 
+    nest() |>
+    mutate(icc = unlist(map(data, ~get_icc(., "accuracy", object))),
+           n_trials = unlist(map(data, ~get_n_trials(., "accuracy", object)))) |>
+    select(-data) |>
+    unnest(cols = c()) 
+}
+
+```
+
+
+```{r, eval= FALSE, error=FALSE, message=FALSE, warning=FALSE}
+iccs <- expand_grid(object = c("stimulus", "administration")) |>
+  mutate(icc = pmap(list(object), icc_sim)) |>
+  unnest(col = icc)
+
+save(iccs, file = "cached_intermediates/5_n_trials.Rds")
+```
+
+Plot resulting ICCs.
+
+```{r}
+load("cached_intermediates/5_n_trials.Rds")
+
+ggplot(iccs,
+       aes(x = n_trials, y = icc, col = dataset_name)) + 
   geom_point() + 
-  geom_smooth(aes(group = 1), method = "loess", span = 10,  se = FALSE) + 
-  # scale_x_log10() +
-  facet_wrap(dimension~measure, scales = "free_x") + 
-  xlab("N trials per child/word") + 
-  ylab("Intraclass Correlation Coefficient") + 
-  ylim(0,1)
+  geom_smooth(method = "lm", aes(group = 1)) +
+  geom_label_repel(aes(label = dataset_name)) + 
+  facet_wrap(~object, scales = "free_x") + 
+  ylab("ICC") + 
+  xlab("Number of observations per group") + 
+  ggthemes::theme_few() + 
+  theme(legend.position = "bottom") 
 
 ```
-This is interesting! We are getting a bunch of signal about individual participants from RT, actually higher ICC than accuracies. Not so much for stimulus information, where it seems like we are doi
+
+
+# Within dataset - n observations
+
+Now let's take advantage of datasets with lots of trials per kid and see what we can do about subsampling to look at reliabilities over number of trials.
+
+UNMODIFIED CODE BELOW
+
+```{r}
+get_n_trials <- function (x, column = "accuracy", object = "stimulus") {
+  if (object == "stimulus") {
+    n_trials <- x |>
+      group_by(target_label) |>
+      count() |>
+      ungroup() |>
+      summarise(n_trials = mean(n)) |>
+      pull(n_trials)
+      
+  } else {
+    n_trials <- x |>
+      group_by(administration_id) |>
+      count() |>
+      ungroup() |>
+      summarise(n_trials = mean(n)) |>
+      pull(n_trials)
+      
+  }
+  
+  return(n_trials)
+}
+
+icc_sim <- function (object) 
+{
+  # compute ICCs
+  d_sim |> 
+    group_by(dataset_name) |> 
+    nest() |>
+    mutate(icc = unlist(map(data, ~get_icc(., "accuracy", object))),
+           n_trials = unlist(map(data, ~get_n_trials(., "accuracy", object)))) |>
+    select(-data) |>
+    unnest(cols = c()) 
+}
+
+```
+
+
+```{r, eval= FALSE, error=FALSE, message=FALSE, warning=FALSE}
+iccs <- expand_grid(object = c("stimulus", "administration")) |>
+  mutate(icc = pmap(list(object), icc_sim)) |>
+  unnest(col = icc)
+
+save(iccs, file = "cached_intermediates/5_n_trials.Rds")
+```
+
+Plot resulting ICCs.
+
+```{r}
+load("cached_intermediates/5_n_trials.Rds")
+
+ggplot(iccs,
+       aes(x = n_trials, y = icc, col = dataset_name)) + 
+  geom_point() + 
+  geom_smooth(method = "lm", aes(group = 1)) +
+  geom_label_repel(aes(label = dataset_name)) + 
+  facet_wrap(~object, scales = "free_x") + 
+  ylab("ICC") + 
+  xlab("Number of observations per group") + 
+  ggthemes::theme_few() + 
+  theme(legend.position = "bottom") 
+
+```

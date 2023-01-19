@@ -2,8 +2,9 @@
 
 library(here)
 library(tidyverse)
+library(multidplyr)
 # library(ggpmisc)
-# library(ggrepel)
+library(ggrepel)
 # library(ggthemes)
 library(viridis)
 # library(cowplot)
