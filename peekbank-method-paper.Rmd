@@ -61,6 +61,7 @@ knitr::opts_chunk$set(cache.extra = knitr::rand_seed)
 
 # Introduction
 
+
 Early language is important construct for science, clinical applications, etc. 
 The looking while listening task is a good measure of early language processing. 
 - task description
@@ -75,6 +76,14 @@ Reliability and validity of the measure is important. reliability prerequisite. 
 - MB test-retest
 
 ICC as one approach to measure reliability. 
+
+[setup importance of word recognition/ LWL in particular - 1 or 2 paragraphs]
+
+[define problem: how do we establish data analysis strategies that help us understand what we care about. Can we do this in a data-driven way]
+
+goals:
+- make data-driven recommendations based on Peekbank for data analysis strategies that maximize reliability
+(- and validity? Would require incorporating some independent data/ trying to configure CDI pipeline)
 
 People do lots of things when they analyze LWL data. 
 - accuracy (average accuracy within a fixed window)
