@@ -10,6 +10,12 @@ output: html_document
 source(here::here("helper/common.R"))
 ```
 
+# Load data
+
+```{r}
+load(file = here("cached_intermediates","1_d_trial.Rds"))
+```
+
 # Measure 3: Reaction time
 
 ## Computing RT 
