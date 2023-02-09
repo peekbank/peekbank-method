@@ -122,17 +122,18 @@ Recommendation 1: To maximize reliability, choose long time windows.
 
 - make sure that in phonetic competition you still see the same thing - check on the competition in swingley and aslin - do longer windows show bigger condition effects?
 
-
-Recommendation 2: [recommendation about how to set missingness criteria & how to deal with zoners - probably err on the side of including more data?]
-- how many trials?
-- how much data per trial?
-- zoning trials + zoning trials
-
-Recommendation 3: RT guidance
+Recommendation 2: RT guidance
 - Reliability
 - Windowing
 
 - what counts as a t start vs d. start (ELIKA) - how many D fixations etc. 
+
+
+Recommendation 3: [recommendation about how to set missingness criteria & how to deal with zoners - probably err on the side of including more data?]
+- how many trials?
+- how much data per trial?
+- zoning trials + zoning trials
+
 
 Recommendation 4: Number of trials for stable individual kid measures or for condition differences
 - stable overall kid values
