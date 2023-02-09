@@ -299,7 +299,9 @@ gb_data <- gb_aoi_timepoints |>
   left_join(subjects)
 
 vanilla_cdi_datasets <- bind_rows(filter(sa_data, condition == "Correct"), 
-                                  gb_data) 
+                                  gb_data) |>
+    mutate(correct = ifelse(aoi == "target", 1, 
+                            ifelse(aoi == "distractor", 0, NA)))
 ```
 
 Now let's get our sim function. 
@@ -307,11 +309,11 @@ Now let's get our sim function.
 ```{r}
 cdi_sim <- function (t_start = -500, t_end = 4000) 
 {
+  # first average by trial then by subject
   by_subject_accuracies <- vanilla_cdi_datasets  |>
     filter(t_norm >= t_start, t_norm <= t_end) |>
-    group_by(dataset_name, t_norm, lab_subject_id) |> 
-    summarize(correct = sum(aoi == "target") / 
-                sum(aoi %in% c("target","distractor")))
+    group_by(dataset_name, lab_subject_id, trial_id) |> 
+    summarize(correct = mean(correct, na.rm=TRUE)) 
   
   mean_accuracies <- by_subject_accuracies |>
     group_by(dataset_name, lab_subject_id) |> 
@@ -326,14 +328,15 @@ cdi_sim <- function (t_start = -500, t_end = 4000)
 ```
 
 ```{r}
-cdi_params <- expand_grid(t_start = seq(-1000, 1500, 200),
-                          t_end = seq(2000, 3000, 200))  
+cdi_params <- expand_grid(t_start = seq(-1000, 1500, 500),
+                          t_end = seq(2000, 4000, 500))  
 tic()
 cdi_corrs <- cdi_params |> 
   mutate(icc = pmap(list(t_start, t_end), cdi_sim)) |>
   unnest(col = icc)
 toc()
 ```
+
 ```{r}
 cdi_corrs <- cdi_corrs |>
   pivot_longer(names_to = "measure", values_to = "r", starts_with("cor"))
@@ -357,10 +360,211 @@ ggplot(cdi_corrs, aes(col = r)) +
   facet_grid(dataset_name~ measure)
 ```
 
+# Baseline-corrected accuracy
+
+## ICC approach
+
+```{r}
+icc_bc_window_sim <- function (b_start = -2000, b_end = 0,  
+                            t_start = 500, t_end = 4000, 
+                            object) 
+{
+  # get trials with some baseline
+  baseline_lengths <- d_trial |>
+    group_by(dataset_name, trial_id) |> 
+    summarise(t_min = min(t_norm))
+  
+  # get baseline corrected accuracies for all trials with ANY baseline info
+  df <- d_trial |>
+    left_join(baseline_lengths) |>
+    filter(t_min < 0) |>
+    group_by(dataset_name, dataset_id, administration_id, target_label, trial_id) |>
+    summarise(window_accuracy = mean(correct[t_norm >= t_start & t_norm <= t_end], 
+                                     na.rm=TRUE),
+              baseline_accuracy = mean(correct[t_norm >= b_start & t_norm <= b_end], 
+                                     na.rm=TRUE), 
+              bc_accuracy = window_accuracy - baseline_accuracy) |>
+    filter(!is.na(bc_accuracy))
+  
+  # compute ICCs
+  df |> 
+    group_by(dataset_name) |> 
+    nest() |>
+    mutate(icc = unlist(map(data, ~get_icc(., "bc_accuracy", object)))) |>
+    select(-data) |>
+    unnest(cols = c()) 
+}
+```
+
+```{r}
+bc_acc_params <- expand_grid(t_start = seq(500, 1500, 500),
+                             t_end = seq(2000, 4000, 500),
+                             b_start = seq(-2000,-1000, 500), 
+                             b_end = seq(-500, 0, 500),
+                             object = c("stimulus", "administration"))
+
+# multidyplr attempt
+cluster <- new_cluster(14) 
+cluster_library(cluster, "tidyverse")
+cluster_library(cluster, "agreement")
+cluster_copy(cluster, "icc_bc_window_sim")
+cluster_copy(cluster, "get_icc")
+cluster_copy(cluster, "d_trial")
+  
+tic()
+bc_accs <- bc_acc_params |> 
+  partition(cluster) |>
+  mutate(icc = pmap(list(b_start, b_end, t_start, t_end, object), icc_bc_window_sim)) |>
+  collect() |>
+  unnest(col = icc)
+toc()
+
+save(file = "cached_intermediates/3_bc_accs.Rds", bc_accs)
+```
+
+```{r}
+load(file = "cached_intermediates/3_bc_accs.Rds")
+```
+
+Summary data frame. 
+
+```{r}
+bc_accs_summary <- bc_accs |>
+  group_by(b_start, b_end, t_start, t_end, object) |>
+  summarize(N = n(),
+            mean_icc = mean(icc,na.rm=TRUE)) |>
+  mutate(window_size = t_end - t_start, 
+         bc_window_size = b_end - b_start)
+```
+
+
+```{r}
+ggplot(bc_accs_summary,
+       aes(color=mean_icc))+
+  geom_vline(xintercept=0,linetype="dashed")+
+  geom_segment(aes(x=t_start,xend=t_end,y=mean_icc,yend=mean_icc))+
+  geom_segment(aes(x=t_start,xend=t_start,y=mean_icc-0.005,yend=mean_icc+0.005))+
+  geom_segment(aes(x=t_end,xend=t_end,y=mean_icc-0.005,yend=mean_icc+0.005))+
+  scale_color_viridis(name="Mean ICC",direction=-1) + 
+  theme(legend.position="none") +
+  ylab("Mean ICC") +
+  xlab("Analysis Window (in ms)") + 
+  facet_grid(bc_window_size~object)
+```
+These numbers seem low. 
+
+Compare to non-corrected accuracies. 
+
+```{r}
+load(file = "cached_intermediates/3_accs.Rds")
+
+accs_summary <- accs |>
+  group_by(t_start,t_end,object) |>
+  summarize(mean_uncorrected_icc = mean(icc, na.rm=TRUE)) 
+
+comparison_accs_summary <- left_join(bc_accs_summary, accs_summary)
+```
+
+```{r}
+ggplot(comparison_accs_summary, aes(x = mean_uncorrected_icc, y = mean_icc, col = window_size)) + 
+  geom_point() +
+  geom_smooth(method = "lm") + 
+  geom_abline(lty = 2) + 
+  # xlim(0,.6) + ylim(0,.6) + 
+  facet_grid(bc_window_size~ object)
+```
+Possible interpretation (pace Dan Swingley): baselines are short and noisy. By adding them into the signal, you are diluting what you have. 
+
+Note that we don't have a lot of baseline data here (no more than 2s) so we can't rule out the idea that a longer (4s or so) baseline would be meaningful or useful in a correction analysis. But even with 2s we see substantial reductions in ICC. 
+
+## CDI validity with baseline correction
+
+```{r}
+cdi_bc_sim <- function (t_start = 500, t_end = 4000) 
+{
+  # get trials with some baseline
+  baseline_lengths <- vanilla_cdi_datasets |>
+    group_by(dataset_name, trial_id) |> 
+    summarise(t_min = min(t_norm))
+  
+  # get baseline corrected accuracies for all trials with ANY baseline info
+  by_subject_accuracies <- vanilla_cdi_datasets |>
+    left_join(baseline_lengths) |>
+    filter(t_min < 0) |>
+    group_by(dataset_name, lab_subject_id, trial_id) |>
+    summarize(window_accuracy = mean(correct[t_norm >= t_start & t_norm <= t_end], 
+                                     na.rm=TRUE),
+              baseline_accuracy = mean(correct[t_norm >= -2000 & t_norm <= 0], 
+                                     na.rm=TRUE), 
+              bc_accuracy = window_accuracy - baseline_accuracy) 
+  
+  mean_accuracies <- by_subject_accuracies |>
+    group_by(dataset_name, lab_subject_id) |> 
+    summarize(bc_accuracy = mean(bc_accuracy)) |>
+    left_join(cdis)
+  
+  mean_accuracies |>
+    group_by(dataset_name) |>
+    summarise(cor_comp = cor.test(bc_accuracy, eng_wg_understood)$estimate,
+              cor_prod = cor.test(bc_accuracy, eng_wg_produced)$estimate)
+}
+```
+
+```{r}
+cdi_params <- expand_grid(t_start = seq(500, 1500, 500),
+                          t_end = seq(2000, 4000, 500))  
+tic()
+cdi_bc_corrs <- cdi_params |> 
+  mutate(icc = pmap(list(t_start, t_end), cdi_bc_sim)) |>
+  unnest(col = icc)
+toc()
+
+cdi_bc_corrs <- cdi_bc_corrs |>
+  pivot_longer(names_to = "measure", values_to = "r", starts_with("cor"))
+```
+
+Visualize!
+
+
+```{r}
+ggplot(cdi_bc_corrs, aes(col = r)) + 
+  geom_vline(xintercept=0, linetype="dashed")+
+  geom_hline(yintercept=0.05, lty=3)+
+  geom_segment(aes(x=t_start,xend=t_end,y=r,yend=r))+
+  # geom_segment(aes(x=t_start,xend=t_start,y=mean_icc-0.005,yend=mean_icc+0.005))+
+  # geom_segment(aes(x=t_end,xend=t_end,y=mean_icc-0.005,yend=mean_icc+0.005))+
+  scale_color_viridis(name="Mean ICC",direction=-1) + 
+  # scale_y_log10() + 
+  theme(legend.position="none") +
+  ylab("Correlation with MB-CDI sumscore") +
+  xlab("Analysis Window (in ms)") +
+  facet_grid(dataset_name~ measure)
+```
+
+Compare to uncorrected. 
+
+```{r}
+cdi_comparison <- left_join(rename(cdi_bc_corrs, r_baseline_corrected = r), 
+          rename(cdi_corrs, r_uncorrected = r)) |>
+  mutate(window_size = t_end - t_start)
+
+ggplot(cdi_comparison, aes(x = r_uncorrected, y = r_baseline_corrected, col = window_size)) + 
+  geom_point() + 
+  geom_smooth(method = "lm") + 
+  geom_abline(lty = 2) + 
+  facet_wrap(~dataset_name)
+
+```
+
+This is overall surprising. For Swingley & Aslin, baseline correction makes things look way worse. But for Garrison & Bergelson, it seems like baseline correction helps. 
+
+
 # Summary
 
 * ICCs show high reliability for LONG time windows (500 - 4000) for subjects. 
 * For administrations, the baseline period actually is quite reliable (indicating visual salience). 
 * For experimental effects, there is a shorter window when the curves pull apart, but we don't have an a priori guess about when that is. Would be interesting to do this with more datasets. 
 * For correlations with CDI, it looks like shorter more traditional windows are more correlated (at least for the youngest kids). 
+
+So longer windows apparently index information about the child beyond what's captured by parent report. This could be language-related but not captured by CDIs - for example, late emerging or more fragmentary word knowledge, or it could be something like attention or memory or sticky fixation. Some users might want to get this information, while others might not. 
 

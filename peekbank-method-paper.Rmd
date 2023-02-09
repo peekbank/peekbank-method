@@ -122,6 +122,9 @@ Recommendation 1: To maximize reliability, choose long time windows.
 
 - make sure that in phonetic competition you still see the same thing - check on the competition in swingley and aslin - do longer windows show bigger condition effects?
 
+[WHAT ABOUT BASELINE CORRECTION]
+
+
 Recommendation 2: RT guidance
 - Reliability
 - Windowing
