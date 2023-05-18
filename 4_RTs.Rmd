@@ -54,8 +54,8 @@ Almost every trial makes it through the computation, but what prop do we have RT
 ```{r}
 rt_stats <- d_rt %>% 
   ungroup() %>%
-  summarise(nas = mean(is.na(rt)), 
-            too_fast = mean(rt < 240, na.rm=TRUE), 
+  summarise(nas = mean(is.na(shift_start_rt)), 
+            too_fast = mean(shift_start_rt < 300, na.rm=TRUE), 
             d_t = mean(shift_type == "D-T", na.rm=TRUE), 
             t_d = mean(shift_type == "T-D", na.rm=TRUE),
             other = mean(shift_type == "other", na.rm=TRUE),
@@ -69,14 +69,14 @@ knitr::kable(rt_stats, digits = 2)
 Examine RT distribution.
 
 ```{r}
-ggplot(d_rt, aes(x = rt)) + 
+ggplot(filter(d_rt,shift_start_rt>=300), aes(x = shift_start_rt)) + 
   geom_histogram()
 ```
 
 Logs. 
 
 ```{r}
-ggplot(d_rt, aes(x = rt)) + 
+ggplot(d_rt, aes(x = shift_start_rt)) + 
   geom_histogram() +
   scale_x_log10()
 ```
@@ -84,7 +84,7 @@ ggplot(d_rt, aes(x = rt)) +
 Probably should get rid of the RTs < 250ms or so. 
 
 ```{r}
-mean(d_rt$rt<350, na.rm=TRUE)
+mean(d_rt$shift_start_rt<250, na.rm=TRUE)
 ```
 
 Filter. 
