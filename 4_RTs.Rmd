@@ -91,8 +91,8 @@ Filter.
 
 ```{r}
 d_rt <- filter(d_rt, 
-               !is.na(rt), 
-               rt > 350)
+               !is.na(shift_start_rt), 
+               shift_start_rt > 250)
 ```
 
 Look by age.
@@ -101,7 +101,7 @@ Look by age.
 ggplot(d_rt, 
        aes(x = age, y = rt)) + 
   geom_point(alpha = .5) +
-  geom_smooth() 
+  geom_smooth(method="lm") 
 ```
 Add dataset to try to figure out blockiness. 
 
@@ -109,7 +109,7 @@ Add dataset to try to figure out blockiness.
 ggplot(d_rt, 
        aes(x = age, y = rt)) + 
   geom_point(alpha = .1) +
-  geom_smooth() + 
+  geom_smooth(method="lm") + 
   facet_wrap(~dataset_name)
 ```
 
@@ -132,7 +132,7 @@ Let's compute reliabilities now for D-T trials (standard approach, loses half of
 ```{r}
 d_rt_dt <- d_rt |>
   filter(shift_type == "D-T") |>
-  mutate(log_rt = log(rt)) 
+  mutate(log_rt = log(shift_start_rt)) 
 
 rt_iccs <- d_rt_dt |>
   group_by(dataset_name) |> 
