@@ -140,6 +140,8 @@ iccs <- d_summary |>
   unnest(cols = c())
 
 knitr::kable(iccs, digits = 2)
+
+save(iccs, file= here("cached_intermediates","2_iccs_accuracy.Rds"))
 ```
 
 OK, to summarize, we think we understand the ICCs. They are:

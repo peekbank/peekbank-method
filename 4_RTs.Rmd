@@ -90,6 +90,8 @@ mean(d_rt$shift_start_rt<250, na.rm=TRUE)
 Filter. 
 
 ```{r}
+d_rt_all <- filter(d_rt, 
+               !is.na(shift_start_rt))
 d_rt <- filter(d_rt, 
                !is.na(shift_start_rt), 
                shift_start_rt > 250)
@@ -139,11 +141,11 @@ rt_iccs <- d_rt_dt |>
   nest() |>
   mutate(stimulus_rt = 
            unlist(map(data, ~get_icc(.x, 
-                                     column = "rt",
+                                     column = "shift_start_rt",
                                      object = "stimulus"))),
          admin_rt = 
            unlist(map(data, ~get_icc(.x, 
-                                     column = "rt",
+                                     column = "shift_start_rt",
                                      object = "administration"))),
          stimulus_log_rt = 
            unlist(map(data, ~get_icc(.x, 
@@ -162,7 +164,6 @@ rt_iccs_long <- rt_iccs |>
   ungroup() |>
   separate(dimension, into = c("dimension","measure")) |>
   mutate(dataset_name = fct_reorder(dataset_name, icc))
-
 ```
 
 Plot. 
@@ -175,11 +176,11 @@ ggplot(rt_iccs_long,
   coord_flip() + 
   facet_wrap(~dimension) 
 ```
-Why are some ICCs zero? Let's look at Pomper SalientMe.
+Why are some ICCs zero? Let's look at Pomper Saffran 2016.
 
 ```{r}
 ps <- d_rt |> 
-  filter(dataset_name == "pomper_salientme")
+  filter(dataset_name == "pomper_saffran_2016")
 
 ggplot(ps, 
        aes(x = target_label, y = rt)) +
@@ -330,6 +331,35 @@ ggplot(acc_rt_iccs,
 
 ```
 This is interesting! We are getting a bunch of signal about individual participants from RT, actually higher ICC than accuracies. Not so much for stimulus information, where it seems like we are doing better from accuracy. Also, as predicted the number of trials per child or per word appears to relate across datasets to the ICC (though there's lots of variance at the bottom end that presumably relates to the variation in ability across kids/variation in difficulty across words). If you choose very different words you get high reliability on that dimension (see "reliability paradoxes" idea).
+
+## Compare ICCs for RT and Accuracy
+
+```{r}
+#load ICCs for accuracy
+load(file = here("cached_intermediates","2_iccs_accuracy.Rds"))
+
+#combine
+all_iccs <- iccs %>%
+  left_join(rt_iccs)
+
+#plot - Participants
+ggplot(all_iccs, aes(admin_rt,icc_admin_acc))+
+  geom_point(size=1.5)+
+  geom_text(aes(label=dataset_name))+
+  geom_abline(intercept=0,slope=1)+
+  xlim(0,1)+
+  ylim(0,1)
+
+#plot - Items
+ggplot(all_iccs, aes(stimulus_rt,icc_stimulus_acc))+
+  geom_point(size=1.5)+
+  geom_text(aes(label=dataset_name))+
+  geom_abline(intercept=0,slope=1)+
+  xlim(0,1)+
+  ylim(0,1)
+```
+
+## Look at RTs as a function of filtering
 
 ```{r}
 save(d_rt_dt, file= here("cached_intermediates","2_d_rt_dt.Rds"))
