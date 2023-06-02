@@ -269,6 +269,13 @@ Looks well-supported that T-D RTs are different. I now feel comfortable moving f
 Let's compare ICC from RTs to ICCs from accuracy. 
 
 ```{r}
+d_summary <- d_trial |>
+  group_by(dataset_name, trial_id, dataset_id, subject_id, administration_id, 
+           target_label) |>
+  summarise(accuracy = mean(correct[t_norm > 500], na.rm=TRUE),
+            prop_data = mean(!is.na(correct[t_norm > 500]))) |>
+  filter(!is.na(accuracy))
+
 trial_ns_acc <- bind_rows(d_summary |>
                             group_by(dataset_name, subject_id) |>
                             count() |>
@@ -294,12 +301,23 @@ trial_ns_rt <- bind_rows(d_rt_dt |>
                                      group_by(dataset_name) |>
                                      summarise(n = mean(n), 
                                                dimension = "stimulus")))
+#load ICCs for accuracy
+load(file = here("cached_intermediates","2_iccs_accuracy.Rds"))
+
+iccs_long <- iccs |>
+  pivot_longer(names_to = "dimension", values_to = "icc", 
+               icc_stimulus_acc:icc_admin_acc) |>
+  ungroup() |>
+  separate(dimension, into = c("type","dimension","measure")) |>
+  mutate(dataset_name = fct_reorder(dataset_name, icc))
+
 
 acc_rt_iccs <- bind_rows(filter(iccs_long, measure == "acc") |>
                            left_join(trial_ns_acc), 
                          rt_iccs_long |>
                            left_join(trial_ns_rt)) |>
-  mutate(dataset_name = fct_reorder(as.factor(dataset_name), icc))
+  mutate(dataset_name = fct_reorder(as.factor(dataset_name), icc)) |>
+  select(-type)
 
 
 ggplot(acc_rt_iccs, 
@@ -335,9 +353,6 @@ This is interesting! We are getting a bunch of signal about individual participa
 ## Compare ICCs for RT and Accuracy
 
 ```{r}
-#load ICCs for accuracy
-load(file = here("cached_intermediates","2_iccs_accuracy.Rds"))
-
 #combine
 all_iccs <- iccs %>%
   left_join(rt_iccs)
