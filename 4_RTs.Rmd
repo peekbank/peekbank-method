@@ -183,25 +183,25 @@ ps <- d_rt |>
   filter(dataset_name == "pomper_saffran_2016")
 
 ggplot(ps, 
-       aes(x = target_label, y = rt)) +
+       aes(x = target_label, y = shift_start_rt)) +
   geom_jitter(alpha = .5, width = .2) + 
-  stat_summary(col = "red")
+  stat_summary(col = "red")+
+  theme(axis.text.x  = element_text(angle=90, vjust=0.5))
 
 ggplot(ps, 
-       aes(x = administration_id, y = rt)) +
+       aes(x = administration_id, y = shift_start_rt)) +
   geom_jitter(alpha = .5, width = .2) + 
   stat_summary(col = "red")
 ```
 
-Now check ICCs. They are zero. 
+Now check ICCs for RTs for ALL trials (not subsetting to D-T trials). They look OK.
 
 ```{r}
 # disaggregated
-get_icc(ps, object = "stimulus", column = "rt")
-get_icc(ps, object = "administration", column = "rt")
+get_icc(ps, object = "stimulus", column = "shift_start_rt")
+get_icc(ps, object = "administration", column = "shift_start_rt")
 ```
 
-Is this the repeated trial thing again?
 
 ```{r}
 ps_icc <- dim_icc(ps, 
@@ -211,54 +211,113 @@ ps_icc <- dim_icc(ps,
                   object = administration_id, 
                   rater = target_label,
                   trial = trial_id, 
-                  score = rt, 
+                  score = shift_start_rt, 
                   bootstrap = 1000)
 
 summary(ps_icc)
 ```
 
-OK, we think the issue here is that we are essentially at a correlation of zero because there is so much missing data in the kid x stimulus matrix that the overlap is too low to compute ICCs. RT is sparse because you get an RT on not that many trials. 
-
-But why do we get fewer zeros when we subset to D-T trials? Let's dig into this. 
+This all looks good and ICCs seem reasonably high - but why do we get fewer zeros when we subset to D-T trials? Let's dig into this. 
 
 Pomper SalientMe shows this pattern. 
 
 ```{r}
-ps
-
 ps_dt <- ps |>
   filter(shift_type == "D-T")
 
-get_icc(ps, object = "stimulus", column = "rt")
-get_icc(ps_dt, object = "stimulus", column = "rt")
+get_icc(ps, object = "stimulus", column = "shift_start_rt")
+get_icc(ps_dt, object = "stimulus", column = "shift_start_rt")
 ```
 
-Let's look at the cross between subjects and trials for each. 
+Stimulus ICC goes to zero for D-T trials. Let's look at the cross between subjects and trials for each. 
 
 ```{r}
 ps |> 
   ungroup() |>
-  select(subject_id, target_label, rt) |>
+  select(subject_id, target_label, shift_start_rt) |>
   arrange(target_label) |>
-  pivot_wider(names_from = "target_label", values_from = "rt") |>
-  arrange(subject_id)
+  pivot_wider(names_from = "target_label", values_from = "shift_start_rt") |>
+  arrange(subject_id) |>
+  View()
+
+#summarize by stimulus
+ps_stimulus_rt_summarized <- ps |>
+  ungroup() |>
+  group_by(target_label) |>
+  summarize(
+    N=n(),
+    mean_rt=mean(shift_start_rt,na.rm=TRUE)
+  )
+
+ps_stimulus_rt_summarized <- ps |>
+  ungroup() |>
+  group_by(target_label) |>
+  summarize(
+    N=n(),
+    mean_rt=mean(shift_start_rt,na.rm=TRUE)
+  )
+
+ps_admin_rt_summarized <- ps |>
+  ungroup() |>
+  group_by(administration_id) |>
+  summarize(
+    N=n(),
+    mean_rt=mean(shift_start_rt,na.rm=TRUE)
+  )
+  
 
 ps_dt |> 
   ungroup() |>
-  select(subject_id, target_label, rt) |>
+  select(subject_id, target_label, shift_start_rt) |>
   arrange(target_label) |>
-  pivot_wider(names_from = "target_label", values_from = "rt") |>
-  arrange(subject_id) 
+  pivot_wider(names_from = "target_label", values_from = "shift_start_rt") |>
+  arrange(subject_id) |>
+  View()
+
+#summarize by stimulus
+ps_dt_stimulus_rt_summarized <- ps_dt |>
+  ungroup() |>
+  group_by(administration_id,target_label) |>
+  summarize(
+    N=n(),
+    mean_rt=mean(shift_start_rt,na.rm=TRUE),
+    unique_participants=length(unique(administration_id))
+  )
+
+ps_dt_admin_rt_summarized <- ps_dt |>
+  ungroup() |>
+  group_by(administration_id) |>
+  summarize(
+    N=n(),
+    mean_rt=mean(shift_start_rt,na.rm=TRUE)
+  )
 ```
 
 So the D-T dataframe is sparser, but looks more consistent. Let's check out the distributions. 
+
+Let's check if removing rare items fixes the ICC issue
+
+```{r}
+rare_items <- ps_dt_stimulus_rt_summarized |>
+  filter(N<8) %>%
+  pull(target_label)
+rare_participants <- ps_dt_admin_rt_summarized |>
+  filter(N<5) %>%
+  pull(administration_id)
+
+get_icc(filter(ps_dt,!(target_label %in% rare_items)), object = "stimulus", column = "shift_start_rt")
+get_icc(filter(ps_dt,!(administration_id %in% rare_participants)), object = "stimulus", column = "shift_start_rt")
+```
+
+filtering out rare participants or stimuli doesn't seem to matter.
+
 
 ```{r}
 ggplot(ps, aes(x = rt)) + 
   geom_histogram() + 
   facet_wrap(~shift_type)
 ```
-This is consistent with the idea that T-D shifts are trash in this dataset. Let's look at all data. 
+This is consistent with the idea that T-D shifts are more random/ uninformative. Let's look at all data. 
 
 ```{r}
 ggplot(d_rt, aes(x = rt)) + 
