@@ -10,6 +10,7 @@ library(viridis)
 # library(cowplot)
 # remotes::install_github("jmgirard/agreement")
 library(agreement)
+library(tictoc)
 
 # Seed for random number generation
 set.seed(42)
