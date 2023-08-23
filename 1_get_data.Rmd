@@ -16,7 +16,7 @@ suppressPackageStartupMessages(library(here))
 suppressPackageStartupMessages(library(tidyverse))
 suppressPackageStartupMessages(library(peekbankr))
 suppressPackageStartupMessages(library(lme4))
-suppressPackageStartupMessages(library(ggpmisc))
+# suppressPackageStartupMessages(library(ggpmisc))
 suppressPackageStartupMessages(library(ggrepel))
 suppressPackageStartupMessages(library(ggthemes))
 

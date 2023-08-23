@@ -189,6 +189,7 @@ This is with younger kids.
 
 We have to reload data because our working dataframe is only "vanilla" familiar word trials. 
 
+
 ```{r}
 library(peekbankr)
 subjects <- get_subjects()
@@ -284,25 +285,13 @@ Load the CDI scores for Garrison et al. (2020) and Swingley & Aslin (2002) and G
 
 We are pretty sure that SA and GB both used the WG form (SA says it's WS in our data but we think that's an error). 
 
+This function is abstracted because it's used in multiple analyses. (Note that it reloads `sa_data`). 
+
 ```{r}
-cdis <- read_csv("aux_data/cdi_data.csv")
-
-gb_administrations <- get_administrations(dataset_name = "garrison_bergelson_2020")
-gb_trial_types <- get_trial_types(dataset_name = "garrison_bergelson_2020")
-gb_trials <- get_trials(dataset_name = "garrison_bergelson_2020")
-gb_aoi_timepoints <- get_aoi_timepoints(dataset_name = "garrison_bergelson_2020")
-
-gb_data <- gb_aoi_timepoints |>
-  left_join(gb_administrations) |>
-  left_join(gb_trials) |>
-  left_join(gb_trial_types) |>
-  left_join(subjects)
-
-vanilla_cdi_datasets <- bind_rows(filter(sa_data, condition == "Correct"), 
-                                  gb_data) |>
-    mutate(correct = ifelse(aoi == "target", 1, 
-                            ifelse(aoi == "distractor", 0, NA)))
+source(here("helper","cdi_data_merge.R"))
 ```
+
+
 
 Now let's get our sim function. 
 

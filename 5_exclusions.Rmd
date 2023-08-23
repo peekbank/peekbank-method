@@ -395,7 +395,40 @@ d_kid_sim <- d_trial |>
   filter(!is.na(accuracy))
 ```
 
-Let's assume that each task has a constant number of trials per. 
+Let's assume that each task has a constant number of trials per.
+
+Side bias is giving us trouble, so let's check on it and make sure it is reasonable.
+
+```{r}
+ggplot(d_kid_sim, aes(x = prop_right)) + 
+  geom_histogram() + 
+  facet_wrap(~dataset_name, scales="free_y")
+```
+This graph confirms side bias in general. Let's look by kid, are there actually any kids that have extensive side bias. 
+
+```{r}
+d_kid_sim |>
+  group_by(dataset_name, administration_id) |>
+  summarise(prop_right = mean(prop_right, na.rm=TRUE)) |>
+  ggplot(aes(x = prop_right, fill = prop_right > .9 | prop_right < .1)) + 
+  geom_histogram() +
+  facet_wrap(~dataset_name, scales = "free_y")
+```
+OK, so we've confirmed that there are almost no kids that have this. How many actually?
+
+```{r}
+d_kid_sim |>
+  group_by(dataset_name, administration_id) |>
+  summarise(prop_right = mean(prop_right, na.rm=TRUE), 
+            n = n()) |>
+  mutate(side_bias = prop_right > .9 | prop_right < .1) |>
+  group_by(dataset_name, side_bias) |>
+  summarise(n_kids = n(), 
+            n_trials = mean(n)) |>
+  arrange(side_bias)
+```
+
+Main simulation code. 
 
 ```{r}
 dataset_sizes <- d_kid_sim |>
@@ -547,6 +580,19 @@ ggplot(filter(excl_kid, prop_useable == 0),
   facet_grid(.~object) + 
   ylab("proportion data retained") + 
   xlab("Kid-level exclusion cutoff")
+```
+Having looked into side bias, the reason this is not doing anything is because there are VERY few kids with true side bias (maybe two kids with more than 3-5 trials in current data), and most of them have very little data. 
+
+Conclusion of this simulation is that it doesn't help administration-level ICC to remove kids with fewer trials, and it's actively bad for estimating item effects. 
+
+## Validity consequences
+
+```{r}
+source(here("helper","helper/cdi_data_merge.R"))
+```
+
+```{r}
+vanilla_cdi_datasets
 ```
 
 

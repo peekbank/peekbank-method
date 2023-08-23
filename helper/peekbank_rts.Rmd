@@ -249,7 +249,7 @@ rt_means <- corr_fam_rts %>%
 
 ggplot(rt_means, 
        aes(y = sorted_stimulus_label, x = mean_rt)) + 
-  ggstance::geom_linerangeh(aes(xmin = mean_rt - ci, xmax = mean_rt + ci)) + 
+  # ggstance::geom_linerangeh(aes(xmin = mean_rt - ci, xmax = mean_rt + ci)) + 
   geom_point(aes(col = age_binned), size = 2) + 
   scale_shape_manual(values = c(1, 20)) + 
   geom_vline(xintercept = .5, lty = 2) + 
