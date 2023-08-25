@@ -29,7 +29,8 @@ d_sim <- d_trial |>
 Now our simulation. 
 
 ```{r}
-get_n_trials <- function (x, column = "accuracy", object = "stimulus") {
+get_n_trials <- function (x, column = "accuracy", 
+                          object = "stimulus") {
   if (object == "stimulus") {
     n_trials <- x |>
       group_by(target_label) |>
