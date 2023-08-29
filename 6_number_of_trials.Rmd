@@ -11,7 +11,7 @@ source(here::here("helper/common.R"))
 
 Goal is to find out how ICC varies with number of trials, both within and across datasets. 
 
-Want to look at test-retest in totlot (FM 2012) and Adams Marchman (2018)
+Want to look at test-retest in totlot (FM 2012) and Adams Marchman (2018) because we have that. 
 
 Look at condition differences across datasets
 
@@ -20,9 +20,9 @@ Look at condition differences across datasets
 Let's start by looking at number of trials per kid/per item as a predictor of ICC across datasets. 
 
 ```{r}
-d_sim <- d_trial |>
-  group_by(dataset_name, trial_id, dataset_id, subject_id, administration_id, 
-           target_label) |>
+d_n_trial_sim <- d_trial |>
+  group_by(dataset_name, trial_id, dataset_id, subject_id, administration_id,
+           age, target_label) |>
   summarise(accuracy = mean(correct[t_norm > 300 & t_norm < 4000], na.rm=TRUE)) 
 ```
 
@@ -52,7 +52,7 @@ get_n_trials <- function (x, column = "accuracy",
   return(n_trials)
 }
 
-icc_sim <- function (object) 
+icc_n_trial_sim <- function (object) 
 {
   # compute ICCs
   d_sim |> 
@@ -68,33 +68,94 @@ icc_sim <- function (object)
 
 
 ```{r, eval= FALSE, error=FALSE, message=FALSE, warning=FALSE}
-iccs <- expand_grid(object = c("stimulus", "administration")) |>
-  mutate(icc = pmap(list(object), icc_sim)) |>
-  unnest(col = icc)
 
-save(iccs, file = "cached_intermediates/5_n_trials.Rds")
+# multidyplr 
+# cluster <- new_cluster(8) 
+# cluster_library(cluster, "tidyverse")
+# cluster_library(cluster, "agreement")
+# cluster_copy(cluster, "icc_n_trial_sim")
+# cluster_copy(cluster, "get_icc")
+# cluster_copy(cluster, "d_n_trial_sim")
+
+n_trial_params <- expand_grid(object = c("stimulus", "administration"))
+
+tic()
+n_trial_sim <- n_trial_params |> 
+  # partition(cluster) |>
+  mutate(icc = pmap(list(object), 
+                    icc_n_trial_sim)) |>
+  # collect() |>
+  unnest(col = icc)
+toc()
+
+save(n_trial_sim, file = "cached_intermediates/6_n_trials.Rds")
 ```
 
 Plot resulting ICCs.
 
 ```{r}
-load("cached_intermediates/5_n_trials.Rds")
+load("cached_intermediates/6_n_trials.Rds")
 
-ggplot(iccs,
+ggplot(n_trial_sim,
        aes(x = n_trials, y = icc, col = dataset_name)) + 
   geom_point() + 
-  geom_smooth(method = "lm", aes(group = 1)) +
-  geom_label_repel(aes(label = dataset_name)) + 
+  geom_smooth(method = "lm", aes(col = NA, group = 1)) +
+  geom_label_repel(aes(label = dataset_name), size = 1) +
   facet_wrap(~object, scales = "free_x") + 
   ylab("ICC") + 
   xlab("Number of observations per group") + 
   ggthemes::theme_few() + 
   theme(legend.position = "bottom") 
+```
 
+# Test-retest reliabilities
+
+What datasets have longitudinal data? Just Adams Marchman and FMW.
+
+```{r}
+longitudinal <- d_n_trial_sim |>
+  group_by(dataset_name) |>
+  summarise(n_admins = length(unique(administration_id)), 
+            n_subs = length(unique(subject_id))) |>
+  filter(n_admins != n_subs) 
+longitudinal
+```
+
+Get test-retest. 
+
+```{r}
+admin_means <- d_n_trial_sim |>
+  filter(dataset_name %in% longitudinal$dataset_name) |>
+  group_by(dataset_name, subject_id, age, administration_id) |>
+  summarise(accuracy = mean(accuracy, na.rm=TRUE)) |>
+  mutate(test_session = 1:n()) |>
+  select(-administration_id) |>
+  pivot_wider(names_from = "test_session", values_from = "accuracy") |>
+  rename(session1 = `1`, 
+         session2 = `2`)
+
+ggplot(admin_means, aes(x = session1, y = session2)) +
+  facet_wrap(~dataset_name) + 
+  geom_point() + 
+  geom_smooth(method = "lm")
+
+admin_means |>
+  group_by(dataset_name) |>
+  nest() |>
+  mutate(cor = lapply(data, 
+                      function(df) {
+                        s1 = df$session1 
+                        s2 = df$session2
+                        
+                        broom::tidy(cor.test(x = s1, y = s2))
+                        })) |>
+  select(-data) |>
+  unnest(cols = cor)
 ```
 
 
-# Within dataset - n observations
+
+# Within dataset - n observations - NOT FIXED YET
 
 Now let's take advantage of datasets with lots of trials per kid and see what we can do about subsampling to look at reliabilities over number of trials.
 
