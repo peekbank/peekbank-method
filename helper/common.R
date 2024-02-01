@@ -26,7 +26,7 @@ get_icc <- function (x, column = "accuracy", object = "stimulus") {
   if (object == "stimulus") {
     iccs <- dim_icc(x, 
                     model = "2A", 
-                    type = "agreement", 
+                    type = "consistency", 
                     unit = "average",
                     object = target_label, 
                     rater = administration_id,
@@ -36,7 +36,7 @@ get_icc <- function (x, column = "accuracy", object = "stimulus") {
   } else {
     iccs <- dim_icc(x, 
                     model = "2A", 
-                    type = "agreement", 
+                    type = "consistency", 
                     unit = "average",
                     object = administration_id, 
                     rater = target_label,
