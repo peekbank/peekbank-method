@@ -20,6 +20,8 @@ For our next measure, we'll repeat the same exercise, but we'll baseline-correct
 
 Zooming in on Adams-Marchman, since that had very high administration reliability. 
 
+NOTE 1/31/24 - check how big the baseline window is for AM2018!! if it's short, this might not work. 
+
 ```{r}
 qplot(data = filter(d_trial, 
                     dataset_name == "adams_marchman_2018"), 

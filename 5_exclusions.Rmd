@@ -603,4 +603,4 @@ vanilla_cdi_datasets
 
 ## Kid-wise simulation
 
-# 
+## Validity consequences

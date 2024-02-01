@@ -21,6 +21,8 @@ load(file = here("cached_intermediates","1_d_trial.Rds"))
 ## Computing RT 
 First compute reaction time. 
 
+NOTE 1/31/24 - consider computing RT from LAUNCH not from LANDING - this may make a difference to what we end up finding. 
+
 We need RLE data, then we use the RT helper from peekbank-shiny. 
 
 ```{r}
@@ -436,5 +438,5 @@ ggplot(all_iccs, aes(stimulus_rt,icc_stimulus_acc))+
 ## Look at RTs as a function of filtering
 
 ```{r}
-save(d_rt_dt, file= here("cached_intermediates","2_d_rt_dt.Rds"))
+save(d_rt_dt, file= here("cached_intermediates","4_d_rt_dt.Rds"))
 ```

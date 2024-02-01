@@ -97,6 +97,12 @@ ggplot(n_trial_sim,
   theme(legend.position = "bottom") + 
   ylim(0,1)
 ```
+# Resampling approach to this question
+
+Lots of confounding in the above analysis - in particular, item variation and kid (age) variation
+
+The best way to get at it would be to down (and perhaps up) sample the number of observations within a dataset. 
+
 
 # Longitudinal data
 
@@ -224,13 +230,13 @@ iccs <- expand_grid(object = c("stimulus", "administration")) |>
   mutate(icc = pmap(list(object), icc_sim)) |>
   unnest(col = icc)
 
-save(iccs, file = "cached_intermediates/5_n_trials.Rds")
+save(iccs, file = "cached_intermediates/6_n_trials.Rds")
 ```
 
 Plot resulting ICCs.
 
 ```{r}
-load("cached_intermediates/5_n_trials.Rds")
+load("cached_intermediates/6_n_trials.Rds")
 
 ggplot(iccs,
        aes(x = n_trials, y = icc, col = dataset_name)) + 
