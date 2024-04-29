@@ -22,6 +22,9 @@ load(file = here("cached_intermediates","1_d_trial.Rds"))
 First compute reaction time. 
 
 NOTE 1/31/24 - consider computing RT from LAUNCH not from LANDING - this may make a difference to what we end up finding. 
+MZ: 4/29/24 - both launch and landing-based RT computed by rt helper function
+* `rt`: landing-time based RT
+* `shift_start_rt`: launch-time based RT
 
 We need RLE data, then we use the RT helper from peekbank-shiny. 
 

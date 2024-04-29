@@ -1,0 +1,97 @@
+---
+title: "Accuracies"
+author: "Mike Frank"
+date: "2022-1-19"
+output: html_document
+---
+
+```{r}
+source(here::here("helper/common.R"))
+library(tictoc)
+library(mgcv)
+library(gratia)
+library(tidygam)
+```
+
+```{r}
+temp <- d_trial %>% filter(dataset_name=="adams_marchman_2018")
+
+temp <- temp %>%
+  mutate(chance=0.5)
+
+tic()
+m <- bam(correct ~ s(t_norm, bs = "cc", k = 20)+
+           s(subject_id, k=12, bs="re")+
+           s(target_id, k=12, bs="re"),
+    data = temp,
+    #family = nb(),
+    method = "fREML",
+    discrete = TRUE,
+    nthreads = 4)
+toc()
+```
+
+```{r}
+summary(m)
+draw(m)
+plot(m,pages=1)
+preds_1 <- tidygam::predict_gam(m, length_out = 50,exclude_terms=c("s(subject_id)","s(target_id)"))
+plot(preds_1, "t_norm")
+```
+
+```{r}
+tic()
+temp <- temp %>% mutate(subject_id_f=as.factor(subject_id))
+m_slopes <- bam(correct ~ s(t_norm, k = 25)+
+           s(t_norm, subject_id_f, k=30, bs="fs", m=2)+
+           offset(chance),
+    data = temp,
+    #family = binomial,
+    method = "fREML",
+    discrete = TRUE,
+    nthreads = 4)
+toc()
+plot(m_slopes,pages=1)
+preds_1 <- tidygam::predict_gam(m_slopes, length_out = 50)
+plot(preds_1, "t_norm",comparison="subject_id_f")+
+  scale_color_viridis_d()+
+  scale_fill_viridis_d()+
+  theme(legend.position="none")+
+  xlim(-500,3000)
+```
+
+```{r}
+##### summarize by subject (really: administrations) ####
+summarize_by_subj <- temp %>%
+  group_by(subject_id, t_norm) %>%
+  summarize(N=sum(!is.na(correct)),mean_accuracy=mean(correct,na.rm=TRUE))
+
+#### summarize across subjects ####
+summarize_across_subj <- summarize_by_subj %>%
+  group_by(t_norm) %>%
+  summarize(N=sum(!is.na(mean_accuracy)),
+         accuracy=mean(mean_accuracy,na.rm=TRUE),
+         sd_accuracy=sd(mean_accuracy,na.rm=TRUE))
+
+#plot
+ggplot(summarize_across_subj,aes(t_norm,accuracy))+
+  geom_line(data=filter(summarize_by_subj,N>10),aes(y=mean_accuracy,color=as.factor(subject_id),group=as.factor(subject_id)),alpha=0.2)+
+  geom_line()+
+  geom_smooth(method="gam",se=FALSE)+
+  geom_vline(xintercept=0)+
+  geom_vline(xintercept=300,linetype="dotted")+
+  geom_hline(yintercept=0.5,linetype="dashed")+
+  theme(legend.position="none")
+```
+
+```{r}
+m <- bam(accuracy ~ s(t_norm),
+    data = summarize_across_subj,
+    #family = betar(link="logit"),
+    method = "fREML",
+    discrete = TRUE,
+    nthreads = 4)
+preds_1 <- tidygam::predict_gam(m, length_out = 50)
+plot(preds_1, "t_norm")
+```
+
