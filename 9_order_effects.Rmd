@@ -1,0 +1,148 @@
+---
+title: "Order effects"
+author: "Hackathon"
+date: "2024-08-27"
+output: html_document
+---
+
+Goal: understand order effects. 
+
+
+```{r}
+source(here::here("helper/common.R"))
+```
+
+
+From prior analysis (`peekbank-analysis`)
+
+```{r}
+d_trial_summary <- d_trial %>%
+  group_by(dataset_id, dataset_name, administration_id, trial_id, trial_order, 
+           age, target_id, target_label, distractor_label) %>%
+  summarise(pre_accuracy = mean(correct[t_norm <= 200], na.rm = TRUE),
+            post_accuracy = mean(correct[t_norm > 200], na.rm = TRUE)) |>
+  filter(!is.na(post_accuracy))
+
+d_trial_summary <- d_trial_summary %>%
+  # we put in stimulus pair alphabetically because it needs to be in a consistent order
+  # so that we can group by the pairing and not by pairing x target
+  mutate(stimulus_pair = paste(sort(c(target_label, distractor_label)), collapse = "_"), 
+         first_stimulus = sort(c(target_label, distractor_label))[1]) %>% 
+  arrange(dataset_id, administration_id, trial_order) %>%
+  group_by(dataset_id, administration_id, stimulus_pair) %>%
+  mutate(stimulus_pair_instance = seq(1,n()), 
+         is_first_stimulus = ifelse(target_label == first_stimulus, TRUE, FALSE)) %>% # instance is how many times you've seen this pair of stimuli
+  ungroup() %>%
+  group_by(dataset_id, administration_id, stimulus_pair, target_label) %>%
+  mutate(stimulus_pair_target_instance = seq(1,n())) %>% # target instance is how many times you've seen this pair of stimuli with this target as a target
+  ungroup()
+```
+
+Remove datasets with fewer than 4 repetitions. 
+
+```{r}
+stim_pair_maxes <- d_trial_summary |>
+  group_by(dataset_id) |>
+  summarise(max_stim_pair_instance = max(stimulus_pair_instance)) |>
+  filter(max_stim_pair_instance >= 4)
+            
+d_stim_pair <- filter(d_trial_summary, dataset_id %in% stim_pair_maxes$dataset_id)
+```
+
+
+```{r}
+ggplot(d_stim_pair, aes(x = stimulus_pair_instance)) + 
+  geom_histogram() + 
+  facet_wrap(~dataset_name)
+```
+Now look at accuracy within these. 
+
+```{r}
+d_stim_pair |>
+  group_by(dataset_name, is_first_stimulus, stimulus_pair_target_instance) |>
+  summarise(post_accuracy = mean(post_accuracy)) |>
+  ggplot(aes(x = stimulus_pair_target_instance, y = post_accuracy, col = is_first_stimulus)) + 
+  geom_line() +
+  facet_wrap(~dataset_name)
+```
+
+
+
+
+----- PRIOR MATERIALS --- 
+
+
+```{r boxplot}
+# box plot of second time you see this stim pair -- looking to T vs D
+d_trial_summary %>%
+  filter(target_instance < 3, instance == 2) %>%
+  ggplot(aes(x = as.factor(target_instance), y = post_accuracy)) +
+  geom_boxplot()
+```
+
+```{r}
+# get trials that have more than one instance
+rep_trials <- d_trial_summary %>%
+  group_by(dataset_id, administration_id, stim_pair) %>%
+  mutate(max_instances = max(instance)) %>% 
+  ungroup() %>%
+  filter(max_instances > 1)
+
+# get datasets with repeated trials
+rep_datasets <- rep_trials %>%
+  distinct(dataset_id)
+
+# just the second time seeing this stimulus pair
+rep_timecourse_just_two <- d_trial %>%
+  left_join(rep_trials) %>% 
+  filter(max_instances > 1) %>%
+  filter(instance == 2) 
+
+# do you look more to target after having seen this target as a target in this stimulus pair before?
+rep_timecourse_just_two %>%
+  group_by(target_instance, t_norm) %>%
+  summarize(accuracy = mean(correct, na.rm=TRUE)) %>%
+  filter(t_norm > -3000, t_norm < 4000) %>%
+  ggplot(aes(x = t_norm, y = accuracy, color = as.factor(target_instance))) + 
+  geom_smooth(method="gam")+
+  geom_vline(xintercept=0)+
+  geom_hline(yintercept=0.5,linetype="dashed") +
+  scale_color_manual(label = c("new target", "old target"), values = c('#21908CFF', '#D01C8B'),
+                     name = "target novelty")
+
+# do you look more to target after having seen this target as a target in this stimulus pair before? faceted by age
+rep_timecourse_just_two %>%
+  mutate(age_bin = cut(age, breaks = 4)) %>%
+  group_by(age_bin, target_instance, t_norm) %>%
+  summarize(accuracy = mean(correct, na.rm=TRUE)) %>%
+  filter(t_norm > -2000, t_norm < 4000) %>%
+  ggplot(aes(x = t_norm, y = accuracy, color = as.factor(target_instance)), group = age_bin) + 
+  geom_smooth(method="gam")+
+  facet_wrap(~age_bin) +
+  geom_vline(xintercept=0)+
+  geom_hline(yintercept=0.5,linetype="dashed") +
+  scale_color_manual(label = c("new target", "old target"), values = c('#21908CFF', '#D01C8B'),
+                     name = "target novelty")
+
+# get all the repeated stimulus pairs (up to 5 repeats)
+rep_timecourse <- d_trial %>%
+  filter(trial_id %in% rep_trials$trial_id) %>%
+  left_join(rep_trials) %>%
+  filter(instance < 5, max_instances > 1)
+  
+# how does looking change depending on # times you've seen this target as a target in this stim pair?
+rep_timecourse %>%
+  group_by(instance, target_instance, t_norm) %>%
+  summarize(accuracy = mean(correct, na.rm=TRUE), weight = n()) %>% 
+  ungroup() %>%
+  filter(weight > 100) %>%
+  filter(t_norm > -2000, t_norm < 4000) %>%
+  ggplot(aes(x = t_norm, y = accuracy, color = as.factor(target_instance))) + 
+  geom_point(aes(size = log(weight)), shape = 21, alpha = 0.4, fill = NA) +
+  geom_smooth(method="gam", aes(weight = weight, fill = as.factor(target_instance))) +
+  facet_wrap(~instance) +
+  geom_vline(xintercept=0)+
+  geom_hline(yintercept=0.5,linetype="dashed") +
+  theme_bw()
+
+```
