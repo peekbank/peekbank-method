@@ -52,8 +52,7 @@ all_administrations <- collect(get_administrations(connection = con))
 all_subjects <- unpack_aux_data(collect(get_subjects(connection = con)))
 all_trial_types <- collect(get_trial_types(connection = con))
 all_trials <- unpack_aux_data(collect(get_trials(connection = con)))
-
-
+all_datasets <- get_datasets(connection=con) %>% collect()
 ```
 
 Now do the joins. 
@@ -198,3 +197,15 @@ d_trial <- d_trial |>
 save(d_trial, file = here("cached_intermediates","1_d_trial.Rds"))
 ```
 
+
+```{r}
+cdi_data <- all_subjects %>%
+  unnest(subject_aux_data) %>% 
+  filter(!is.na(cdi_responses)) %>%
+  unnest(cdi_responses) %>% 
+  select(-lang_measures, -lang_exposures, -native_language_non_iso) %>% 
+  left_join(all_administrations %>% distinct(subject_id, dataset_id)) %>%
+  left_join(all_datasets %>% select(dataset_id, dataset_name))
+
+save(cdi_data, file=here("cached_intermediates", "1_cdi_subjects.Rds"))
+```
