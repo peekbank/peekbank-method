@@ -12,7 +12,6 @@ Goal: understand order effects.
 source(here::here("helper/common.R"))
 ```
 
-
 From prior analysis (`peekbank-analysis`)
 
 ```{r}

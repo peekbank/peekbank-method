@@ -106,7 +106,8 @@ d_trial <- aoi_data_joined |>
                                "hurtado_2008", 
                                "kartushina_2019",
                                "weisleder_stl",
-                               "xsectional_2007"))) |>
+                               "xsectional_2007", 
+                               "garrison_bergelson_2020"))) |> # until renaming issue is fixed
   filter(age > 12, age <= 60, 
          vanilla_trial == TRUE,
          stimulus_novelty == "familiar",
@@ -114,13 +115,18 @@ d_trial <- aoi_data_joined |>
   select(dataset_name, subject_id, administration_id, trial_id, trial_order,
          dataset_id, target_id, t_norm, age, aoi, target_label, distractor_label, target_side) |>
   mutate(correct = ifelse(aoi == "target", 1, 
-                          ifelse(aoi == "distractor", 0, NA)))
+                          ifelse(aoi == "distractor", 0, NA)), 
+         target_label = str_to_lower(target_label),
+         distractor_label = str_to_lower(distractor_label))
 ```
 
 Do some further checks/cleanup of items. 
 
+Output targets and distractors. 
+
 ```{r}
-sort(unique(d_trial$target_label))
+all_items <- tibble(item = sort(unique(c(d_trial$target_label, d_trial$target_label))))
+write_csv(all_items, here("metadata", "all_items.csv"))
 ```
 
 
