@@ -63,7 +63,7 @@ aoi_data_joined <- all_aoi_timepoints |>
   right_join(all_trials) |>
   right_join(all_trial_types) |>
   mutate(stimulus_id = target_id) |>
-  right_join(all_stimuli) |>
+  left_join(all_stimuli) |>
   select(dataset_name, subject_id, administration_id, trial_id, trial_order, dataset_id, 
          stimulus_id, distractor_id, t_norm, age, aoi, english_stimulus_label, 
          stimulus_novelty, target_side, vanilla_trial) %>%
@@ -77,13 +77,6 @@ aoi_data_joined <- all_aoi_timepoints |>
                      distractor_label = english_stimulus_label))
 
 save(aoi_data_joined, file= here("cached_intermediates","1_aoi_data_joined.Rds"))
-```
-
-
-Looks like a very small number of rows get added in the join, probably a sign of an issue/ ambiguity somewhere. These are due to NA subject IDs, so we don't figure it out and just filter. 
-
-```{r}
-aoi_data_joined <- filter(aoi_data_joined, !is.na(subject_id))
 ```
 
 Check on number of datasets. 
@@ -106,8 +99,8 @@ d_trial <- aoi_data_joined |>
                                "hurtado_2008", 
                                "kartushina_2019",
                                "weisleder_stl",
-                               "xsectional_2007", 
-                               "garrison_bergelson_2020"))) |> # until renaming issue is fixed
+                               "xsectional_2007",
+                               "garrison_bergelson_2020"))) |>
   filter(age > 12, age <= 60, 
          vanilla_trial == TRUE,
          stimulus_novelty == "familiar",
@@ -129,58 +122,24 @@ all_items <- tibble(item = sort(unique(c(d_trial$target_label, d_trial$target_la
 write_csv(all_items, here("metadata", "all_items.csv"))
 ```
 
+Rename and exclude in a more general way. 
 
 ```{r}
-colors <- c("red","orange","yellow","green","blue","purple","brown","white","black","pink")
+included_items <- read_csv(here("metadata","included_items.csv"))
+
 d_trial <- d_trial |>
-  mutate(target_label = stringr::str_to_lower(target_label), 
-         distractor_label = stringr::str_to_lower(distractor_label)) |> 
-         filter(!(target_label %in% 
-                     c(colors, "baba", "cur","gall","kier","mog", "opal",
-                       "raby","tog","vaby","yitty", "shawl",
-                       "\'file\' must be specified", "opple","pity"))) 
-
-d_trial$target_label[d_trial$target_label %in% c("birdy","birdie")] <- "bird"
-d_trial$target_label[d_trial$target_label %in% c("blocks")] <- "block"
-d_trial$target_label[d_trial$target_label %in% c("carrots")] <- "carrot"
-d_trial$target_label[d_trial$target_label %in% c("diapey")] <- "diaper"
-d_trial$target_label[d_trial$target_label %in% c("doggy")] <- "dog"
-d_trial$target_label[d_trial$target_label %in% c("kitty","kittycat")] <- "cat"
-d_trial$target_label[d_trial$target_label %in% c("paci")] <- "pacifier"
-d_trial$target_label[d_trial$target_label %in% c("shoes")] <- "shoe"
-d_trial$target_label[d_trial$target_label %in% c("sippycup")] <- "sippy"
-d_trial$target_label[d_trial$target_label %in% c("socks")] <- "sock"
+  left_join(included_items, by = join_by(target_label == item)) |>
+  left_join(included_items, by = join_by(distractor_label == item), 
+            suffix = c("_target","_distractor")) |>
+  filter(include_target == 1, include_distractor == 1) |>
+  mutate(target_label = ifelse(is.na(rename_to_target), 
+                               target_label, rename_to_target), 
+         distractor_label = ifelse(is.na(rename_to_distractor), 
+                                   distractor_label, rename_to_distractor)) |>
+  select(-include_target, -include_distractor, -rename_to_distractor, -rename_to_target)
 ```
-
-
-```{r}
-sort(unique(d_trial$distractor_label))
-
-```
-
-
-```{r}
-d_trial <- filter(d_trial, !(distractor_label %in% 
-                     c(colors, "baba", "cur","gall","kier","mog", "opal",
-                       "raby","tog","vaby","yitty", "shawl",
-                       "\'file\' must be specified", "opple","pity")))
-
-
-d_trial$distractor_label[d_trial$distractor_label %in% c("birdy","birdie")] <- "bird"
-d_trial$distractor_label[d_trial$distractor_label %in% c("blocks")] <- "block"
-d_trial$distractor_label[d_trial$distractor_label %in% c("carrots")] <- "carrot"
-d_trial$distractor_label[d_trial$distractor_label %in% c("diapey")] <- "diaper"
-d_trial$distractor_label[d_trial$distractor_label %in% c("doggy")] <- "dog"
-d_trial$distractor_label[d_trial$distractor_label %in% c("kitty","kittycat")] <- "cat"
-d_trial$distractor_label[d_trial$distractor_label %in% c("paci")] <- "pacifier"
-d_trial$distractor_label[d_trial$distractor_label %in% c("shoes")] <- "shoe"
-d_trial$distractor_label[d_trial$distractor_label %in% c("sippycup")] <- "sippy"
-d_trial$distractor_label[d_trial$distractor_label %in% c("socks")] <- "sock"
-```
-
 
 # Get rid of useless timecourse info
-
 
 So datasets vary in missingness of data at the trial level because of:
 
@@ -198,15 +157,22 @@ ggplot(d_missing,
        aes(x = t_norm, y = prop_data)) + 
   facet_wrap(~dataset_name) + 
   ylab("Proportion trials that are not missing") + 
-  geom_line()
+  geom_line() + 
+  geom_vline(xintercept = -4000, lty = 3) + 
+  geom_vline(xintercept = 4000, lty = 3)
 ```
+
+Note - there is a bit of a ramp down in terms of amount of data for many datasets towards the end. Here we decide to keep this for now, but maybe we want to clean up starts and ends at some point per dataset? 
+
 
 ```{r}
 d_missing_clipped <- d_missing |>
-  filter(t_norm >= -4000, t_norm <= 4000, 
-         !(dataset_name == "adams_marchman_2018" & t_norm > 3750),
-         !(dataset_name == "fmw_2013" & (t_norm < 500)),
-         !(dataset_name == "potter-canine" & (t_norm > 3500)))
+  filter(t_norm >= -4000, t_norm <= 4000)
+
+# , 
+#          !(dataset_name == "adams_marchman_2018" & t_norm > 3750),
+#          !(dataset_name == "fmw_2013" & (t_norm < 500)),
+#          !(dataset_name == "potter-canine" & (t_norm > 3500)))
 
 ggplot(d_missing_clipped,
        aes(x = t_norm, y = prop_data)) + 
