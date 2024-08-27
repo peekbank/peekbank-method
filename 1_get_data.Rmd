@@ -63,7 +63,7 @@ aoi_data_joined <- all_aoi_timepoints |>
   right_join(all_trials) |>
   right_join(all_trial_types) |>
   mutate(stimulus_id = target_id) |>
-  right_join(all_stimuli) |>
+  left_join(all_stimuli) |>
   select(dataset_name, subject_id, administration_id, trial_id, trial_order, dataset_id, 
          stimulus_id, distractor_id, t_norm, age, aoi, english_stimulus_label, 
          stimulus_novelty, target_side, vanilla_trial) %>%
@@ -77,13 +77,6 @@ aoi_data_joined <- all_aoi_timepoints |>
                      distractor_label = english_stimulus_label))
 
 save(aoi_data_joined, file= here("cached_intermediates","1_aoi_data_joined.Rds"))
-```
-
-
-Looks like a very small number of rows get added in the join, probably a sign of an issue/ ambiguity somewhere. These are due to NA subject IDs, so we don't figure it out and just filter. 
-
-```{r}
-aoi_data_joined <- filter(aoi_data_joined, !is.na(subject_id))
 ```
 
 Check on number of datasets. 
