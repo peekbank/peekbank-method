@@ -42,10 +42,9 @@ We're focused on familiar words here.
 ## Get data
 
 ```{r, eval=TRUE}
-con <- connect_to_peekbank()
+con <- connect_to_peekbank(db_version = "workshop_2024_dev")
 all_aoi_timepoints <- get_aoi_timepoints(connection = con, rle=FALSE)
 
-con <- connect_to_peekbank()
 all_stimuli <- collect(get_stimuli(connection = con))
 all_administrations <- collect(get_administrations(connection = con))
 all_subjects <- collect(get_subjects(connection = con))
