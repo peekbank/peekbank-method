@@ -106,9 +106,9 @@ d_trial <- aoi_data_joined |>
                                "hurtado_2008", 
                                "kartushina_2019",
                                "weisleder_stl",
-                               "xsectional_2007",
-                               "pomper_dimy"))) |>
+                               "xsectional_2007"))) |>
   filter(age > 12, age <= 60, 
+         vanilla_trial == TRUE,
          stimulus_novelty == "familiar",
          distractor_novelty == "familiar") |> 
   select(dataset_name, subject_id, administration_id, trial_id, trial_order,
@@ -126,10 +126,13 @@ sort(unique(d_trial$target_label))
 
 ```{r}
 colors <- c("red","orange","yellow","green","blue","purple","brown","white","black","pink")
-d_trial <- filter(d_trial, !(target_label %in% 
+d_trial <- d_trial |>
+  mutate(target_label = stringr::str_to_lower(target_label), 
+         distractor_label = stringr::str_to_lower(distractor_label)) |> 
+         filter(!(target_label %in% 
                      c(colors, "baba", "cur","gall","kier","mog", "opal",
                        "raby","tog","vaby","yitty", "shawl",
-                       "\'file\' must be specified", "opple","pity")))
+                       "\'file\' must be specified", "opple","pity"))) 
 
 d_trial$target_label[d_trial$target_label %in% c("birdy","birdie")] <- "bird"
 d_trial$target_label[d_trial$target_label %in% c("blocks")] <- "block"
