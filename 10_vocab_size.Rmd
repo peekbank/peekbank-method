@@ -1,0 +1,144 @@
+---
+title: "Comparing vocab size and LWL performance"
+author: "Hackathon"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+Goal is to compare child-level CDI vs. LWL performance... and maybe an item-level analysis, too?
+
+```{r setup}
+source(here::here("helper/common.R"))
+load(here::here("cached_intermediates","1_cdi_subjects.Rds"))
+
+# get IRT item difficulties
+en_prod_pars <- read_csv(here("aux_data","EN_production_2PL_params_slopeint.csv"))
+en_comp_pars <- read_csv(here("aux_data","EN_comprehension_2PL_params_slopeint.csv"))
+sp_prod_pars <- read_csv(here("aux_data","SP_production_2PL_params_slopeint.csv"))
+sp_comp_pars <- read_csv(here("aux_data","SP_comprehension_2PL_params_slopeint.csv"))
+theme_set(theme_bw())
+```
+
+
+
+```{r}
+# mimicking accuracy approach taken in 9_correlation_RT_accuracy.Rmd
+acc_start <- 300
+acc_end <- 4000 # could play with this..see what maximizes overall accuracy
+
+trial_acc <- d_trial |>
+  group_by(dataset_name, subject_id, administration_id, trial_id, trial_order, dataset_id, target_label, distractor_label) |> 
+  filter(t_norm >= acc_start) |>
+  filter(t_norm <= acc_end) |>
+  filter(!is.na(correct)) |>
+  summarize(acc = mean(correct))
+
+# ToDo: join in IRT parms for target_label_difficulty and distractor_label_difficulty
+
+# administration-level accuracy
+child_acc <- trial_acc |>
+  group_by(dataset_name, subject_id, administration_id) |>
+  summarize(LWL_accuracy = mean(acc),
+            sd = sd(acc),
+            n = n())
+```
+
+## CDI data
+
+We have CDI data from `r length(unique(cdi_data$subject_id))` participants in `r length(unique(cdi_data$dataset_name))` datasets, comprising a mix of languages, instrument types (WG, WS, WS short), and measurement types (comprehension and production).
+Some datasets have percentiles, but for many subjects we just have raw sumscores. 
+
+```{r}
+table(cdi_data$dataset_name)
+```
+
+```{r}
+table(cdi_data$measure, cdi_data$instrument_type)
+```
+
+Which study has comprehension measured with WS short? (Is that true?)
+
+```{r}
+cdi_data |>
+  ggplot(aes(x=age, y=rawscore, color=language)) +
+  facet_wrap(vars(instrument_type)) +
+  geom_point(alpha=.5)
+```
+
+A couple oddities:
+- some WG scores that are too high (>396) in `moore_bergelson_2022_verb`
+- some WS short scores that are too high (>100) in `potter_remix`
+
+(Adrian and Martin are fixing this!)
+
+Let's also add a percent column, so we can compare across instruments.
+
+```{r}
+cdi_data <- cdi_data |> 
+  mutate(instrument_length = case_when(instrument_type=="ws" ~ 680,
+                                       instrument_type=="wg" & language=="English (American)" ~ 396,
+                                       instrument_type=="wsshort" ~ 100,
+                                       instrument_type=="wg" & language=="Spanish (Mexican)" ~ 428, # double-check Spanish WG length..
+                                       .default = NA),
+         CDI_percent = rawscore / instrument_length)
+
+cdi_acc <- cdi_data |> filter(!dataset_name %in% c("moore_bergelson_2022_verb","potter_remix")) |>
+  left_join(child_acc)
+
+cdi_acc |> filter(measure=="prod", 
+                  CDI_percent<=1,
+                  n > 4) |>
+  ggplot(aes(x=CDI_percent, y=LWL_accuracy, color=age)) + # , color=dataset_name
+  facet_wrap(. ~ instrument_type) + 
+  geom_point(alpha=.3) +
+  geom_smooth()
+```
+
+Wonky CDI data (i.e., with >100% CDI accuracy):
+
+```{r}
+cdi_acc |> filter(CDI_percent > 1)
+```
+## Overall correlations of CDI percent scores and LWL accuracy
+
+```{r}
+with(cdi_acc |> filter(measure=="prod"),
+  cor.test(CDI_percent, LWL_accuracy))
+
+with(cdi_acc |> filter(measure=="comp"),
+  cor.test(CDI_percent, LWL_accuracy))
+```
+
+## Correlation of CDI sumscores by instrument (vs. LWL accuracy)
+
+```{r}
+with(cdi_acc |> filter(instrument_type=="wsshort"),
+  cor.test(rawscore, LWL_accuracy))
+
+with(cdi_acc |> filter(instrument_type=="ws"),
+  cor.test(rawscore, LWL_accuracy))
+
+with(cdi_acc |> filter(instrument_type=="wg" & measure=="comp"),
+  cor.test(rawscore, LWL_accuracy))
+
+with(cdi_acc |> filter(instrument_type=="wg" & measure=="prod"),
+  cor.test(rawscore, LWL_accuracy))
+```
+
+Overall significant association between CDI and LWL score!
+
+## Extensions
+
+- use IRT difficulty of each word to get a weighted accuracy LWL score
+- Growth model to model children over age 
+
+
+## Examine experiment vocabulary by difficulty
+
+plot difficulty of words in each experiment
+
+## Regression
+
+- LWL RT (and accuracy?)
+- age
+

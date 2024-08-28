@@ -49,9 +49,10 @@ all_aoi_timepoints <- get_aoi_timepoints(connection = con, rle=FALSE)
 con <- connect_to_peekbank(db_version = "workshop_2024_dev")
 all_stimuli <- collect(get_stimuli(connection = con))
 all_administrations <- collect(get_administrations(connection = con))
-all_subjects <- collect(get_subjects(connection = con))
+all_subjects <- unpack_aux_data(collect(get_subjects(connection = con)))
 all_trial_types <- collect(get_trial_types(connection = con))
-all_trials <- collect(get_trials(connection = con))
+all_trials <- unpack_aux_data(collect(get_trials(connection = con)))
+all_datasets <- get_datasets(connection=con) %>% collect()
 ```
 
 Now do the joins. 
@@ -196,3 +197,23 @@ d_aoi <- d_aoi |>
 save(d_aoi, file = here("cached_intermediates","1_d_aoi.Rds"))
 ```
 
+## CDI data
+
+```{r}
+cdi_data <- all_subjects %>%
+  unnest(subject_aux_data) %>% 
+  filter(!is.na(cdi_responses)) %>%
+  unnest(cdi_responses) %>% 
+  select(-lang_measures, -lang_exposures, -native_language_non_iso) %>% 
+  left_join(all_administrations %>% distinct(subject_id, dataset_id)) %>%
+  left_join(all_datasets %>% select(dataset_id, dataset_name))
+
+save(cdi_data, file=here("cached_intermediates", "1_cdi_subjects.Rds"))
+```
+
+```{r}
+cdi_data |>
+  ggplot(aes(x=age, y=rawscore, color=language)) +
+  facet_wrap(vars(instrument_type)) +
+  geom_point(alpha=.5)
+```
