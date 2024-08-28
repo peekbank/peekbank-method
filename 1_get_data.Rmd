@@ -1,7 +1,7 @@
 ---
 title: "Trial analysis 1: Data loading"
 author: "Mike"
-date: "2/19/2021"
+date: "2/19/2021, updated 8/27/24"
 output: 
   html_document:
     toc: true
@@ -137,7 +137,7 @@ Rename and exclude in a more general way.
 ```{r}
 included_items <- read_csv(here("metadata","included_items.csv"))
 
-d_trial <- d_joined |>
+d_aoi <- d_joined |>
   left_join(included_items, by = join_by(target_label == item)) |>
   left_join(included_items, by = join_by(distractor_label == item), 
             suffix = c("_target","_distractor")) |>
@@ -158,7 +158,7 @@ So datasets vary in missingness of data at the trial level because of:
 3. padding of trials with NAs (e.g., pomper_saffran_2016, which has some padding later in the trials). 
 
 ```{r}
-d_missing <- d_trial |>
+d_missing <- d_aoi |>
   group_by(dataset_name, t_norm) |>
   summarise(prop_data = mean(!is.na(correct)), 
             n = n()) 
@@ -190,9 +190,9 @@ ggplot(d_missing_clipped,
 Previously we filtered by hand, but for several of our analyses, we want all the data. 
 
 ```{r}
-d_trial <- d_trial |>
+d_aoi <- d_aoi |>
   filter(t_norm >= -4000, t_norm <= 4000)
 
-save(d_trial, file = here("cached_intermediates","1_d_trial.Rds"))
+save(d_aoi, file = here("cached_intermediates","1_d_aoi.Rds"))
 ```
 
