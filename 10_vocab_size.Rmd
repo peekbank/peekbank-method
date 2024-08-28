@@ -68,7 +68,7 @@ Let's also add a percent column, so we can compare across instruments.
 ```{r}
 cdi_data <- cdi_data |> 
   mutate(instrument_length = case_when(instrument_type=="ws" ~ 680,
-                                       instrument_type=="wg" ~ 396,
+                                       instrument_type=="wg" & language=="English (American)" ~ 396,
                                        instrument_type=="wsshort" ~ 100,
                                        instrument_type=="wg" & language=="Spanish (Mexican)" ~ 428, # double-check Spanish WG length..
                                        .default = NA),
@@ -77,7 +77,9 @@ cdi_data <- cdi_data |>
 cdi_acc <- cdi_data |> filter(!dataset_name %in% c("moore_bergelson_2022_verb","potter_remix")) |>
   left_join(child_acc)
 
-cdi_acc |> filter(measure=="prod", CDI_percent<=1) |>
+cdi_acc |> filter(measure=="prod", 
+                  CDI_percent<=1,
+                  n > 4) |>
   ggplot(aes(x=CDI_percent, y=LWL_accuracy, color=age)) + # , color=dataset_name
   facet_wrap(. ~ instrument_type) + 
   geom_point(alpha=.3) +
@@ -126,4 +128,9 @@ Overall significant association between CDI and LWL score!
 ## Examine experiment vocabulary by difficulty
 
 plot difficulty of words in each experiment
+
+## Regression
+
+- LWL RT (and accuracy?)
+- age
 
