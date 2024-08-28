@@ -197,6 +197,7 @@ d_trial <- d_trial |>
 save(d_trial, file = here("cached_intermediates","1_d_trial.Rds"))
 ```
 
+## CDI data
 
 ```{r}
 cdi_data <- all_subjects %>%
@@ -208,4 +209,11 @@ cdi_data <- all_subjects %>%
   left_join(all_datasets %>% select(dataset_id, dataset_name))
 
 save(cdi_data, file=here("cached_intermediates", "1_cdi_subjects.Rds"))
+```
+
+```{r}
+cdi_data |>
+  ggplot(aes(x=age, y=rawscore, color=language)) +
+  facet_wrap(vars(instrument_type)) +
+  geom_point(alpha=.5)
 ```

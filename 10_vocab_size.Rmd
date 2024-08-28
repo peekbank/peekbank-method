@@ -10,6 +10,12 @@ Goal is to compare child-level CDI vs. LWL performance... and maybe an item-leve
 ```{r setup}
 source(here::here("helper/common.R"))
 load(here::here("cached_intermediates","1_cdi_subjects.Rds"))
+
+# get IRT item difficulties
+en_prod_pars <- read_csv(here("aux_data","EN_production_2PL_params_slopeint.csv"))
+en_comp_pars <- read_csv(here("aux_data","EN_comprehension_2PL_params_slopeint.csv"))
+sp_prod_pars <- read_csv(here("aux_data","SP_production_2PL_params_slopeint.csv"))
+sp_comp_pars <- read_csv(here("aux_data","SP_comprehension_2PL_params_slopeint.csv"))
 theme_set(theme_bw())
 ```
 
@@ -21,11 +27,13 @@ acc_start <- 300
 acc_end <- 4000 # could play with this..see what maximizes overall accuracy
 
 trial_acc <- d_trial |>
-  group_by(dataset_name, subject_id, administration_id, trial_id, trial_order, dataset_id) |> # target <- for model-based
+  group_by(dataset_name, subject_id, administration_id, trial_id, trial_order, dataset_id, target_label, distractor_label) |> 
   filter(t_norm >= acc_start) |>
   filter(t_norm <= acc_end) |>
   filter(!is.na(correct)) |>
   summarize(acc = mean(correct))
+
+# ToDo: join in IRT parms for target_label_difficulty and distractor_label_difficulty
 
 # administration-level accuracy
 child_acc <- trial_acc |>
