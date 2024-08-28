@@ -8,8 +8,8 @@ output: html_document
 ```{r}
 source(here::here("helper/common.R"))
 library(tictoc)
-library(mgcv)
-library(gratia)
+suppressPackageStartupMessages(library(mgcv))
+suppressPackageStartupMessages(library(gratia))
 library(tidygam)
 ```
 

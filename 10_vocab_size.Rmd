@@ -1,0 +1,90 @@
+---
+title: "Comparing vocab size and LWL performance"
+author: "Hackathon"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+Goal is to compare child-level CDI vs. LWL performance... and maybe an item-level analysis, too?
+
+```{r setup}
+source(here::here("helper/common.R"))
+load(here::here("cached_intermediates","1_cdi_subjects.Rds"))
+theme_set(theme_bw())
+```
+
+
+
+```{r}
+# mimicking accuracy approach taken in 9_correlation_RT_accuracy.Rmd
+acc_start <- 300
+acc_end <- 4000
+
+trial_acc <- d_trial |>
+  group_by(dataset_name, subject_id, administration_id, trial_id, trial_order, dataset_id) |> # target <- for model-based
+  filter(t_norm >= acc_start) |>
+  filter(t_norm <= acc_end) |>
+  filter(!is.na(correct)) |>
+  summarize(acc = mean(correct))
+
+child_acc <- trial_acc |>
+  group_by(dataset_name, subject_id, administration_id) |>
+  summarize(LWL_accuracy = mean(acc),
+            sd = sd(acc),
+            n = n())
+```
+
+## CDI data
+
+We have CDI data from `r length(unique(cdi_data$subject_id))` participants in `r length(unique(cdi_data$dataset_name))` datasets, comprising a mix of languages, instrument types (WG, WS, WS short), and measurement types (comprehension and production).
+Some datasets have percentiles, but for many subjects we just have raw sumscores. 
+
+```{r}
+table(cdi_data$dataset_name)
+```
+
+```{r}
+table(cdi_data$measure, cdi_data$instrument_type)
+```
+
+```{r}
+cdi_data |>
+  ggplot(aes(x=age, y=rawscore, color=language)) +
+  facet_wrap(vars(instrument_type)) +
+  geom_point(alpha=.5)
+```
+
+A couple oddities:
+- some WG scores that are too high (>396) in `moore_bergelson_2022_verb`
+- some WS short scores that are too high (>100) in `potter_remix`
+
+(Adrian and Martin are fixing this!)
+
+For now we'll just ignore those datasets...
+
+```{r}
+cdi_acc <- cdi_data |> filter(!dataset_name %in% c("moore_bergelson_2022_verb","potter_remix")) |>
+  left_join(child_acc)
+
+cdi_acc |> filter(measure=="prod") |>
+  ggplot(aes(x=rawscore, y=LWL_accuracy)) + # , color=dataset_name
+  facet_wrap(. ~ instrument_type) + 
+  geom_point(alpha=.3) +
+  geom_smooth()
+```
+
+```{r}
+with(cdi_acc |> filter(instrument_type=="wsshort"),
+  cor.test(rawscore, LWL_accuracy))
+
+with(cdi_acc |> filter(instrument_type=="ws"),
+  cor.test(rawscore, LWL_accuracy))
+
+with(cdi_acc |> filter(instrument_type=="wg" & measure=="comp"),
+  cor.test(rawscore, LWL_accuracy))
+
+with(cdi_acc |> filter(instrument_type=="wg" & measure=="prod"),
+  cor.test(rawscore, LWL_accuracy))
+```
+
+Overall significant association between CDI and LWL score!
