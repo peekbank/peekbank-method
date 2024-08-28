@@ -128,17 +128,7 @@ cdi_data |>
 ```
 
 
-Let's also add a percent column, so we can compare across instruments.
-
 ```{r}
-cdi_data <- cdi_data |> 
-  mutate(instrument_length = case_when(instrument_type=="ws" ~ 680,
-                                       instrument_type=="wg" & language=="English (American)" ~ 396,
-                                       instrument_type=="wsshort" ~ 100,
-                                       instrument_type=="wg" & language=="Spanish (Mexican)" ~ 428, # double-check Spanish WG length..
-                                       .default = NA),
-         CDI_percent = rawscore / instrument_length)
-
 cdi_acc <- cdi_data |> 
   left_join(child_acc)
 

@@ -199,14 +199,22 @@ save(d_aoi, file = here("cached_intermediates","1_d_aoi.Rds"))
 
 ## CDI data
 
+Add instrument length and a CDI percent column.
+
 ```{r}
 cdi_data <- all_subjects %>%
   unnest(subject_aux_data) %>% 
   filter(!is.na(cdi_responses)) %>%
   unnest(cdi_responses) %>% 
   select(-lang_measures, -lang_exposures, -native_language_non_iso) %>% 
-  left_join(all_administrations %>% distinct(subject_id, dataset_id)) %>%
-  left_join(all_datasets %>% select(dataset_id, dataset_name))
+  left_join(all_administrations %>% distinct(subject_id, dataset_id, administration_id)) %>%
+  left_join(all_datasets %>% select(dataset_id, dataset_name)) |>
+  mutate(instrument_length = case_when(instrument_type=="ws" ~ 680,
+                                       instrument_type=="wg" & language=="English (American)" ~ 396,
+                                       instrument_type=="wsshort" ~ 100,
+                                       instrument_type=="wg" & language=="Spanish (Mexican)" ~ 428, # double-check Spanish WG length..
+                                       .default = NA),
+   CDI_percent = rawscore / instrument_length)
 
 save(cdi_data, file=here("cached_intermediates", "1_cdi_subjects.Rds"))
 ```
