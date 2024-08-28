@@ -18,7 +18,7 @@ theme_set(theme_bw())
 ```{r}
 # mimicking accuracy approach taken in 9_correlation_RT_accuracy.Rmd
 acc_start <- 300
-acc_end <- 4000
+acc_end <- 4000 # could play with this..see what maximizes overall accuracy
 
 trial_acc <- d_trial |>
   group_by(dataset_name, subject_id, administration_id, trial_id, trial_order, dataset_id) |> # target <- for model-based
@@ -27,6 +27,7 @@ trial_acc <- d_trial |>
   filter(!is.na(correct)) |>
   summarize(acc = mean(correct))
 
+# administration-level accuracy
 child_acc <- trial_acc |>
   group_by(dataset_name, subject_id, administration_id) |>
   summarize(LWL_accuracy = mean(acc),
@@ -47,6 +48,8 @@ table(cdi_data$dataset_name)
 table(cdi_data$measure, cdi_data$instrument_type)
 ```
 
+Which study has comprehension measured with WS short? (Is that true?)
+
 ```{r}
 cdi_data |>
   ggplot(aes(x=age, y=rawscore, color=language)) +
@@ -60,18 +63,43 @@ A couple oddities:
 
 (Adrian and Martin are fixing this!)
 
-For now we'll just ignore those datasets...
+Let's also add a percent column, so we can compare across instruments.
 
 ```{r}
+cdi_data <- cdi_data |> 
+  mutate(instrument_length = case_when(instrument_type=="ws" ~ 680,
+                                       instrument_type=="wg" ~ 396,
+                                       instrument_type=="wsshort" ~ 100,
+                                       instrument_type=="wg" & language=="Spanish (Mexican)" ~ 428, # double-check Spanish WG length..
+                                       .default = NA),
+         CDI_percent = rawscore / instrument_length)
+
 cdi_acc <- cdi_data |> filter(!dataset_name %in% c("moore_bergelson_2022_verb","potter_remix")) |>
   left_join(child_acc)
 
-cdi_acc |> filter(measure=="prod") |>
-  ggplot(aes(x=rawscore, y=LWL_accuracy)) + # , color=dataset_name
+cdi_acc |> filter(measure=="prod", CDI_percent<=1) |>
+  ggplot(aes(x=CDI_percent, y=LWL_accuracy, color=age)) + # , color=dataset_name
   facet_wrap(. ~ instrument_type) + 
   geom_point(alpha=.3) +
   geom_smooth()
 ```
+
+Wonky CDI data (i.e., with >100% CDI accuracy):
+
+```{r}
+cdi_acc |> filter(CDI_percent > 1)
+```
+## Overall correlations of CDI percent scores and LWL accuracy
+
+```{r}
+with(cdi_acc |> filter(measure=="prod"),
+  cor.test(CDI_percent, LWL_accuracy))
+
+with(cdi_acc |> filter(measure=="comp"),
+  cor.test(CDI_percent, LWL_accuracy))
+```
+
+## Correlation of CDI sumscores by instrument (vs. LWL accuracy)
 
 ```{r}
 with(cdi_acc |> filter(instrument_type=="wsshort"),
@@ -88,3 +116,14 @@ with(cdi_acc |> filter(instrument_type=="wg" & measure=="prod"),
 ```
 
 Overall significant association between CDI and LWL score!
+
+## Extensions
+
+- use IRT difficulty of each word to get a weighted accuracy LWL score
+- Growth model to model children over age 
+
+
+## Examine experiment vocabulary by difficulty
+
+plot difficulty of words in each experiment
+
