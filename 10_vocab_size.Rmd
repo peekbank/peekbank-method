@@ -7,16 +7,32 @@ output: html_document
 
 Goal is to compare child-level CDI vs. LWL performance... and maybe an item-level analysis, too?
 
-```{r setup}
+```{r setup, message=F}
 source(here::here("helper/common.R"))
+# load(here::here("cached_intermediates","1_d_trial.Rds")) # ToDo: use Mike's new by-trial df..but where is it?
 load(here::here("cached_intermediates","1_cdi_subjects.Rds"))
 
 # get IRT item difficulties
-en_prod_pars <- read_csv(here("aux_data","EN_production_2PL_params_slopeint.csv"))
-en_comp_pars <- read_csv(here("aux_data","EN_comprehension_2PL_params_slopeint.csv"))
-sp_prod_pars <- read_csv(here("aux_data","SP_production_2PL_params_slopeint.csv"))
-sp_comp_pars <- read_csv(here("aux_data","SP_comprehension_2PL_params_slopeint.csv"))
+en_prod_pars <- read_csv(here("aux_data","EN_production_2PL_params_slopeint.csv")) |> mutate(d = -d)
+en_comp_pars <- read_csv(here("aux_data","EN_comprehension_2PL_params_slopeint.csv")) |> mutate(d = -d)
+sp_prod_pars <- read_csv(here("aux_data","SP_production_2PL_params_slopeint.csv")) |> mutate(d = -d)
+sp_comp_pars <- read_csv(here("aux_data","SP_comprehension_2PL_params_slopeint.csv")) |> mutate(d = -d)
 theme_set(theme_bw())
+
+# mismatched items (ToDo: correct distractor_label, too, if desired)
+d_trial <- d_trial |> 
+  mutate(target_cdi_label = case_when(target_label=="fish" ~ "fish (animal)",
+                                      target_label=="chicken" ~ "chicken (animal)",
+                                      target_label=="bike" ~ "bicycle",
+                                      target_label=="carrot" ~ "carrots",
+                                      target_label=="blocks" ~ "block",
+                                      target_label=="slide" ~ "slide (object)",
+                                      target_label=="glove" ~ "gloves",
+                                      target_label=="dress" ~ "dress (object)",
+                                      target_label=="can" ~ "can (object)",
+                                      target_label=="boot" ~ "boots",
+                                      target_label=="toy" ~ "toy (object)",
+                                      .default = target_label))
 ```
 
 
@@ -27,21 +43,67 @@ acc_start <- 300
 acc_end <- 4000 # could play with this..see what maximizes overall accuracy
 
 trial_acc <- d_trial |>
-  group_by(dataset_name, subject_id, administration_id, trial_id, trial_order, dataset_id, target_label, distractor_label) |> 
+  group_by(dataset_name, subject_id, administration_id, age, trial_id, trial_order, dataset_id, target_cdi_label, distractor_label) |> 
   filter(t_norm >= acc_start) |>
   filter(t_norm <= acc_end) |>
   filter(!is.na(correct)) |>
-  summarize(acc = mean(correct))
+  summarize(acc = mean(correct)) |>
+  left_join(en_prod_pars |> select(definition, d), by=c("target_cdi_label"="definition")) |> # FixMe: should use Spanish and comprehension params in relevant datasets...
+  rename(target_label_difficulty = d) |>
+  left_join(en_prod_pars |> select(definition, d), by=c("distractor_label"="definition")) |>
+  rename(distractor_label_difficulty = d) |>
+  mutate(target_weighted_acc = target_label_difficulty * acc,
+         weighted_acc = (target_label_difficulty+distractor_label_difficulty) * acc) # harder words more valuable to know
+  # ToDo: what to do with distractor label? a trial is easy if you know the target label, OR if you know the distractor label (and use ME)
 
-# ToDo: join in IRT parms for target_label_difficulty and distractor_label_difficulty
+cor.test(trial_acc$acc, trial_acc$target_label_difficulty) # .06
+cor.test(trial_acc$acc, trial_acc$distractor_label_difficulty) # .06
+cor.test(trial_acc$target_label_difficulty, trial_acc$distractor_label_difficulty) # .76
 
 # administration-level accuracy
 child_acc <- trial_acc |>
-  group_by(dataset_name, subject_id, administration_id) |>
+  group_by(dataset_name, subject_id, administration_id, age) |>
   summarize(LWL_accuracy = mean(acc),
+            LWL_weighted_acc = mean(weighted_acc),
+            LWL_target_weighted_acc = mean(target_weighted_acc),
+            mean_target_difficulty = mean(target_label_difficulty),
             sd = sd(acc),
             n = n())
 ```
+
+Experiments have somewhat different average target label difficulties (and varying overall LWL performance)
+
+```{r}
+diff_by_exp <- child_acc |> 
+  group_by(dataset_name) |>
+  summarise(LWL_accuracy = mean(LWL_accuracy),
+            LWL_weighted_acc = mean(LWL_weighted_acc),
+            LWL_target_weighted_acc = mean(LWL_target_weighted_acc),
+            mean_target_difficulty = mean(mean_target_difficulty),
+            mean_age = mean(age),
+            n=n())
+#cor.test(diff_by_exp$LWL_accuracy, diff_by_exp$mean_target_difficulty)
+diff_by_exp |>
+  ggplot(aes(x=mean_target_difficulty, y=LWL_weighted_acc)) +
+  geom_point() +
+  geom_label_repel(aes(label=dataset_name))
+```
+
+
+IRT Target Label Difficulty vs. Item-level LWL Accuracy by Dataset
+
+
+```{r, fig.width=9, fig.height=9}
+trial_acc |> 
+  group_by(dataset_name, target_cdi_label, target_label_difficulty) |>
+  summarise(LWL_accuracy = mean(acc), 
+            sd = sd(acc),
+            n = n()) |>
+  ggplot(aes(x=target_label_difficulty, y=LWL_accuracy, color=dataset_name)) +
+  geom_point() +
+  geom_label_repel(aes(label = target_cdi_label))
+```
+
 
 ## CDI data
 
@@ -56,7 +118,7 @@ table(cdi_data$dataset_name)
 table(cdi_data$measure, cdi_data$instrument_type)
 ```
 
-Which study has comprehension measured with WS short? (Is that true?)
+`baumgartner_2014` has comprehension measured with WS short? (asking Heidi)
 
 ```{r}
 cdi_data |>
@@ -65,11 +127,6 @@ cdi_data |>
   geom_point(alpha=.5)
 ```
 
-A couple oddities:
-- some WG scores that are too high (>396) in `moore_bergelson_2022_verb`
-- some WS short scores that are too high (>100) in `potter_remix`
-
-(Adrian and Martin are fixing this!)
 
 Let's also add a percent column, so we can compare across instruments.
 
@@ -82,11 +139,10 @@ cdi_data <- cdi_data |>
                                        .default = NA),
          CDI_percent = rawscore / instrument_length)
 
-cdi_acc <- cdi_data |> filter(!dataset_name %in% c("moore_bergelson_2022_verb","potter_remix")) |>
+cdi_acc <- cdi_data |> 
   left_join(child_acc)
 
 cdi_acc |> filter(measure=="prod", 
-                  CDI_percent<=1,
                   n > 4) |>
   ggplot(aes(x=CDI_percent, y=LWL_accuracy, color=age)) + # , color=dataset_name
   facet_wrap(. ~ instrument_type) + 
@@ -94,11 +150,14 @@ cdi_acc |> filter(measure=="prod",
   geom_smooth()
 ```
 
-Wonky CDI data (i.e., with >100% CDI accuracy):
+IRT-difficulty weighted accuracy doesn't work great...
 
 ```{r}
-cdi_acc |> filter(CDI_percent > 1)
+cor.test(cdi_acc$LWL_weighted_acc, cdi_acc$CDI_percent)
+cor.test(cdi_acc$LWL_target_weighted_acc, cdi_acc$CDI_percent)
 ```
+
+
 ## Overall correlations of CDI percent scores and LWL accuracy
 
 ```{r}
@@ -133,12 +192,7 @@ Overall significant association between CDI and LWL score!
 - Growth model to model children over age 
 
 
-## Examine experiment vocabulary by difficulty
-
-plot difficulty of words in each experiment
-
 ## Regression
 
-- LWL RT (and accuracy?)
-- age
+use age, LWL RT
 
