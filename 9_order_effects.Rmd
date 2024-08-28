@@ -82,15 +82,107 @@ d_trial_summary %>%
   geom_boxplot()
 ```
 
-```{r}
-d_trial_summary 
 
-# get trials that have more than one instance
-rep_trials <- d_trial_summary %>%
+
+```{r}
+
+# number of kids per instance by dataset will help us find datasets that have
+# repetition by-design vs by-chance or error
+kids_per_instance_table = d_trial_summary %>%
+  
+
+  distinct(dataset_name, stimulus_pair_instance, administration_id) %>% 
+  
+
+  group_by(dataset_name, stimulus_pair_instance) %>% 
+  summarise(n = n()) %>% 
+  group_by(dataset_name) %>% 
+  mutate(total = sum(n)) %>% 
+  ungroup()
+
+# Stacked barplot with proportions
+
+kids_per_instance_table %>% 
+
+  ggplot(aes(x = dataset_name, y = n/total, fill = (stimulus_pair_instance)))+
+  geom_bar(stat = "identity", position = "stack") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1),
+        legend.position = "top")+
+  coord_flip()
+
+
+# filtered stacked barplot with proportions
+
+kids_per_instance_table %>% 
+    mutate(max_instances = max(stimulus_pair_instance),.by = c("dataset_name")) %>% 
+  filter( max_instances > 2) %>% 
+  filter( max_instances <5) %>% 
+    filter(dataset_name != "baumgartner_2014") %>% 
+  filter(dataset_name != "swingley_aslin_2002") %>% 
+  ggplot(aes(x = dataset_name, y = n/total, fill = (stimulus_pair_instance)))+
+  geom_bar(stat = "identity", position = "stack") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1),
+        legend.position = "top")+
+  coord_flip()
+
+
+
+
+d_trial_summary %>% group_by(dataset_name) %>% 
+  summarize(n_kids = n_distinct(administration_id))
+  
+
+```
+
+# Wonder if age of children in each studies is comparable.
+
+```{r}
+
+
+d_trial_summary %>% 
+  distinct(dataset_name, administration_id,  age) %>% 
+  
+
+  group_by(dataset_name, age) %>% 
+  summarise(n = n()) %>% 
+  group_by(dataset_name) %>% 
+  mutate(total = sum(n)) %>% 
+
+  ggplot(aes(x = dataset_name, y = n/total, fill = (age)))+
+  geom_bar(stat = "identity", position = "stack") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1),
+        legend.position = "top")+
+  coord_flip()
+
+
+
+
+```
+
+
+Maybe we should focus in studies with 3 or more stimulus pair repetitions and less than 5
+
+
+```{r}
+
+
+
+# Keep only "valid" datasets
+
+rep_valid = d_trial_summary %>% 
+  filter(dataset_name != "baumgartner_2014") %>% 
+  filter(dataset_name != "swingley_aslin_2002")
+
+# get trials that have more than one instance and less than 5
+rep_trials <- rep_valid %>%
   group_by(dataset_id, administration_id, stimulus_pair) %>%
   mutate(max_instances = max(stimulus_pair_instance)) %>% 
   ungroup() %>%
-  filter(max_instances > 1)
+  filter(max_instances > 2) %>% 
+  filter(max_instances < 5)
 
 # get datasets with repeated trials
 rep_datasets <- rep_trials %>%
@@ -100,6 +192,9 @@ rep_datasets <- rep_trials %>%
 rep_timecourse <- d_trial %>%
   left_join(rep_trials) %>% 
   filter(max_instances > 1)
+
+
+
 
 # do you look more to target after having seen this target as a target in this stimulus pair before?
 rep_timecourse %>%
@@ -112,54 +207,56 @@ rep_timecourse %>%
   geom_hline(yintercept=0.5,linetype="dashed")# +
   #facet_wrap(~stimulus_pair_instance)
 
-# do you look more to target after having seen this target as a target in this stimulus pair before? faceted by age
+# The same as the previous, faceted by study
+
 rep_timecourse %>%
-  mutate(age_bin = cut(age, breaks = 4)) %>%
-  group_by(age_bin, stimulus_pair_instance, t_norm) %>%
+  group_by(stimulus_pair_instance, t_norm,dataset_name) %>%
   summarize(accuracy = mean(correct, na.rm=TRUE)) %>%
-  filter(t_norm > -2000, t_norm < 4000) %>%
-  ggplot(aes(x = t_norm, y = accuracy, color = as.factor(stimulus_pair_instance)), group = age_bin) + 
+  filter(t_norm > -3000, t_norm < 4000) %>%
+  ggplot(aes(x = t_norm, y = accuracy, color = as.factor(stimulus_pair_instance))) + 
   geom_smooth(method="gam")+
-  facet_wrap(~age_bin) +
   geom_vline(xintercept=0)+
-  geom_hline(yintercept=0.5,linetype="dashed")
+  geom_hline(yintercept=0.5,linetype="dashed")+
+  facet_wrap(~dataset_name)+
+  theme(legend.position = "bottom")
+
+
+
+# do you look more to target after having seen this target as a target in this stimulus pair before? faceted by age
+# rep_timecourse %>%
+#   mutate(age_bin = cut(age, breaks = 4)) %>%
+#   group_by(age_bin, stimulus_pair_instance, t_norm) %>%
+#   summarize(accuracy = mean(correct, na.rm=TRUE)) %>%
+#   filter(t_norm > -2000, t_norm < 4000) %>%
+#   ggplot(aes(x = t_norm, y = accuracy, color = as.factor(stimulus_pair_instance)), group = age_bin) + 
+#   geom_smooth(method="gam")+
+#   facet_wrap(~age_bin) +
+#   geom_vline(xintercept=0)+
+#   geom_hline(yintercept=0.5,linetype="dashed")
 
 # get all the repeated stimulus pairs (up to 5 repeats)
-rep_timecourse <- d_trial %>%
-  filter(trial_id %in% rep_trials$trial_id) %>%
-  left_join(rep_trials) %>%
-  filter(instance < 5, max_instances > 1)
+# rep_timecourse <- d_trial %>%
+#   filter(trial_id %in% rep_trials$trial_id) %>%
+#   left_join(rep_trials) %>%
+#   filter(instance < 5, max_instances > 1)
   
 # how does looking change depending on # times you've seen this target as a target in this stim pair?
-rep_timecourse %>%
-  group_by(instance, target_instance, t_norm) %>%
-  summarize(accuracy = mean(correct, na.rm=TRUE), weight = n()) %>% 
-  ungroup() %>%
-  filter(weight > 100) %>%
-  filter(t_norm > -2000, t_norm < 4000) %>%
-  ggplot(aes(x = t_norm, y = accuracy, color = as.factor(target_instance))) + 
-  geom_point(aes(size = log(weight)), shape = 21, alpha = 0.4, fill = NA) +
-  geom_smooth(method="gam", aes(weight = weight, fill = as.factor(target_instance))) +
-  facet_wrap(~instance) +
-  geom_vline(xintercept=0)+
-  geom_hline(yintercept=0.5,linetype="dashed") +
-  theme_bw()
+# rep_timecourse %>%
+#   group_by(instance, target_instance, t_norm) %>%
+#   summarize(accuracy = mean(correct, na.rm=TRUE), weight = n()) %>% 
+#   ungroup() %>%
+#   filter(weight > 100) %>%
+#   filter(t_norm > -2000, t_norm < 4000) %>%
+#   ggplot(aes(x = t_norm, y = accuracy, color = as.factor(target_instance))) + 
+#   geom_point(aes(size = log(weight)), shape = 21, alpha = 0.4, fill = NA) +
+#   geom_smooth(method="gam", aes(weight = weight, fill = as.factor(target_instance))) +
+#   facet_wrap(~instance) +
+#   geom_vline(xintercept=0)+
+#   geom_hline(yintercept=0.5,linetype="dashed") +
+#   theme_bw()
 
 ```
 
-```{r}
-
-# number of kids per instance by dataset will help us find datasets that have
-# repetition by-design vs by-chance or error
-d_trial_summary %>% 
-  distinct(dataset_name, stimulus_pair_instance, administration_id) %>% 
-  group_by(dataset_name, stimulus_pair_instance) %>% 
-  summarise(n = n())
-
-
-d_trial_summary %>% group_by(dataset_name) %>% 
-  summarize(n_kids = n_distinct(administration_id))
-```
 
 
 
@@ -175,4 +272,3 @@ d_trial_summary %>%
   facet_wrap(~dataset_name) +
   theme_minimal()
 ```
-
