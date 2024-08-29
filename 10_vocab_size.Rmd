@@ -69,11 +69,11 @@ cor.test(trial_acc$target_label_difficulty, trial_acc$distractor_label_difficult
 # administration-level accuracy
 child_acc <- trial_acc |>
   group_by(dataset_name, subject_id, administration_id, age) |>
-  summarize(LWL_accuracy = mean(long_window_accuracy),
-            LWL_weighted_acc = mean(weighted_acc),
-            LWL_target_weighted_acc = mean(target_weighted_acc),
-            mean_target_difficulty = mean(target_label_difficulty),
-            sd = sd(long_window_accuracy),
+  summarize(LWL_accuracy = mean(long_window_accuracy, na.rm=T),
+            LWL_weighted_acc = mean(weighted_acc, na.rm=T),
+            LWL_target_weighted_acc = mean(target_weighted_acc, na.rm=T),
+            mean_target_difficulty = mean(target_label_difficulty, na.rm=T),
+            sd = sd(long_window_accuracy, na.rm=T),
             n = n())
 ```
 
@@ -95,9 +95,7 @@ diff_by_exp |>
   geom_label_repel(aes(label=dataset_name))
 ```
 
-
 IRT Target Label Difficulty vs. Item-level LWL Accuracy by Dataset
-
 
 
 ```{r}
