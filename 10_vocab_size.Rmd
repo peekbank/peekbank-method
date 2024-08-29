@@ -11,6 +11,8 @@ Goal is to compare child-level CDI vs. LWL performance... and maybe an item-leve
 source(here::here("helper/common.R"))
 # load(here::here("cached_intermediates","1_d_trial.Rds")) # ToDo: use Mike's new by-trial df..but where is it?
 load(here::here("cached_intermediates","1_cdi_subjects.Rds"))
+d_trial <- readRDS(here("..", "peekbank-development", "cached_intermediates", "1_d_trial.Rds"))
+d_sub <- readRDS(here("..", "peekbank-development", "cached_intermediates", "1_d_sub.Rds"))
 
 # get IRT item difficulties
 en_prod_pars <- read_csv(here("aux_data","EN_production_2PL_params_slopeint.csv")) |> mutate(d = -d)
@@ -32,42 +34,46 @@ d_trial <- d_trial |>
                                       target_label=="can" ~ "can (object)",
                                       target_label=="boot" ~ "boots",
                                       target_label=="toy" ~ "toy (object)",
-                                      .default = target_label))
+                                      .default = target_label)) |>
+  mutate(distractor_cdi_label = case_when(distractor_label=="fish" ~ "fish (animal)",
+                                      distractor_label=="chicken" ~ "chicken (animal)",
+                                      distractor_label=="bike" ~ "bicycle",
+                                      distractor_label=="carrot" ~ "carrots",
+                                      distractor_label=="blocks" ~ "block",
+                                      distractor_label=="slide" ~ "slide (object)",
+                                      distractor_label=="glove" ~ "gloves",
+                                      distractor_label=="dress" ~ "dress (object)",
+                                      distractor_label=="can" ~ "can (object)",
+                                      distractor_label=="boot" ~ "boots",
+                                      distractor_label=="toy" ~ "toy (object)",
+                                      .default = distractor_label))
+
 ```
 
 
 
 ```{r}
-# mimicking accuracy approach taken in 9_correlation_RT_accuracy.Rmd
-acc_start <- 300
-acc_end <- 4000 # could play with this..see what maximizes overall accuracy
-
 trial_acc <- d_trial |>
-  group_by(dataset_name, subject_id, administration_id, age, trial_id, trial_order, dataset_id, target_cdi_label, distractor_label) |> 
-  filter(t_norm >= acc_start) |>
-  filter(t_norm <= acc_end) |>
-  filter(!is.na(correct)) |>
-  summarize(acc = mean(correct)) |>
   left_join(en_prod_pars |> select(definition, d), by=c("target_cdi_label"="definition")) |> # FixMe: should use Spanish and comprehension params in relevant datasets...
   rename(target_label_difficulty = d) |>
-  left_join(en_prod_pars |> select(definition, d), by=c("distractor_label"="definition")) |>
+  left_join(en_prod_pars |> select(definition, d), by=c("distractor_cdi_label"="definition")) |>
   rename(distractor_label_difficulty = d) |>
-  mutate(target_weighted_acc = target_label_difficulty * acc,
-         weighted_acc = (target_label_difficulty+distractor_label_difficulty) * acc) # harder words more valuable to know
+  mutate(target_weighted_acc = target_label_difficulty * long_window_accuracy,
+         weighted_acc = (target_label_difficulty+distractor_label_difficulty) * long_window_accuracy) # harder words more valuable to know
   # ToDo: what to do with distractor label? a trial is easy if you know the target label, OR if you know the distractor label (and use ME)
 
-cor.test(trial_acc$acc, trial_acc$target_label_difficulty) # .06
-cor.test(trial_acc$acc, trial_acc$distractor_label_difficulty) # .06
-cor.test(trial_acc$target_label_difficulty, trial_acc$distractor_label_difficulty) # .76
+cor.test(trial_acc$long_window_accuracy, trial_acc$target_label_difficulty) # .06
+cor.test(trial_acc$long_window_accuracy, trial_acc$distractor_label_difficulty) # .06
+cor.test(trial_acc$target_label_difficulty, trial_acc$distractor_label_difficulty) # .76 <- target and distractor have very similar difficulties
 
 # administration-level accuracy
 child_acc <- trial_acc |>
   group_by(dataset_name, subject_id, administration_id, age) |>
-  summarize(LWL_accuracy = mean(acc),
+  summarize(LWL_accuracy = mean(long_window_accuracy),
             LWL_weighted_acc = mean(weighted_acc),
             LWL_target_weighted_acc = mean(target_weighted_acc),
             mean_target_difficulty = mean(target_label_difficulty),
-            sd = sd(acc),
+            sd = sd(long_window_accuracy),
             n = n())
 ```
 
@@ -84,7 +90,7 @@ diff_by_exp <- child_acc |>
             n=n())
 #cor.test(diff_by_exp$LWL_accuracy, diff_by_exp$mean_target_difficulty)
 diff_by_exp |>
-  ggplot(aes(x=mean_target_difficulty, y=LWL_weighted_acc)) +
+  ggplot(aes(x=mean_target_difficulty, y=LWL_weighted_acc, color=mean_age)) +
   geom_point() +
   geom_label_repel(aes(label=dataset_name))
 ```
@@ -93,17 +99,67 @@ diff_by_exp |>
 IRT Target Label Difficulty vs. Item-level LWL Accuracy by Dataset
 
 
-```{r, fig.width=9, fig.height=9}
-trial_acc |> 
-  group_by(dataset_name, target_cdi_label, target_label_difficulty) |>
-  summarise(LWL_accuracy = mean(acc), 
-            sd = sd(acc),
-            n = n()) |>
-  ggplot(aes(x=target_label_difficulty, y=LWL_accuracy, color=dataset_name)) +
-  geom_point() +
-  geom_label_repel(aes(label = target_cdi_label))
+
+```{r}
+d <- trial_acc |> 
+  group_by(subject_id, age, target_cdi_label, target_label_difficulty) |>
+  summarise(LWL_accuracy = mean(long_window_accuracy), 
+            sd = sd(long_window_accuracy),
+            n = n())
+
+m1short <- lmerTest::lmer(data=trial_acc, short_window_accuracy ~ age * target_label_difficulty * distractor_label_difficulty + 
+                       (1|administration_id) + (1|target_cdi_label) + (1|distractor_cdi_label))
+summary(m1short)
+#sjPlot::r2(m1short)
+
+# different effects
+m1long <- lmerTest::lmer(data=trial_acc, long_window_accuracy ~ age * target_label_difficulty * distractor_label_difficulty + 
+                       (1|administration_id) + (1|target_cdi_label) + (1|distractor_cdi_label))
+summary(m1long)
 ```
 
+## Examine LWL target difficulties
+
+```{r}
+# target and distractor difficulties are strongly related, so let's just average them and label with target
+
+# by-item
+by_item <- trial_acc |>
+  mutate(mean_difficulty = (target_label_difficulty + distractor_label_difficulty) / 2) |>
+  group_by(target_cdi_label) |>
+  summarise(target_label_difficulty = first(target_label_difficulty),
+            mean_age = mean(age),
+            LWL_accuracy = mean(short_window_accuracy, na.rm=T), # why some NAs here?
+            n = n()) |>
+  arrange(desc(n)) |>
+  ungroup()
+
+by_item |> filter(n>4) |>
+  ggplot(aes(x=target_label_difficulty, y=LWL_accuracy, color=mean_age)) +
+  geom_point() +
+  geom_label_repel(aes(label=target_cdi_label)) +
+  geom_smooth()
+```
+
+# Examine by-subject CDI vs LWL accuracy
+
+```{r by-subject}
+# by-subject
+by_subj <- trial_acc |>
+  # left_join(cdi_data) |> # many-to-many
+  group_by(administration_id, age) |>
+  summarise(target_label_difficulty = mean(target_label_difficulty),
+            distractor_label_difficulty = mean(distractor_label_difficulty),
+            LWL_accuracy = mean(short_window_accuracy, na.rm=T), 
+            CDI_percent = first(CDI_percent),
+            n = n()) |>
+  ungroup()
+
+
+by_subj |> filter(n>4) |>
+  select(-administration_id, -n) |>
+  GGally::ggpairs()
+```
 
 ## CDI data
 
