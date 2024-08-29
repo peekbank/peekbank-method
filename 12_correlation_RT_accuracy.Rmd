@@ -1,5 +1,5 @@
 ---
-title: "9 correlation between RT and accuracy"
+title: "12 correlation between RT and accuracy"
 output: html_document
 date: "2024-08-27"
 ---
@@ -48,7 +48,9 @@ RT <- d_trial |>
   summarize(RT = min(t_norm)) |>
   left_join(target_t0)
 
-joint <- acc |> full_join(RT)
+joint <- acc |> full_join(RT) |> 
+  left_join(d_trial |> select(administration_id, age) |> distinct(),
+            by = join_by(administration_id))
 ```
 
 
@@ -187,3 +189,25 @@ ggplot(post_cor, aes(x=acc_even_acc_odd, y=rt_even_rt_odd))+geom_point()+geom_sm
 
 post_cor |> select(-acc_even_acc_odd, -rt_even_rt_odd) |> pivot_longer(starts_with("acc")) |> ggplot( aes(x=reorder(dataset_name, value,mean), y=value, color=name))+geom_point()+theme(axis.text.x=element_text(angle=45, vjust=1, hjust=1))+geom_hline(yintercept=0)
 ```
+
+# Does Acc-RT correlation get stronger with age?
+```{r}
+by_ppt_cors <- joint |> 
+  group_by(dataset_name, administration_id, age) |> 
+  summarise(cor = cor(acc, RT, use = "pairwise.complete.obs", method = "spearman"))
+```
+
+```{r}
+ggplot(by_ppt_cors,
+       aes(x = age, y = cor)) +
+  geom_point(alpha = .1) +
+  geom_smooth() +
+  geom_hline(yintercept = 0, lty = "dashed") +
+  theme(panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank()) +
+  labs(x = "Age (mo)",
+       y = "Correlation between accuracy and RT") +
+  theme_classic()
+```
+
+
