@@ -145,7 +145,7 @@ by_item |> filter(n>4) |>
 
 # Examine by-subject CDI vs LWL accuracy
 
-```{r by-subject}
+```{r by-subject, fig.width = 8, fig.width = 8}
 # by-subject
 by_subj <- trial_acc |>
   # left_join(cdi_data) |> # many-to-many
@@ -161,7 +161,7 @@ by_subj <- trial_acc |>
 
 by_subj |> filter(n>4) |>
   select(-administration_id, -n) |>
-  GGally::ggpairs()
+  GGally::ggpairs(aes(alpha=.1))
 ```
 
 ## CDI data
