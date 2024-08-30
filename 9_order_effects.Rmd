@@ -65,17 +65,7 @@ d_trial_summary <- d_trial_summary %>%
   
 ```
 
-We keep with the datasets with trials with at least 2 repetitions
 
-```{r}
-
-d_trial_summary %>% 
-  filter(max_stimulus_pair_instance >=2) %>% 
-  ggplot(aes(x = stimulus_pair_instance)) + 
-  geom_histogram() + 
-  facet_wrap(~dataset_name)
-
-```
 # 2. Repetitions analysis
 
 ## 2.1. Repetitions classification
@@ -96,13 +86,13 @@ repetitions_data = d_trial_summary %>%
   
   filter(stimulus_pair_instance <= 2) %>% 
   
-  mutate(type_of_instance = case_when(
+  mutate(type_of_instance = as.factor(case_when(
     
     stimulus_pair_instance == 1 & stimulus_pair_target_instance == 1 ~ "Not repeated",
     stimulus_pair_instance == 2 & stimulus_pair_target_instance == 1 ~ "Repeated pair",
     stimulus_pair_instance == 2 & stimulus_pair_target_instance == 2 ~ "Repeated pair and target"
     
-  )) 
+  ))) 
 
 
 repetitions_data_long = repetitions_data%>% 
@@ -116,9 +106,10 @@ repetitions_data_long %>%
   group_by(dataset_name, stimulus_pair_instance ,stimulus_pair_target_instance, type_of_instance, Time) %>% 
   summarize(n = n()) %>% 
   group_by(dataset_name) %>% 
-  mutate(total_trials = sum(n)) %>% 
+  mutate(total_trials = sum(n),
+         proportion = n/total_trials) %>% 
 
-  ggplot(aes(x = dataset_name, y = n/total_trials, fill = (type_of_instance)))+
+  ggplot(aes(x = dataset_name, y = proportion, fill = (type_of_instance)))+
   geom_bar(stat = "identity", position = "stack") +
   theme_minimal() +
   theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1),
@@ -129,20 +120,12 @@ repetitions_data_long %>%
 ```
 
 
-
-
-Jess -> pomper_prime
-
-
-
-
-
 We should decide what to do with datasets/trials with very few repeated pair and target
 
 absence of green in pomper_prime is suspicious
 Clarify that only 2 first trials were selected
 
-Select two or three datasets and see if this make sense
+Select two or three datasets and see if this makes sense
 
 
 ## 2.2. Accuracy by repetitions faceted by dataset_name
@@ -181,11 +164,16 @@ Standard errors might be a bit underestimated because of the number of rows
 ```{r}
 
 repetitions_data_long%>% 
-  filter(dataset_name != "swingley_aslin_2002") %>% 
   
+  group_by(dataset_name, administration_id, type_of_instance, Time) %>% 
+  summarize(mean_administration_accuracy = mean(Accuracy, na.rm = T),
+            n = n()) %>%
+  ungroup() %>% 
+  mutate(n_in_dataset = n(), .by = c("dataset_name","type_of_instance", "Time")) %>% 
+  filter(n_in_dataset > 10) %>% 
   group_by(type_of_instance, Time) %>% 
-  summarize(mean_accuracy = mean(Accuracy, na.rm = T),
-            se_accuracy = sd(Accuracy, na.rm = T)/sqrt(length(Accuracy)),
+  summarise(mean_accuracy = mean(mean_administration_accuracy, na.rm = T),
+            se_accuracy = sd(mean_administration_accuracy, na.rm = T)/sqrt(length(mean_administration_accuracy)),
             n = n()) %>% 
   
 
@@ -196,57 +184,13 @@ repetitions_data_long%>%
   geom_errorbar(aes(ymin = mean_accuracy-se_accuracy,
                     ymax = mean_accuracy+se_accuracy), width = 0.3, size = 1) +
     geom_point(aes(fill = Time),size = 5, color = "black", shape = 21) +
-      coord_cartesian(ylim = c(0.4,0.66))+
+      coord_cartesian(ylim = c(0.2,0.8))+
 
   theme_minimal()
 
 
 
 ```
-
-
-```{r}
-
-# ADD AGE.
-
-repetitions_data_long%>% 
-  filter(age >= 12) %>%  
-  filter(age <= 24) %>% 
-  mutate(age_bin = cut(age, breaks = 3)) %>% 
-  mutate(Time = factor(Time, levels = c("pre_accuracy", "post_accuracy"))) %>% 
-
-  mutate(max_age = max(age),
-         min_age = min(age),.by = c(age_bin)) %>% 
-  mutate(age_bin_limits = paste(min_age, "-", max_age)) %>% 
-  select(-min_age,-max_age) %>% 
-  # filter(dataset_name != "swingley_aslin_2002") %>% 
-  
-
-    group_by(type_of_instance, Time, age_bin) %>% 
-  summarize(mean_accuracy = mean(Accuracy, na.rm = T),
-            se_accuracy = sd(Accuracy, na.rm = T)/sqrt(length(Accuracy)),
-            n = n()) %>% 
-  
-
-  ggplot(aes(x = factor(age_bin),
-             y = mean_accuracy, color = type_of_instance )) + 
-
-
-  geom_errorbar(aes(ymin = mean_accuracy-se_accuracy,
-                    ymax = mean_accuracy+se_accuracy), width = 0.3, size = 1) +
-    geom_point(aes(fill = type_of_instance),size = 5, color = "black", shape = 21) +
-      # coord_cartesian(ylim = c(0.4,0.66))+
-
-  theme_minimal()+
-  facet_wrap(~Time)
-
-
-
-
-  
-
-```
-
 ## 2.4. Accuracy by repetitions in the whole dataset
 
 Same plot that before, but with lines showing accuracy in different datasets
@@ -264,13 +208,16 @@ averaged_repetitions_data = repetitions_data_long %>%
 
 
 repetitions_data_long%>% 
-   filter(dataset_name != "swingley_aslin_2002") %>% 
-  
-  filter(!is.na(Accuracy)) %>% 
-  
+
+  group_by(dataset_name, administration_id, type_of_instance, Time) %>% 
+  summarize(mean_administration_accuracy = mean(Accuracy, na.rm = T),
+            n = n()) %>% 
+    ungroup() %>% 
+  mutate(n_in_dataset = n(), .by = c("dataset_name","type_of_instance", "Time")) %>% 
+  filter(n_in_dataset > 10) %>% 
   group_by(dataset_name, type_of_instance, Time) %>% 
-  summarize(mean_accuracy = mean(Accuracy),
-            se_accuracy = sd(Accuracy)/sqrt(length(Accuracy)),
+  summarise(mean_accuracy = mean(mean_administration_accuracy, na.rm = T),
+            se_accuracy = sd(mean_administration_accuracy, na.rm = T)/sqrt(length(mean_administration_accuracy)),
             n = n()) %>% 
   left_join(averaged_repetitions_data) %>% 
 
@@ -287,13 +234,142 @@ repetitions_data_long%>%
   geom_point(aes(y = total_mean_accuracy, fill = Time),size = 5, color = "black", shape = 21) +
 
   # geom_line(aes(y = mean_accuracy,  group = interaction(dataset_name, Time),color = Time), size = 2, alpha = 0.1)+
-  # coord_cartesian(ylim = c(0.4,0.66))+
+  coord_cartesian(ylim = c(0.2,0.8))+
   theme_minimal()
 
 
 
 
 ```
+## 2.5. Accuracy by repetitions and age
+
+Same plot that before, but looking at age differences in children between 12 and 24 months
+
+
+```{r}
+
+# ADD AGE.
+
+repetitions_data_long%>% 
+    ungroup() %>% 
+  mutate(n_in_dataset = n(), .by = c("dataset_name","type_of_instance", "Time")) %>%
+  filter(n_in_dataset > 10) %>%
+  filter(age >= 12) %>%  
+  filter(age <= 24) %>% 
+  mutate(age_bin = factor(cut(age, breaks = 3))) %>% 
+  mutate(Time = factor(Time, levels = c("pre_accuracy", "post_accuracy"))) %>% 
+  
+
+  group_by(administration_id, type_of_instance, Time, age_bin) %>% 
+  summarize(mean_administration_accuracy = mean(Accuracy, na.rm = T),
+            n = n()) %>% 
+  group_by(type_of_instance, Time, age_bin) %>% 
+  summarise(mean_accuracy = mean(mean_administration_accuracy, na.rm = T),
+            se_accuracy = sd(mean_administration_accuracy, na.rm = T)/sqrt(length(mean_administration_accuracy)),
+            n = n()) %>% 
+  
+
+  ggplot(aes(x = factor(age_bin),
+             y = mean_accuracy, color = type_of_instance )) + 
+
+
+  geom_errorbar(aes(ymin = mean_accuracy-se_accuracy,
+                    ymax = mean_accuracy+se_accuracy), width = 0.3, size = 1) +
+    geom_point(aes(fill = type_of_instance),size = 5, color = "black", shape = 21) +
+      # coord_cartesian(ylim = c(0.4,0.66))+
+
+  theme_minimal()+
+  theme(legend.position = "bottom")+
+  facet_wrap(~Time)
+
+
+
+
+  
+
+```
+
+# 3. Timecourse plots
+
+## 3.1. Timecourse by type of instance
+
+```{r, fig.width= 6, fig.height= 6}
+
+rep_timecourse <- d_trial %>%
+  left_join(repetitions_data) %>% 
+  filter(!is.na(type_of_instance))
+
+
+
+# do you look more to target after having seen this target as a target in this stimulus pair before?
+rep_timecourse %>%
+  group_by(type_of_instance, t_norm) %>%
+  summarize(accuracy = mean(correct, na.rm=TRUE)) %>%
+  filter(t_norm > -3000, t_norm < 4000) %>%
+  ggplot(aes(x = t_norm, y = accuracy, color = type_of_instance)) + 
+  geom_smooth(method="gam")+
+  geom_vline(xintercept=0)+
+  geom_hline(yintercept=0.5,linetype="dashed")+
+  theme_minimal()+
+  theme(legend.position = "bottom")
+
+
+```
+
+The "dip" seems to be happening only in trials in which the pair was repeated but with switched target. Children may be anticipating where to look. 
+
+On the other hand, when the repeated trial involves repeating the target, this involves better accuracy both in the pre and post. In post, both types of repetitions elicit better accuracy levels than no-repetitions. When the pair and target are repeated, the accuracy peak is reached faster.
+
+
+## 3.2. timecourse by type of instance and age
+
+
+```{r}
+
+filt_rep_data = repetitions_data  %>% 
+  mutate(n_in_dataset = n(), .by = c("dataset_name","type_of_instance")) %>%
+  filter(n_in_dataset > 10)
+
+
+rep_timecourse <- d_trial %>%
+  left_join(filt_rep_data) %>% 
+  
+  filter(!is.na(type_of_instance)) %>% 
+  filter(age >= 14) %>%  
+  filter(age <= 18) %>% 
+  mutate(age_bin = cut(age, breaks = 3)) 
+  
+
+
+# do you look more to target after having seen this target as a target in this stimulus pair before?
+rep_timecourse %>%
+  group_by(type_of_instance, t_norm, age_bin) %>%
+  summarize(accuracy = mean(correct, na.rm=TRUE)) %>% 
+  filter(t_norm > -3000, t_norm < 4000) %>%
+  ggplot(aes(x = t_norm, y = accuracy, color = as.factor(type_of_instance))) + 
+  geom_smooth(method="gam")+
+  # geom_point()+
+  geom_vline(xintercept=0)+
+  geom_hline(yintercept=0.5,linetype="dashed")+
+  theme_minimal()+
+  facet_wrap(~age_bin)
+
+
+```
+
+
+```{r}
+options(scipen = 999)
+
+rep_timecourse %>% 
+  ggplot(aes(x = age, fill = type_of_instance))+
+  geom_histogram()
+
+
+
+```
+
+# 4. Stuff for further exploration
 
 We could focus in trials with stimulus_pair_instance == 1 \| 2 to make it easier to approach. In that case, we should have these combinations
 
@@ -358,152 +434,13 @@ c
 
 ```
 
-```{r}
-
-rep_timecourse <- d_trial %>%
-  left_join(repetitions_data) %>% 
-  filter(!is.na(type_of_instance))
-
-
-
-# do you look more to target after having seen this target as a target in this stimulus pair before?
-rep_timecourse %>%
-  group_by(type_of_instance, t_norm) %>%
-  summarize(accuracy = mean(correct, na.rm=TRUE)) %>%
-  filter(t_norm > -3000, t_norm < 4000) %>%
-  ggplot(aes(x = t_norm, y = accuracy, color = as.factor(type_of_instance))) + 
-  geom_smooth(method="gam")+
-  geom_vline(xintercept=0)+
-  geom_hline(yintercept=0.5,linetype="dashed")+
-  theme_minimal()
-
-
-```
-
-
-
-
-The "dip" seems to be happening only in trials in which the pair was repeated but with switched target. Children may be anticipating where to look. 
-
-On the other hand, when the repeated trial involves repeating the target, this involves better accuracy both in the pre and post. In post, both types of repetitions elicit better accuracy levels than no-repetitions. When the pair and target are repeated, the accuracy peak is reached faster.
-
-See what happens with age
-See if we can expand to three
-
-
-
-```{r}
-
-rep_timecourse <- d_trial %>%
-  filter(dataset_name != "perry_cowpig") %>% 
-  filter(dataset_name != "swingley_aslin_2002") %>%  
-  left_join(repetitions_data) %>% 
-  filter(!is.na(type_of_instance)) %>% 
-  filter(age >= 12) %>%  
-  filter(age <= 24) %>% 
-  mutate(age_bin = cut(age, breaks = 2)) 
-  
-
-
-# do you look more to target after having seen this target as a target in this stimulus pair before?
-rep_timecourse %>%
-  group_by(type_of_instance, t_norm, age_bin) %>%
-  summarize(accuracy = mean(correct, na.rm=TRUE)) %>% 
-  filter(t_norm > -3000, t_norm < 4000) %>%
-  ggplot(aes(x = t_norm, y = accuracy, color = as.factor(type_of_instance))) + 
-  geom_smooth(method="gam")+
-  # geom_point()+
-  geom_vline(xintercept=0)+
-  geom_hline(yintercept=0.5,linetype="dashed")+
-  theme_minimal()+
-  facet_wrap(~age_bin)
-
-
-```
 
 
 
 
 
 
-
-
-
-```
-
-
-# 3. Guessing-error index
-
-I wonder if we could calculate an index of errors related to the order/guessing effect. I should be pre-accuracy in "Not repeated" minus pre-accuracy in "Repeated pair".
-
-This index could be used for correlation analysis with other variables (e.g. age)
-
-```{r}
-
-
-guessing_index_data = repetitions_data %>% 
-  filter(type_of_instance != "Repeated pair and target") %>% 
-  group_by(dataset_name, administration_id, type_of_instance, age) %>% 
-  summarise(mean_pre_accuracy = mean(pre_accuracy, na.rm = T)) %>% 
-  
-  
-  pivot_wider(id_cols = c("dataset_name", "administration_id", "age"),
-              names_from = type_of_instance, 
-              values_from = mean_pre_accuracy) %>% 
-  janitor::clean_names() %>% 
-  mutate(guessing_index = repeated_pair) %>% 
-  select(dataset_name, administration_id, age, guessing_index)
-
-
-
-guessing_index_data %>%
-  # filter(age <30) %>% 
-  ggplot(aes(x = age, y = guessing_index))+
-  geom_point()+
-  geom_smooth(method = "lm") +
-  facet_wrap(~dataset_name)
-
-
-guessing_index_data %>%
-  filter(age < 24) %>% 
-  # filter(dataset_name == "yurovsky_2017") %>%
-  # filter(age <30) %>% 
-  ggplot(aes(x = age, y = guessing_index))+
-  geom_point()+
-  geom_smooth(method = "lm",) +
-  facet_wrap(~dataset_name, scales = "free")
-
-
-guessing_index_data %>%
-  filter(age < 24) %>%
-  filter(age > 12) %>%
-
-  ggplot(aes(x = age, y = guessing_index))+
-  geom_point(aes(color = dataset_name))+
-  geom_smooth(method = "lm",)  +
-  stat_cor()
-
-
-
-repetitions_data %>%
-  filter(age < 24) %>%
-  filter(age > 12) %>%
-
-  ggplot(aes(x = age, y = pre_accuracy,color = type_of_instance))+
-  geom_point(alpha = 0.1)+
-  # geom_line(aes(group = type_of_instance))+
-  geom_smooth(method = "lm") +
-  stat_cor()
-
-# 12 to 24
-
-
-```
-yurovsky_2017 shows something interesting. Maybe we should think about how we pool age data across studies
-
-plot with one line for non repeated repeated pair
-
------ PRIOR MATERIALS ---
+# 5. Prior materials
 
 ```{r}
 
@@ -576,33 +513,6 @@ d_trial_summary %>% group_by(dataset_name) %>%
 
 ```
 
-# Wonder if age of children in each studies is comparable.
-
-```{r}
-
-
-d_trial_summary %>% 
-  distinct(dataset_name, administration_id,  age) %>% 
-  
-
-  group_by(dataset_name, age) %>% 
-  summarise(n = n()) %>% 
-  group_by(dataset_name) %>% 
-  mutate(total = sum(n)) %>% 
-
-  ggplot(aes(x = dataset_name, y = n/total, fill = (age)))+
-  geom_bar(stat = "identity", position = "stack") +
-  theme_minimal() +
-  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1),
-        legend.position = "top")+
-  coord_flip()
-
-
-
-
-```
-
-Maybe we should focus in studies with 3 or more stimulus pair repetitions and less than 5
 
 ```{r}
 
