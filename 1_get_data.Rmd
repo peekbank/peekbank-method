@@ -42,11 +42,11 @@ We're focused on familiar words here.
 ## Get data
 
 ```{r, eval=TRUE}
-con <- connect_to_peekbank(db_version = "workshop_2024_dev")
+con <- connect_to_peekbank(db_version = "grant_2024_dev")
 all_aoi_timepoints <- get_aoi_timepoints(connection = con, rle=FALSE)
 
 # reload connection in case it is stale
-con <- connect_to_peekbank(db_version = "workshop_2024_dev")
+con <- connect_to_peekbank(db_version = "grant_2024_dev")
 all_stimuli <- collect(get_stimuli(connection = con))
 all_administrations <- collect(get_administrations(connection = con))
 all_subjects <- unpack_aux_data(collect(get_subjects(connection = con)))
@@ -102,14 +102,15 @@ Take only English familiar word data and also remove datasets that aren't ready 
 
 ```{r}
 d_joined <- aoi_data_joined |>
-  filter(!(dataset_name %in% c("casillas_tseltal_2015", 
-                               "byers-heinlein_2017", 
-                               "hurtado_2008", 
-                               "kartushina_2019",
-                               "weisleder_stl",
-                               "xsectional_2007",
-                               "garrison_bergelson_2020", 
-                               "moore_bergelson_2022_verb"))) |>
+  filter(!(dataset_name %in% c("casillas_tseltal_2015", # tseltsal
+                               "byers-heinlein_2017", # french bilinguals
+                               "hurtado_2008", # spanish
+                               "kartushina_2019", # norwegian
+                               "weisleder_stl", # spanish
+                               "xsectional_2007", # spanish
+                               "gazetriggered_2020", # dutch
+                               "moore_bergelson_2022_verb" #verbs
+                               ))) |>
   filter(age <= 60, 
          vanilla_trial == TRUE,
          stimulus_novelty == "familiar",
@@ -130,13 +131,13 @@ Output targets and distractors.
 
 ```{r}
 all_items <- tibble(item = sort(unique(c(d_joined$target_label, d_joined$distractor_label))))
-write_csv(all_items, here("metadata", "all_items.csv"))
+write_csv(all_items, here("metadata", "all_items_2024_grant.csv"))
 ```
 
 Rename and exclude in a more general way. 
 
 ```{r}
-included_items <- read_csv(here("metadata","included_items.csv"))
+included_items <- read_csv(here("metadata","included_items_2024_grant.csv"))
 
 d_aoi <- d_joined |>
   left_join(included_items, by = join_by(target_label == item)) |>
@@ -201,20 +202,36 @@ save(d_aoi, file = here("cached_intermediates","1_d_aoi.Rds"))
 
 Add instrument length and a CDI percent column.
 
+Note there is a design issue with this line:
+
+`left_join(all_administrations %>% distinct(subject_id, dataset_id, administration_id, age), 
+                                             multiple = "all")`
+
+as IF we have two administrations in a month, than we don't know which administration ID a given CDI should be associated with. By default now we associate it with both.
+
+BUT ... CDI info has ages rounded differently from administrations in some cases!
+
+
 ```{r}
+admin_info <- all_administrations %>% 
+  distinct(subject_id, dataset_id, administration_id, age) |>
+  mutate(floor_age = floor(age)) |>
+  select(-age)
+
 cdi_data <- all_subjects %>%
   unnest(subject_aux_data) %>% 
   filter(!is.na(cdi_responses)) %>%
   unnest(cdi_responses) %>% 
   select(-lang_measures, -lang_exposures, -native_language_non_iso) %>% 
-  left_join(all_administrations %>% distinct(subject_id, dataset_id, administration_id)) %>%
+  mutate(floor_age = floor(age)) |>
+  left_join(admin_info, multiple = "all") %>%
   left_join(all_datasets %>% select(dataset_id, dataset_name)) |>
   mutate(instrument_length = case_when(instrument_type=="ws" ~ 680,
                                        instrument_type=="wg" & language=="English (American)" ~ 396,
                                        instrument_type=="wsshort" ~ 100,
                                        instrument_type=="wg" & language=="Spanish (Mexican)" ~ 428, # double-check Spanish WG length..
                                        .default = NA),
-   CDI_percent = rawscore / instrument_length)
+         CDI_percent = rawscore / instrument_length)
 
 save(cdi_data, file=here("cached_intermediates", "1_cdi_subjects.Rds"))
 ```
@@ -225,3 +242,12 @@ cdi_data |>
   facet_wrap(vars(instrument_type)) +
   geom_point(alpha=.5)
 ```
+
+```{r}
+cdi_data |>
+  ggplot(aes(x=age, y=rawscore, color=language)) +
+  facet_wrap(vars(instrument_type, dataset_name)) +
+  geom_point(alpha=.5) 
+```
+```
+
