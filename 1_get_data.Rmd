@@ -103,12 +103,14 @@ Take only English familiar word data and also remove datasets that aren't ready 
 ```{r}
 d_joined <- aoi_data_joined |>
   filter(!(dataset_name %in% c("casillas_tseltal_2015", # tseltsal
-                               "byers-heinlein_2017", # french bilinguals
                                "hurtado_2008", # spanish
                                "kartushina_2019", # norwegian
                                "weisleder_stl", # spanish
                                "xsectional_2007", # spanish
                                "gazetriggered_2020", # dutch
+                               "byers-heinlein_2017", # french bilinguals
+                               # kremin_2021 ## martin will check
+                               # "sander-montant_2022"  ## Martin will check
                                "moore_bergelson_2022_verb" #verbs
   ))) |>
   filter(age <= 60, 
@@ -140,7 +142,7 @@ write_csv(all_items, here("metadata", "all_items_2025.1.csv"))
 Rename and exclude in a more general way. 
 
 ```{r}
-included_items <- read_csv(here("metadata","included_items_2024_grant.csv"))
+included_items <- read_csv(here("metadata","included_items_2025.1.csv"))
 
 d_aoi <- d_joined |>
   left_join(included_items, by = join_by(target_label == item)) |>
@@ -299,6 +301,7 @@ cdi_data |>
   geom_smooth() + 
   facet_wrap(~dataset_name)
 ```
+
 ```{r}
 cdi_data |>
   filter(!is.na(comp)) |>
