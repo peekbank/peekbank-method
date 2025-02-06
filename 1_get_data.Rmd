@@ -110,11 +110,14 @@ d_joined <- aoi_data_joined |>
                                "xsectional_2007", # spanish
                                "gazetriggered_2020", # dutch
                                "moore_bergelson_2022_verb" #verbs
-                               ))) |>
+  ))) |>
   filter(age <= 60, 
          vanilla_trial == TRUE,
-         stimulus_novelty == "familiar",
-         distractor_novelty == "familiar") |> 
+         # stimulus_novelty == "familiar", # these conditions should be redundant with "vanilla"
+         # distractor_novelty == "familiar" # these conditions should be redundant with "vanilla"
+         ((stimulus_novelty == "familiar" & distractor_novelty == "familiar") |
+            dataset_name == "fernald_totlot") # fix for error in dataset
+  ) |> 
   select(dataset_name, subject_id, administration_id, trial_id, trial_order,
          dataset_id, target_id, t_norm, age, aoi, target_label, distractor_label, target_side) |>
   mutate(correct = ifelse(aoi == "target", 1, 
@@ -202,52 +205,105 @@ save(d_aoi, file = here("cached_intermediates","1_d_aoi.Rds"))
 
 Add instrument length and a CDI percent column.
 
-Note there is a design issue with this line:
-
-`left_join(all_administrations %>% distinct(subject_id, dataset_id, administration_id, age), 
-                                             multiple = "all")`
-
-as IF we have two administrations in a month, than we don't know which administration ID a given CDI should be associated with. By default now we associate it with both.
-
-BUT ... CDI info has ages rounded differently from administrations in some cases!
-
 
 ```{r}
 admin_info <- all_administrations %>% 
   distinct(subject_id, dataset_id, administration_id, age) |>
-  mutate(floor_age = floor(age)) |>
-  select(-age)
+  # mutate(floor_age = floor(age)) |>
+  # select(-age) |>
+  left_join(all_datasets %>% select(dataset_id, dataset_name)) # get dataset names
 
-cdi_data <- all_subjects %>%
+eng_cdi_admins <- all_subjects %>%
   unnest(subject_aux_data) %>% 
   filter(!is.na(cdi_responses)) %>%
   unnest(cdi_responses) %>% 
-  select(-lang_measures, -lang_exposures, -native_language_non_iso) %>% 
-  mutate(floor_age = floor(age)) |>
-  left_join(admin_info, multiple = "all") %>%
-  left_join(all_datasets %>% select(dataset_id, dataset_name)) |>
+  filter(language == "English (American)") |>
+  # mutate(floor_age = floor(age)) %>%
   mutate(instrument_length = case_when(instrument_type=="ws" ~ 680,
-                                       instrument_type=="wg" & language=="English (American)" ~ 396,
+                                       instrument_type=="wg" ~ 396,
                                        instrument_type=="wsshort" ~ 100,
-                                       instrument_type=="wg" & language=="Spanish (Mexican)" ~ 428, # double-check Spanish WG length..
+                                       instrument_type=="wgshort" ~ 100,
                                        .default = NA),
-         CDI_percent = rawscore / instrument_length)
+         CDI_percent = rawscore / instrument_length) |>
+  select(subject_id, age, measure, CDI_percent) |> 
+  pivot_wider(names_from = "measure", values_from = "CDI_percent", 
+              values_fill = NA, values_fn = mean)
+```
+
+Now we have one row per CDI administration - English only at the moment. 
+
+Let's try to join this with the administration data. 
+
+The issue is that we have no 1-1 relationship. Consider subject 289. They have many CDIs and many LWLs and they don't all match. 
+
+Our principles:
+* we want to join CDIs to LWLs, so that means that the LWL admins are our base data frame (e.g., `left_join(admins, cdis)` and not the reverse)
+* we want only one CDI per LWL admin, but we could in principle average for extra precision
+
+Here's an example. Note that this example depends on the use of age for the join and only works because `adams_marchman_2018` provides rounded ages. 
+
+```{r}
+left_join(filter(admin_info, subject_id == 289), 
+          filter(eng_cdi_admins, subject_id == 289))
+```
+
+Let's try a fuzzy join. 
+
+```{r}
+fuzzyjoin::difference_left_join(filter(admin_info, subject_id == 289), 
+                                filter(eng_cdi_admins, subject_id == 289), 
+                                by = c("subject_id", "age"),
+                                max_dist = 1) 
+```
+
+This results in too many rows because there could be multiple CDIs matching a single admin. We can fix this by averaging. 
+
+
+```{r}
+fuzzyjoin::difference_left_join(filter(admin_info, subject_id == 289), 
+                                filter(eng_cdi_admins, subject_id == 289), 
+                                by = c("subject_id", "age"),
+                                max_dist = 1) |>
+  select(-age.y, -subject_id.y) |>
+  rename(age = age.x, subject_id = subject_id.x) |>
+  group_by(subject_id, administration_id, dataset_name, age) |>
+  summarise(prod = mean(prod, na.rm = TRUE), 
+            comp = mean(comp, na.rm = TRUE)) |>
+  mutate(across(c("prod","comp"), ~ifelse(is.nan(.x), NA, .x))) 
+```
+
+Here's the actual join
+
+
+```{r}
+# cdi_data <- left_join(admin_info, eng_cdi_admins) 
+cdi_data <- fuzzyjoin::difference_left_join(admin_info, eng_cdi_admins, 
+                                            by = c("subject_id", "age"),
+                                            max_dist = 1) |>
+  select(-age.y, -subject_id.y) |>
+  rename(age = age.x, subject_id = subject_id.x) |>
+  group_by(subject_id, administration_id, dataset_name, age) |>
+  summarise(prod = mean(prod, na.rm = TRUE), 
+            comp = mean(comp, na.rm = TRUE)) |>
+  mutate(across(c("prod","comp"), ~ifelse(is.nan(.x), NA, .x))) |>
+  ungroup()                     
 
 save(cdi_data, file=here("cached_intermediates", "1_cdi_subjects.Rds"))
 ```
 
 ```{r}
 cdi_data |>
-  ggplot(aes(x=age, y=rawscore, color=language)) +
-  facet_wrap(vars(instrument_type)) +
-  geom_point(alpha=.5)
+  filter(!is.na(prod)) |>
+  ggplot(aes(x=age, y=prod)) +
+  geom_point(alpha=.2) + 
+  geom_smooth() + 
+  facet_wrap(~dataset_name)
 ```
-
 ```{r}
 cdi_data |>
-  ggplot(aes(x=age, y=rawscore, color=language)) +
-  facet_wrap(vars(instrument_type, dataset_name)) +
-  geom_point(alpha=.5) 
+  filter(!is.na(comp)) |>
+  ggplot(aes(x=age, y=comp)) +
+  geom_point(alpha=.2) + 
+  geom_smooth() + 
+  facet_wrap(~dataset_name)
 ```
-```
-
