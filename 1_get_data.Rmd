@@ -42,11 +42,11 @@ We're focused on familiar words here.
 ## Get data
 
 ```{r, eval=TRUE}
-con <- connect_to_peekbank(db_version = "grant_2024_dev")
+con <- connect_to_peekbank(db_version = "2025.1")
 all_aoi_timepoints <- get_aoi_timepoints(connection = con, rle=FALSE)
 
 # reload connection in case it is stale
-con <- connect_to_peekbank(db_version = "grant_2024_dev")
+con <- connect_to_peekbank(db_version = "2025.1")
 all_stimuli <- collect(get_stimuli(connection = con))
 all_administrations <- collect(get_administrations(connection = con))
 all_subjects <- unpack_aux_data(collect(get_subjects(connection = con)))
