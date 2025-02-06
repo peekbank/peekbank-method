@@ -134,7 +134,7 @@ Output targets and distractors.
 
 ```{r}
 all_items <- tibble(item = sort(unique(c(d_joined$target_label, d_joined$distractor_label))))
-write_csv(all_items, here("metadata", "all_items_2024_grant.csv"))
+write_csv(all_items, here("metadata", "all_items_2025.1.csv"))
 ```
 
 Rename and exclude in a more general way. 
