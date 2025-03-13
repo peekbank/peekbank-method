@@ -249,5 +249,4 @@ cdi_data |>
   facet_wrap(vars(instrument_type, dataset_name)) +
   geom_point(alpha=.5) 
 ```
-```
 
