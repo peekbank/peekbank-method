@@ -21,7 +21,20 @@ Create d_trial_summary dataframe which contains pre_accuracy and post_accuracy g
 
 ```{r}
 
-d_trial_summary <- d_trial %>%
+hackathon_datasets <- c( 
+"ronfard_2021"            ,"perry_cowpig",           
+"pomper_saffran_2016"     ,"gazetriggered_2020" ,    
+"adams_marchman_2018"     ,"baumgartner_2014"    ,   
+"newman_genderdistractor" ,"pomper_salientme"     ,  
+"fmw_2013"                ,"ferguson_eyetrackingr" , 
+"yurovsky_2017"           ,"swingley_aslin_2002"    ,
+"reflook_v4"              ,"pomper_prime"           ,
+"potter_remix"            ,"weaver_zettersten_2024" ,
+"potter_canine"           ,"mahr_coartic"           ,
+"bacon_gendercues"        ,"frank_tablet_2016")
+
+d_trial_summary <- d_aoi %>%
+  # filter(dataset_name %in% hackathon_datasets) %>% 
   
   group_by(dataset_id, dataset_name, administration_id, trial_id, trial_order, 
            age, target_id, target_label, distractor_label) %>%
@@ -103,7 +116,7 @@ repetitions_data_long = repetitions_data%>%
                names_to = "Time") 
 
 repetitions_data_long %>% 
-  group_by(dataset_name, stimulus_pair_instance ,stimulus_pair_target_instance, type_of_instance, Time) %>% 
+  group_by(dataset_name, stimulus_pair_instance ,stimulus_pair_target_instance, type_of_instance) %>% 
   summarize(n = n()) %>% 
   group_by(dataset_name) %>% 
   mutate(total_trials = sum(n),
@@ -111,10 +124,17 @@ repetitions_data_long %>%
 
   ggplot(aes(x = dataset_name, y = proportion, fill = (type_of_instance)))+
   geom_bar(stat = "identity", position = "stack") +
+   geom_text(aes(label = n), 
+            position = position_stack(vjust = 0.5), 
+            size = 3, color = "white") +
   theme_minimal() +
   theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1),
         legend.position = "top")+
   coord_flip()
+
+bad_n_datasets <- c( "yurovsky_2017" ,"swingley_aslin_2002" ,"sander-montant_2022",
+                     "perry_cowpig","garrison_bergelson_2020", "fmw_2013" , "baumgartner_2014",
+                     "adams_marchman_2018" ) 
 
 
 ```
@@ -295,7 +315,10 @@ repetitions_data_long%>%
 
 ```{r, fig.width= 6, fig.height= 6}
 
-rep_timecourse <- d_trial %>%
+
+
+rep_timecourse <- d_aoi %>%
+  
   left_join(repetitions_data) %>% 
   filter(!is.na(type_of_instance))
 
@@ -303,6 +326,9 @@ rep_timecourse <- d_trial %>%
 
 # do you look more to target after having seen this target as a target in this stimulus pair before?
 rep_timecourse %>%
+  # filter(age >= 14) %>%
+  # filter(age > 17 & age < 18) %>%
+  # filter(!dataset_name %in% bad_n_datasets) %>% 
   group_by(type_of_instance, t_norm) %>%
   summarize(accuracy = mean(correct, na.rm=TRUE)) %>%
   filter(t_norm > -3000, t_norm < 4000) %>%
@@ -310,6 +336,7 @@ rep_timecourse %>%
   geom_smooth(method="gam")+
   geom_vline(xintercept=0)+
   geom_hline(yintercept=0.5,linetype="dashed")+
+  # coord_cartesian(ylim = c(0.4,0.7))+
   theme_minimal()+
   theme(legend.position = "bottom")
 
@@ -319,6 +346,33 @@ rep_timecourse %>%
 The "dip" seems to be happening only in trials in which the pair was repeated but with switched target. Children may be anticipating where to look. 
 
 On the other hand, when the repeated trial involves repeating the target, this involves better accuracy both in the pre and post. In post, both types of repetitions elicit better accuracy levels than no-repetitions. When the pair and target are repeated, the accuracy peak is reached faster.
+
+```{r, fig.width= 6, fig.width= 10}
+
+
+
+# do you look more to target after having seen this target as a target in this stimulus pair before?
+rep_timecourse %>%
+  # filter(age >= 14) %>%
+  # filter(age > 17 & age < 18) %>%
+  # filter(!dataset_name %in% bad_n_datasets) %>% 
+  
+  # group_by(t_norm, dataset_name) %>%
+  group_by(type_of_instance, t_norm, dataset_name) %>%
+  summarize(accuracy = mean(correct, na.rm=TRUE)) %>%
+  filter(t_norm > -3000, t_norm < 4000) %>%
+  ggplot(aes(x = t_norm, y = accuracy, color = type_of_instance)) +
+
+  geom_smooth(method="gam")+
+  geom_vline(xintercept=0)+
+  geom_hline(yintercept=0.5,linetype="dashed")+
+  # coord_cartesian(ylim = c(0.4,0.7))+
+  theme_minimal()+
+  theme(legend.position = "bottom")+
+  facet_wrap(~dataset_name)
+
+
+```
 
 
 ## 3.2. timecourse by type of instance and age
@@ -331,12 +385,10 @@ filt_rep_data = repetitions_data  %>%
   filter(n_in_dataset > 10)
 
 
-rep_timecourse <- d_trial %>%
+rep_timecourse <- d_aoi %>%
   left_join(filt_rep_data) %>% 
   
   filter(!is.na(type_of_instance)) %>% 
-  filter(age >= 14) %>%  
-  filter(age <= 18) %>% 
   mutate(age_bin = cut(age, breaks = 3)) 
   
 
@@ -362,6 +414,7 @@ rep_timecourse %>%
 options(scipen = 999)
 
 rep_timecourse %>% 
+  filter(age > 16 & age < 18) %>% 
   ggplot(aes(x = age, fill = type_of_instance))+
   geom_histogram()
 
