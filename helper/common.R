@@ -19,7 +19,7 @@ knitr::opts_chunk$set(cache.extra = knitr::rand_seed, cache = TRUE,
 options(dplyr.summarise.inform = FALSE)
 
 # load data
-load(file = here("cached_intermediates","1_d_aoi.Rds"))
+d_aoi <- readRDS(file = here("cached_intermediates","1_d_aoi.Rds"))
 
 # key ICC function
 get_icc <- function (x, column = "accuracy", object = "stimulus") {

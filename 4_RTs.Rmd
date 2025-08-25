@@ -39,7 +39,7 @@ rle_data <- d_trial %>%
   filter(any(t_norm == 0), # must have data at 0
          t_norm >= 0) %>% # only pass data after 0
   group_by(administration_id, trial_id, trial_order) %>%
-  summarise(lengths = rle(aoi)$lengths, 
+  reframe(lengths = rle(aoi)$lengths, 
             values = rle(aoi)$values) 
 
 d_rt <- rle_data %>%
@@ -50,6 +50,8 @@ d_rt <- rle_data %>%
   left_join(d_trial %>%
               select(-t_norm, -correct, -aoi) %>%
               distinct())
+
+saveRDS(file = here("cached_intermediates","4_d_rt.Rds"), d_rt)
 ```
 
 How many trials have RTs for them?
@@ -57,6 +59,8 @@ How many trials have RTs for them?
 Almost every trial makes it through the computation, but what prop do we have RTs for.
 
 ```{r}
+d_rt <- readRDS(file = here("cached_intermediates","4_d_rt.Rds"))
+
 rt_stats <- d_rt %>% 
   ungroup() %>%
   summarise(nas = mean(is.na(shift_start_rt)), 

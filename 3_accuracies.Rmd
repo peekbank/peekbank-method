@@ -58,7 +58,7 @@ accs <- acc_params |>
   unnest(col = icc)
 toc()
 
-save(file = "cached_intermediates/3_accs.Rds", accs)
+writeRDS(file = here("cached_intermediates","3_accs.Rds"), accs)
 ```
 
 ```{r}
@@ -217,7 +217,8 @@ correct_accuracy <- sa_data |>
 
 ggplot(correct_accuracy, aes(x = t_norm, y = correct, col = condition)) + 
   geom_point() + 
-  geom_smooth()
+  geom_smooth() + 
+  geom_hline(yintercept = .5, lty = 2, col = "black")
 ```
 
 
@@ -280,13 +281,11 @@ So really the question is when this window is, A PRIORI. Because of course the i
 
 # Validity via MB-CDI
 
-We have MB-CDI WS data for a number of datasets, at least two. 
+We have MB-CDI WS data for a number of datasets. 
 
 
 ```{r}
 cdi_data <- readRDS(here("cached_intermediates","1_cdi_subjects.Rds"))
-
-
 ```
 
 Now let's get our sim function. 
@@ -335,15 +334,18 @@ save(file = here("cached_intermediates","3_cdi_corrs.Rds"), cdi_corrs)
 ```
 
 ```{r}
+load(file = here("cached_intermediates","3_cdi_corrs.Rds"))
+
 cdi_corrs_long <- cdi_corrs |>
   pivot_longer(names_to = "measure", values_to = "r", starts_with("cor"))
+
 ```
 
 Visualize!
 
 
 ```{r}
-ggplot(filter(cdi_corrs_wide, !is.na(r), dataset_name ==  "adams_marchman_2018"),
+ggplot(filter(cdi_corrs_long, !is.na(r), dataset_name ==  "adams_marchman_2018"),
        aes(col = r)) + 
   geom_vline(xintercept=0, linetype="dashed")+
   geom_hline(yintercept=0.05, lty=3)+
@@ -402,6 +404,22 @@ ggplot(ms_corr, aes(col = r)) +
 
 ```
 
+```{r}
+ms_corr_comp <- cdi_corrs_long |>
+  filter(measure == "cor_comp", n_prod > 50) |>
+  group_by(t_start, t_end) |>
+  summarise(r = mean(r, na.rm=TRUE)) 
+        
+ggplot(ms_corr_comp, aes(col = r)) + 
+  geom_vline(xintercept=0, linetype="dashed")+
+  geom_segment(aes(x=t_start,xend=t_end,y=r,yend=r))+
+  scale_color_viridis(name="Mean ICC",direction=-1) + 
+  theme(legend.position="none") +
+  ylab("Correlation with MB-CDI sumscore") +
+  xlab("Analysis Window (in ms)") +
+  ggtitle("Correlation with CDI comprehension, n > 50")
+```
+
 ## Across datasets
 
 ```{r}
@@ -439,10 +457,12 @@ cdi_corrs_alldata <- cdi_params |>
   unnest(col = icc)
 toc()
 
-save(file = here("cached_intermediates","3_cdi_corrs_alldata.Rds"), cdi_corrs)
+save(file = here("cached_intermediates","3_cdi_corrs_alldata.Rds"), cdi_corrs_alldata)
 ```
 
 ```{r}
+load(file = here("cached_intermediates","3_cdi_corrs_alldata.Rds"))
+
 ggplot(cdi_corrs_alldata, aes(col = cor_prod)) + 
   geom_vline(xintercept=0, linetype="dashed")+
   geom_segment(aes(x=t_start, xend=t_end, y=cor_prod, yend=cor_prod))+
@@ -452,6 +472,8 @@ ggplot(cdi_corrs_alldata, aes(col = cor_prod)) +
   xlab("Analysis Window (in ms)") +
   ggtitle("Accuracy/CDI production correlation across all datasets")
 ```
+
+
 ```{r}
 ggplot(cdi_corrs_alldata, aes(col = cor_comp)) + 
   geom_vline(xintercept=0, linetype="dashed")+
