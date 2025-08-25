@@ -1,7 +1,7 @@
 ---
-title: '6A: Animacy effects'
+title: '13: Animacy effects'
 author: "Peekbank team"
-date: "2022-08-17"
+date: "2025-08-25"
 output: html_document
 ---
 
@@ -104,7 +104,6 @@ preds <- preds |>
 Plots for presenting
 
 ```{r}
-
 ggplot(d_acc,
        aes(x = age, y = elogit)) + 
   geom_point(alpha = .01, height = 0,position = position_jitter(seed = 42,width=0.2))+
