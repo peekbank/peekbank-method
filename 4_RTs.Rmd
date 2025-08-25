@@ -28,8 +28,10 @@ MZ: 4/29/24 - both launch and landing-based RT computed by rt helper function
 
 We need RLE data, then we use the RT helper from peekbank-shiny. 
 
+Note MCF: 8/25/25 - we cached this function in the current repo to remove dependencies. 
+
 ```{r}
-source("../peekbank-shiny/helpers/rt_helper.R")
+source("helper/rt_helper.R")
 ```
 
 Compute RTs, relying on the RLE workflow from the shiny app. 
@@ -40,7 +42,7 @@ rle_data <- d_trial %>%
          t_norm >= 0) %>% # only pass data after 0
   group_by(administration_id, trial_id, trial_order) %>%
   reframe(lengths = rle(aoi)$lengths, 
-            values = rle(aoi)$values) 
+          values = rle(aoi)$values) 
 
 d_rt <- rle_data %>%
   group_by(administration_id, trial_id, trial_order) %>%
@@ -73,6 +75,29 @@ rt_stats <- d_rt %>%
 knitr::kable(rt_stats, digits = 2)
 ```
 
+## Shift-start vs. regular RT
+
+```{r}
+ggplot(d_rt, aes(x = shift_start_rt, y = rt)) + 
+  geom_point(alpha = .5, aes(col = age)) + 
+  geom_smooth(method = "lm") + 
+  viridis::scale_color_viridis()
+```
+
+What if we took out the too-long shifts (which Virginia says were filtered after 600ms)?
+
+```{r}
+ggplot(d_rt, 
+       aes(x = shift_start_rt, y = rt)) + 
+  geom_point(alpha = .5, aes(col = age)) + 
+  geom_point(data = filter(d_rt, shift_length > 600), 
+             col = "red") +
+  geom_smooth(method = "lm") + 
+  viridis::scale_color_viridis()
+```
+
+
+
 ## RT distribution & exclusion
 
 Examine RT distribution.
@@ -100,7 +125,7 @@ Filter.
 
 ```{r}
 d_rt_all <- filter(d_rt, 
-               !is.na(shift_start_rt))
+                   !is.na(shift_start_rt))
 d_rt <- filter(d_rt, 
                !is.na(shift_start_rt), 
                shift_start_rt > 250)
@@ -129,7 +154,7 @@ Histogram by dataset.
 ```{r}
 ggplot(d_rt, 
        aes(x = rt)) + 
-  geom_histogram() +
+  geom_histogram(bins = 10) +
   scale_x_log10() +
   facet_wrap(~dataset_name, scales = "free_y")
 ```
@@ -143,48 +168,63 @@ Let's compute reliabilities now for D-T trials (standard approach, loses half of
 ```{r}
 d_rt_dt <- d_rt |>
   filter(shift_type == "D-T") |>
-  mutate(log_rt = log(shift_start_rt)) 
+  mutate(log_rt = log(rt), 
+         shift_start_log_rt = log(shift_start_rt), 
+         shift_start_rt_trimmed = ifelse(shift_length <= 600, shift_start_rt, NA)) 
+
+# stimulus_rt = 
+#            unlist(map(data, ~get_icc(.x, 
+#                                      column = "shift_start_rt",
+#                                      object = "stimulus"))),
+# landing_stimulus_rt = 
+#   unlist(map(data, ~get_icc(.x, 
+#                             column = "rt",
+#                             object = "stimulus"))),
 
 rt_iccs <- d_rt_dt |>
   group_by(dataset_name) |> 
   nest() |>
-  mutate(stimulus_rt = 
-           unlist(map(data, ~get_icc(.x, 
-                                     column = "shift_start_rt",
-                                     object = "stimulus"))),
-         admin_rt = 
-           unlist(map(data, ~get_icc(.x, 
-                                     column = "shift_start_rt",
-                                     object = "administration"))),
-         stimulus_log_rt = 
-           unlist(map(data, ~get_icc(.x, 
-                                     column = "log_rt",
-                                     object = "stimulus"))),
-         admin_log_rt = 
-           unlist(map(data, ~get_icc(.x, 
-                                     column = "log_rt",
-                                     object = "administration")))) |>
+  mutate(
+    shift_rt = 
+      unlist(map(data, ~get_icc(.x, 
+                                column = "shift_start_rt",
+                                object = "administration"))),
+    shift_logrt = 
+      unlist(map(data, ~get_icc(.x, 
+                                column = "shift_start_log_rt",
+                                object = "administration"))),
+    shift_trimmed = 
+      unlist(map(data, ~get_icc(.x, 
+                                column = "shift_start_rt_trimmed",
+                                object = "administration"))),
+    landing_rt = 
+      unlist(map(data, ~get_icc(.x, 
+                                column = "rt",
+                                object = "administration"))),
+    landing_logrt = 
+      unlist(map(data, ~get_icc(.x, 
+                                column = "log_rt",
+                                object = "administration")))) |>
   select(-data) |>
   unnest(cols = c())
 
 rt_iccs_long <- rt_iccs |>
-  pivot_longer(names_to = "dimension", values_to = "icc", 
-               stimulus_rt:admin_log_rt) |>
-  ungroup() |>
-  separate(dimension, into = c("dimension","measure")) |>
-  mutate(dataset_name = fct_reorder(dataset_name, icc))
+  pivot_longer(names_to = "measure", values_to = "icc", 
+               shift_rt:landing_logrt)
 ```
 
 Plot. 
 
 ```{r}
-ggplot(rt_iccs_long, 
+rt_iccs_long$dataset_name <- fct_reorder(rt_iccs_long$dataset_name, rt_iccs_long$icc)
+
+ggplot(rt_iccs_long,
        aes(x = dataset_name, y = icc, col = measure)) +
   geom_point(position = position_dodge(width = .5)) +
-  geom_line() + 
-  coord_flip() + 
-  facet_wrap(~dimension) 
+  geom_line(aes(group= measure))+ 
+  coord_flip() 
 ```
+
 Why are some ICCs zero? Let's look at Pomper Saffran 2016.
 
 ```{r}
@@ -273,7 +313,7 @@ ps_admin_rt_summarized <- ps |>
     N=n(),
     mean_rt=mean(shift_start_rt,na.rm=TRUE)
   )
-  
+
 
 ps_dt |> 
   ungroup() |>
@@ -432,8 +472,11 @@ ggplot(all_iccs, aes(admin_rt,icc_admin_acc))+
   geom_abline(intercept=0,slope=1)+
   xlim(0,1)+
   ylim(0,1)
+```
 
-#plot - Items
+plot - Items
+
+```{r}
 ggplot(all_iccs, aes(stimulus_rt,icc_stimulus_acc))+
   geom_point(size=1.5)+
   geom_text(aes(label=dataset_name))+
