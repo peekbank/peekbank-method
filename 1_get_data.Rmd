@@ -318,5 +318,10 @@ cdi_data |>
   geom_point(alpha=.2) + 
   geom_smooth() + 
   facet_wrap(~dataset_name)
+
+# ggplot(aes(x=age, y=rawscore, color=language)) +
+#   facet_wrap(vars(instrument_type, dataset_name)) +
+#   geom_point(alpha=.5) 
+# >>>>>>> 9f838ecc75c2df3fb4ca309e808fd360af8a6724
 ```
 
