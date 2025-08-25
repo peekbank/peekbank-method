@@ -1,7 +1,7 @@
 ---
 title: "Accuracies"
 author: "Mike Frank"
-date: "2022-1-19"
+date: "2022-1-19 updated 2025-04-16"
 output: html_document
 ---
 
@@ -21,7 +21,7 @@ icc_window_sim <- function (t_start = -500, t_end = 4000, object)
 {
   print(paste(t_start, t_end))
   
-  df <- d_trial |>
+  df <- d_aoi |>
     filter(t_norm > t_start, t_norm < t_end) |>
     group_by(dataset_name, dataset_id, administration_id, target_label, trial_id) |>
     summarise(accuracy = mean(correct, na.rm=TRUE),
@@ -48,7 +48,7 @@ cluster_library(cluster, "tidyverse")
 cluster_library(cluster, "agreement")
 cluster_copy(cluster, "icc_window_sim")
 cluster_copy(cluster, "get_icc")
-cluster_copy(cluster, "d_trial")
+cluster_copy(cluster, "d_aoi")
   
 tic()
 accs <- acc_params |> 
@@ -113,13 +113,13 @@ ggplot(accs_summary,
 
 # Window size by age
 
-Let's do one more simulation where we check if this result holds across two ages. We'll break down age into > 24 months and < 24 months, which roughly splits the dataset. There are `r  length(unique(d_trial$administration_id[d_trial$age < 24]))` younger kids and `r length(unique(d_trial$administration_id[d_trial$age >= 24]))` older kids. 
+Let's do one more simulation where we check if this result holds across two ages. We'll break down age into > 24 months and < 24 months, which roughly splits the dataset. There are `r  length(unique(d_aoi$administration_id[d_aoi$age < 24]))` younger kids and `r length(unique(d_aoi$administration_id[d_aoi$age >= 24]))` older kids. 
 
 
 ```{r}
 icc_window_sim_age <- function (t_start = -1000, t_end = 4000, object) 
 {
-  df <- d_trial |>
+  df <- d_aoi |>
     mutate(younger = age < 24) |>
     filter(t_norm > t_start, t_norm < t_end) |>
     group_by(dataset_name, dataset_id, younger, administration_id, 
@@ -277,21 +277,17 @@ Conclusion: if you cherry pick the window that has the biggest difference, you w
 
 So really the question is when this window is, A PRIORI. Because of course the issue is that this analysis has a horrible false positive problem. Hence permutation-based analyses. 
 
+
 # Validity via MB-CDI
 
-We have MB-CDI WS data for a number of datasets, at least two. We're going to look at how window size relates to correlation with CDI scores. 
+We have MB-CDI WS data for a number of datasets, at least two. 
 
-Load the CDI scores for Garrison et al. (2020) and Swingley & Aslin (2002) and Garrison et al. This time we will use only "vanilla" trials. 
-
-We are pretty sure that SA and GB both used the WG form (SA says it's WS in our data but we think that's an error). 
-
-This function is abstracted because it's used in multiple analyses. (Note that it reloads `sa_data`). 
 
 ```{r}
-source(here("helper","cdi_data_merge.R"))
+cdi_data <- readRDS(here("cached_intermediates","1_cdi_subjects.Rds"))
+
+
 ```
-
-
 
 Now let's get our sim function. 
 
@@ -299,35 +295,47 @@ Now let's get our sim function.
 cdi_sim <- function (t_start = -500, t_end = 4000) 
 {
   # first average by trial then by subject
-  by_subject_accuracies <- vanilla_cdi_datasets  |>
+  by_trial_accuracies <- d_aoi  |>
     filter(t_norm >= t_start, t_norm <= t_end) |>
-    group_by(dataset_name, lab_subject_id, trial_id) |> 
+    group_by(dataset_name, subject_id, administration_id, trial_id) |> 
     summarize(correct = mean(correct, na.rm=TRUE)) 
   
-  mean_accuracies <- by_subject_accuracies |>
-    group_by(dataset_name, lab_subject_id) |> 
-    summarize(mean_correct = mean(correct)) |>
-    left_join(cdis)
-  
-  mean_accuracies |>
+  by_subject_accuracies <- by_trial_accuracies |>
+    group_by(dataset_name, subject_id, administration_id) |> 
+    summarize(mean_correct = mean(correct, na.rm=TRUE)) |>
+    left_join(cdi_data) |> 
+    filter(!(is.na(prod) & is.na(comp)) & !is.na(mean_correct))
+
+  by_subject_accuracies |>
     group_by(dataset_name) |>
-    summarise(cor_comp = cor.test(mean_correct, eng_wg_understood)$estimate,
-              cor_prod = cor.test(mean_correct, eng_wg_produced)$estimate)
+    summarise(cor_comp = ifelse(sum(!is.na(comp)) > 0, cor.test(mean_correct, comp)$estimate, NA), 
+              cor_prod = ifelse(sum(!is.na(prod)) > 0, cor.test(mean_correct, prod)$estimate, NA), 
+              n_comp = sum(!is.na(comp)),
+              n_prod = sum(!is.na(prod)), 
+              n_total = sum(!is.na(mean_correct)))
 }
 ```
 
 ```{r}
-cdi_params <- expand_grid(t_start = seq(-1000, 1500, 500),
-                          t_end = seq(2000, 4000, 500))  
+cdi_params <- expand_grid(t_start = seq(-1000, 1500, 250),
+                          t_end = seq(2000, 4000, 250))  
+
+cluster_copy(cluster, "cdi_sim")
+cluster_copy(cluster, "cdi_data")
+
 tic()
 cdi_corrs <- cdi_params |> 
+  partition(cluster) |>
   mutate(icc = pmap(list(t_start, t_end), cdi_sim)) |>
+  collect() |>
   unnest(col = icc)
 toc()
+
+save(file = here("cached_intermediates","3_cdi_corrs.Rds"), cdi_corrs)
 ```
 
 ```{r}
-cdi_corrs <- cdi_corrs |>
+cdi_corrs_long <- cdi_corrs |>
   pivot_longer(names_to = "measure", values_to = "r", starts_with("cor"))
 ```
 
@@ -335,7 +343,8 @@ Visualize!
 
 
 ```{r}
-ggplot(cdi_corrs, aes(col = r)) + 
+ggplot(filter(cdi_corrs_wide, !is.na(r), dataset_name ==  "adams_marchman_2018"),
+       aes(col = r)) + 
   geom_vline(xintercept=0, linetype="dashed")+
   geom_hline(yintercept=0.05, lty=3)+
   geom_segment(aes(x=t_start,xend=t_end,y=r,yend=r))+
@@ -346,9 +355,113 @@ ggplot(cdi_corrs, aes(col = r)) +
   theme(legend.position="none") +
   ylab("Correlation with MB-CDI sumscore") +
   xlab("Analysis Window (in ms)") +
-  facet_grid(dataset_name~ measure)
+  facet_grid(. ~ measure)
 ```
 
+```{r}
+ggplot(filter(cdi_corrs_long, measure == "cor_prod", n_prod > 50), 
+       aes(col = r)) + 
+  geom_vline(xintercept=0, linetype="dashed")+
+  geom_hline(yintercept=0.05, lty=3)+
+  geom_segment(aes(x=t_start,xend=t_end,y=r,yend=r))+
+  scale_color_viridis(name="Mean ICC",direction=-1) + 
+  theme(legend.position="none") +
+  ylab("Correlation with MB-CDI sumscore") +
+  xlab("Analysis Window (in ms)") +
+  facet_wrap(~dataset_name) +
+  ggtitle("Correlation with CDI production, n > 50")
+
+```
+```{r}
+ggplot(filter(cdi_corrs_long, measure == "cor_comp", n_prod > 50), 
+       aes(col = r)) + 
+  geom_vline(xintercept=0, linetype="dashed")+
+  geom_hline(yintercept=0.05, lty=3)+
+  geom_segment(aes(x=t_start,xend=t_end,y=r,yend=r))+
+  scale_color_viridis(name="Mean ICC",direction=-1) + 
+  theme(legend.position="none") +
+  ylab("Correlation with MB-CDI sumscore") +
+  xlab("Analysis Window (in ms)") +
+  facet_wrap(~dataset_name) + 
+  ggtitle("Correlation with CDI comprehension, n > 50")
+```
+```{r}
+ms_corr <- cdi_corrs_long |>
+  filter(measure == "cor_prod", n_prod > 50) |>
+  group_by(t_start, t_end) |>
+  summarise(r = mean(r, na.rm=TRUE)) 
+        
+ggplot(ms_corr, aes(col = r)) + 
+  geom_vline(xintercept=0, linetype="dashed")+
+  geom_segment(aes(x=t_start,xend=t_end,y=r,yend=r))+
+  scale_color_viridis(name="Mean ICC",direction=-1) + 
+  theme(legend.position="none") +
+  ylab("Correlation with MB-CDI sumscore") +
+  xlab("Analysis Window (in ms)") +
+  ggtitle("Correlation with CDI production, n > 50")
+
+```
+
+## Across datasets
+
+```{r}
+cdi_sim_alldata <- function (t_start = -500, t_end = 4000) 
+{
+  # first average by trial then by subject
+  by_trial_accuracies <- d_aoi  |>
+    filter(t_norm >= t_start, t_norm <= t_end) |>
+    group_by(dataset_name, subject_id, administration_id, trial_id) |> 
+    summarize(correct = mean(correct, na.rm=TRUE)) 
+  
+  by_subject_accuracies <- by_trial_accuracies |>
+    group_by(dataset_name, subject_id, administration_id) |> 
+    summarize(mean_correct = mean(correct, na.rm=TRUE)) |>
+    left_join(cdi_data) |> 
+    filter(!(is.na(prod) & is.na(comp)) & !is.na(mean_correct))
+
+  by_subject_accuracies |>
+    ungroup() |>
+    summarise(cor_comp = ifelse(sum(!is.na(comp)) > 0, cor.test(mean_correct, comp)$estimate, NA), 
+              cor_prod = ifelse(sum(!is.na(prod)) > 0, cor.test(mean_correct, prod)$estimate, NA), 
+              n_comp = sum(!is.na(comp)),
+              n_prod = sum(!is.na(prod)), 
+              n_total = sum(!is.na(mean_correct)))
+}
+
+cluster_copy(cluster, "cdi_sim_alldata")
+cluster_copy(cluster, "cdi_data")
+
+tic()
+cdi_corrs_alldata <- cdi_params |> 
+  partition(cluster) |>
+  mutate(icc = pmap(list(t_start, t_end), cdi_sim_alldata)) |>
+  collect() |>
+  unnest(col = icc)
+toc()
+
+save(file = here("cached_intermediates","3_cdi_corrs_alldata.Rds"), cdi_corrs)
+```
+
+```{r}
+ggplot(cdi_corrs_alldata, aes(col = cor_prod)) + 
+  geom_vline(xintercept=0, linetype="dashed")+
+  geom_segment(aes(x=t_start, xend=t_end, y=cor_prod, yend=cor_prod))+
+  scale_color_viridis(name="Mean ICC",direction=-1) + 
+  theme(legend.position="none") +
+  ylab("Correlation with MB-CDI sumscore") +
+  xlab("Analysis Window (in ms)") +
+  ggtitle("Accuracy/CDI production correlation across all datasets")
+```
+```{r}
+ggplot(cdi_corrs_alldata, aes(col = cor_comp)) + 
+  geom_vline(xintercept=0, linetype="dashed")+
+  geom_segment(aes(x=t_start, xend=t_end, y=cor_prod, yend=cor_prod))+
+  scale_color_viridis(name="Mean ICC",direction=-1) + 
+  theme(legend.position="none") +
+  ylab("Correlation with MB-CDI sumscore") +
+  xlab("Analysis Window (in ms)") +
+  ggtitle("Accuracy/CDI comprehension correlation across all datasets")
+```
 # Baseline-corrected accuracy
 
 ## ICC approach
@@ -359,12 +472,12 @@ icc_bc_window_sim <- function (b_start = -2000, b_end = 0,
                             object) 
 {
   # get trials with some baseline
-  baseline_lengths <- d_trial |>
+  baseline_lengths <- d_aoi |>
     group_by(dataset_name, trial_id) |> 
     summarise(t_min = min(t_norm))
   
   # get baseline corrected accuracies for all trials with ANY baseline info
-  df <- d_trial |>
+  df <- d_aoi |>
     left_join(baseline_lengths) |>
     filter(t_min < 0) |>
     group_by(dataset_name, dataset_id, administration_id, target_label, trial_id) |>
@@ -398,7 +511,7 @@ cluster_library(cluster, "tidyverse")
 cluster_library(cluster, "agreement")
 cluster_copy(cluster, "icc_bc_window_sim")
 cluster_copy(cluster, "get_icc")
-cluster_copy(cluster, "d_trial")
+cluster_copy(cluster, "d_aoi")
   
 tic()
 bc_accs <- bc_acc_params |> 
