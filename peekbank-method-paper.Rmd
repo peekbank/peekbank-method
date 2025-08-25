@@ -105,7 +105,7 @@ Contributions
 (- and validity? Would require incorporating some independent data/ trying to configure CDI pipeline)
 
 
-# Dataset and appraoch
+# Dataset and approach
 
 Subset of peekbank that we are using
 
@@ -113,32 +113,55 @@ Descriptives on datasets/number of trials
 
 Illustrate the ICC approach to reliability 
 
-# Results
+# Analytic recommendations
 
-Recommendation 1: To maximize reliability, choose long time windows.
+## Recommendation 1: To maximize reliability and validity, choose long time windows
 
-- time window within dataset
-- test retest 
+### Reliability
 
-- make sure that in phonetic competition you still see the same thing - check on the competition in swingley and aslin - do longer windows show bigger condition effects?
+ICC across windows
 
-[WHAT ABOUT BASELINE CORRECTION]
+### Validity
+
+CDI Correlations
+
+## Recommendation 2: Compute reaction time for a reliable signal of individual differences
+
+How to compute RT 
+
+shift start vs. non? clean shift start
+
+RT ICCS
+
+- shift start: recommendations from Fernald et al. 2008
+- pushing the RT closer to the start of the behavior to remove auxiliary demand that might confound with age (making the shift) 
+-  the response we want is "initiating the movement" to look
+(maybe look at correlations between shift start and landing RT?)
+
+if we use shift start, should we exclude long shifts? probably yes
+
+- using logs?
 
 
-Recommendation 2: RT guidance
-- Reliability
-- Windowing
+## Recommendation 3: Exclusions
 
-- what counts as a t start vs d. start (ELIKA) - how many D fixations etc. 
-
-
-Recommendation 3: [recommendation about how to set missingness criteria & how to deal with zoners - probably err on the side of including more data?]
 - how many trials?
 - how much data per trial?
 - zoning trials + zoning trials
 
+need to do this for ICCs and for CDIs
+need to do this for accuracy and RT?
 
-Recommendation 4: Number of trials for stable individual kid measures or for condition differences
+
+# Design recommendations
+
+## Recommendation 4: Match trials carefully to avoid saliency-based issues
+
+## Recommendation 5: Repeated trials
+
+## Recommendation 6: Maximize number of trials. ...
+
+
 - stable overall kid values
 - item-level effects
 - within-participant designs/ detecting a condition difference
@@ -147,6 +170,8 @@ Not just ICC for subjects or items, but also our power to recover condition effe
 
 - use totlot or others to simulate effects of n-trials
 
+
+[WHAT ABOUT BASELINE CORRECTION]
 
 
 # Discussion
