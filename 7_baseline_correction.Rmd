@@ -179,7 +179,9 @@ d_summary_cutoffs <- map(baseline_cutoffs, function(baseline_cutoff) {
               .groups = "drop") |>
     filter(!is.na(accuracy), !is.na(bc_accuracy), !is.na(elogit), !is.na(elogit_bc))
 }) |> list_rbind()
+```
 
+```{r eval=F}
 iccs_cutoffs <- d_summary_cutoffs |>
   group_by(dataset_name, baseline_cutoff) |> 
   nest() |>
@@ -209,9 +211,13 @@ iccs_cutoffs <- d_summary_cutoffs |>
                                                         object = "administration")))) |>
   select(-data) |>
   unnest(cols = c())
+
+saveRDS(iccs_cutoffs, here("cached_intermediates", "7_iccs_cutoffs.Rds"))
 ```
 
 ```{r}
+iccs_cutoffs <- readRDS(here("cached_intermediates", "7_iccs_cutoffs.Rds"))
+
 iccs_long_cutoffs <- iccs_cutoffs |>
   pivot_longer(-c(dataset_name, baseline_cutoff), 
                names_to = "measure", values_to = "icc") |>
