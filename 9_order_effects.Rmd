@@ -21,20 +21,8 @@ Create d_trial_summary dataframe which contains pre_accuracy and post_accuracy g
 
 ```{r}
 
-hackathon_datasets <- c( 
-"ronfard_2021"            ,"perry_cowpig",           
-"pomper_saffran_2016"     ,"gazetriggered_2020" ,    
-"adams_marchman_2018"     ,"baumgartner_2014"    ,   
-"newman_genderdistractor" ,"pomper_salientme"     ,  
-"fmw_2013"                ,"ferguson_eyetrackingr" , 
-"yurovsky_2017"           ,"swingley_aslin_2002"    ,
-"reflook_v4"              ,"pomper_prime"           ,
-"potter_remix"            ,"weaver_zettersten_2024" ,
-"potter_canine"           ,"mahr_coartic"           ,
-"bacon_gendercues"        ,"frank_tablet_2016")
 
 d_trial_summary <- d_aoi %>%
-  # filter(dataset_name %in% hackathon_datasets) %>% 
   
   group_by(dataset_id, dataset_name, administration_id, trial_id, trial_order, 
            age, target_id, target_label, distractor_label) %>%
@@ -44,7 +32,7 @@ d_trial_summary <- d_aoi %>%
 
 ```
 
-We also create some new columns: 
+We also create some new columns (some of these were created previously but I commented them bc they weren't used: 
 
 -   stimulus_pair: groups stimulus by their paired appearance irrespective of which one appeared as target.
 
@@ -55,6 +43,7 @@ We also create some new columns:
 -   is_first_stimulus: is a boolean tells if the stimulus is the 1st or 2nd to appear as a target
 
 -   stimulus_pair_target_instance: tells the time of appearance of each pair with a specific stimulus as target.
+
 -   max_stimulus_pair_instance: tells the maximum number of trials repetitions in the dataset
 
 ## 1.2. New columns
@@ -81,19 +70,17 @@ d_trial_summary <- d_trial_summary %>%
 ```
 
 
-# 2. Repetitions analysis
+# 2. Repetitions classification
 
-## 2.1. Repetitions classification
+We could focus in trials with stimulus_pair_instance == 1 \| 2 to make it easier to approach. In that case, we should have these combinations
 
-We could focus in trials with stimulus_pair_instance == 1 \| 2 to make it | Stimulus_pair_instance | Stimulus_target_instance |                                                              |
+| Stimulus_pair_instance | Stimulus_target_instance |                                                              |
 |------------------------|--------------------------|--------------------------------------------------------------|
 | 1                      | 1                        | 1st time pair and target are shown                           |
 | 2                      | 1                        | 1st time target was shown even though pair was already shown |
-| 2                      | 2                        | 2nd time target is shown along with pair                     |easier to approach. In that case, we should have these combinations
+| 2                      | 2                        | 2nd time target is shown along with pair                     |
 
 
-
- 
 ```{r}
 
 repetitions_data = d_trial_summary %>% 
@@ -113,25 +100,38 @@ repetitions_data = d_trial_summary %>%
   ))) 
 
 
+```
+
+# 3. Dataset selection
+
+Now that we have the desired trial classification, we need to see which datasets are fit for inclusion (some might have few trials left for some of the types of instances)
+
+One criteria could be to drop datasets with less that 10% of trials of a type of instance and less than 100 trials of a type of instance. These values should be discussed (this is the one implemented here)
+
+Another option could be to drop only specific types of instances which are poorly represented in some datasets. But its a little weird maybe.
+
+bad_n_datasets contains the to-be-dropped datasets
+
+```{r}
+
 repetitions_data_long = repetitions_data%>% 
-  # filter(type_of_instance != "Repeated pair and target") %>% 
-  select(administration_id,age,dataset_name, stimulus_pair_instance ,stimulus_pair_target_instance, type_of_instance, post_accuracy, pre_accuracy) %>% 
-  pivot_longer(-c(administration_id,age,dataset_name, stimulus_pair_instance ,stimulus_pair_target_instance, type_of_instance),
+  select(administration_id,age,dataset_name, stimulus_pair_instance,
+         stimulus_pair_target_instance, type_of_instance, post_accuracy, pre_accuracy) %>% 
+  pivot_longer(-c(administration_id, age,dataset_name, stimulus_pair_instance, 
+                  stimulus_pair_target_instance, type_of_instance),
                values_to = "Accuracy",
                names_to = "Time")
 
 repetitions_data_long_summary = repetitions_data_long %>% 
-  group_by(dataset_name, stimulus_pair_instance ,stimulus_pair_target_instance, type_of_instance) %>%
+  group_by(dataset_name, stimulus_pair_instance, 
+           stimulus_pair_target_instance, type_of_instance) %>%
   summarize(n = n()) %>%
   group_by(dataset_name) %>%
   mutate(total_trials = sum(n),
          proportion = n/total_trials) 
 
-# datasets with less than certain proportion of trials for any type of instance
-bad_n_datasets = repetitions_data_long_summary[repetitions_data_long_summary$proportion < .1,]$dataset_name
 
 repetitions_data_long_summary%>%
-  # filter(!dataset_name %in% bad_n_datasets) %>% 
 
   ggplot(aes(x = dataset_name, y = proportion, fill = (type_of_instance)))+
   geom_bar(stat = "identity", position = "stack") +
@@ -143,19 +143,122 @@ repetitions_data_long_summary%>%
         legend.position = "top")+
   coord_flip()
 
+# datasets with less than certain proportion of trials for any type of instance
+bad_n_datasets <- repetitions_data_long_summary %>%
+  filter(proportion <= 0.10 |
+           n < 100) %>%
+  pull(dataset_name)
 
+
+repetitions_data_long_summary%>%
+  filter(!dataset_name %in% bad_n_datasets) %>%
+
+  ggplot(aes(x = dataset_name, y = proportion, fill = (type_of_instance)))+
+  geom_bar(stat = "identity", position = "stack") +
+   geom_text(aes(label = n), 
+            position = position_stack(vjust = 0.5), 
+            size = 3, color = "white") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1),
+        legend.position = "top")+
+  coord_flip()
+
+```
+# 4. Timecourse plots
+
+Data cleaning (sort of...)
+
+```{r}
+
+rep_timecourse <- d_aoi %>%
+  filter(!dataset_name %in% bad_n_datasets) %>%  # filtering datasets.
+  
+  left_join(repetitions_data) %>% 
+  filter(!is.na(type_of_instance))
+
+```
+
+
+## 4.1. Timecourse by type of instance
+
+Here I grouped by dataset prior to making the whole average. But maybe administration_id should be considered
+
+```{r, fig.width= 6, fig.height= 6}
+
+
+rep_timecourse %>%
+  # filter(age < 20) %>%
+  # filter(age > 17 & age < 20.5) %>%
+  
+  group_by(dataset_name, type_of_instance, t_norm) %>%      # Group by dataset? by dataset AND subject?
+  # group_by(dataset_name,administration_id, type_of_instance, t_norm) %>%      # Group by dataset AND subject?
+  summarize(accuracy = mean(correct, na.rm=TRUE)) %>%
+  group_by(type_of_instance, t_norm) %>%
+  summarize(accuracy = mean(accuracy, na.rm=TRUE)) %>%
+  filter(t_norm > -1000, t_norm < 4000) %>%
+  ggplot(aes(x = t_norm, y = accuracy, color = type_of_instance)) + 
+  geom_smooth(method="gam")+
+  geom_vline(xintercept=0)+
+  geom_hline(yintercept=0.5,linetype="dashed")+
+  theme_minimal()+
+  theme(legend.position = "bottom")
 
 
 ```
 
 
-We should decide what to do with datasets/trials with very few repeated pair and target
+## 4.2. Timecourse by type of instance and dataset
 
-absence of green in pomper_prime is suspicious
-Clarify that only 2 first trials were selected
+The previous effect is not consistent in all datasets. Should think what to do with that
 
-Select two or three datasets and see if this makes sense
+```{r, fig.width= 6, fig.width= 10}
 
+rep_timecourse %>%
+  
+  # filter(age < 20) %>%
+  group_by(type_of_instance, t_norm, dataset_name) %>%
+  summarize(accuracy = mean(correct, na.rm=TRUE)) %>%
+  filter(t_norm > -3000, t_norm < 4000) %>%
+  ggplot(aes(x = t_norm, y = accuracy, color = type_of_instance)) +
+
+  geom_smooth(method="gam")+
+  geom_vline(xintercept=0)+
+  geom_hline(yintercept=0.5,linetype="dashed")+
+  # coord_cartesian(ylim = c(0.4,0.7))+
+  theme_minimal()+
+  theme(legend.position = "bottom")+
+  facet_wrap(~dataset_name)
+
+
+```
+
+# 5. Modelling
+
+Started checking a simple model to see the effect between t_norm = 0 and t_norm = 200 to see if there are any differences controlling by dataset and subject
+
+```{r}
+
+rep_timecourse %>%
+  filter(t_norm > 0, t_norm < 200) %>% 
+  group_by(type_of_instance, t_norm, dataset_name, administration_id) %>%
+  summarize(accuracy = mean(correct, na.rm=TRUE)) %>% 
+  # filter(accuracy < .5) %>%
+  group_by(dataset_name, administration_id, type_of_instance) %>% 
+  summarise(accuracy = mean(accuracy)) %>% 
+  na.omit() %>% 
+  # lmer(accuracy ~ type_of_instance + (1 | dataset_name), data = .) %>% 
+  lmer(accuracy ~ type_of_instance + (1 | administration_id) + (1 | dataset_name), data = .) -> model
+
+summary(model)
+
+  
+```
+
+Notes: The included datasets and ages should be checked. Also, the meaning of the observed effects and the way to assess stastical significance
+
+
+
+# Old stuff 
 
 ## 2.2. Accuracy by repetitions faceted by dataset_name
 
@@ -222,56 +325,7 @@ repetitions_data_long%>%
 
 
 ```
-## 2.4. Accuracy by repetitions in the whole dataset
 
-Same plot that before, but with lines showing accuracy in different datasets
-
-```{r}
-
-averaged_repetitions_data = repetitions_data_long %>% 
-  
- 
-  filter(!is.na(Accuracy)) %>% 
-  group_by(type_of_instance, Time) %>% 
-  mutate(total_mean_accuracy = mean(Accuracy),
-         total_se_accuracy = sd(Accuracy)/sqrt(length(Accuracy))) 
-
-
-
-repetitions_data_long%>% 
-
-  group_by(dataset_name, administration_id, type_of_instance, Time) %>% 
-  summarize(mean_administration_accuracy = mean(Accuracy, na.rm = T),
-            n = n()) %>% 
-    ungroup() %>% 
-  mutate(n_in_dataset = n(), .by = c("dataset_name","type_of_instance", "Time")) %>% 
-  filter(n_in_dataset > 10) %>% 
-  group_by(dataset_name, type_of_instance, Time) %>% 
-  summarise(mean_accuracy = mean(mean_administration_accuracy, na.rm = T),
-            se_accuracy = sd(mean_administration_accuracy, na.rm = T)/sqrt(length(mean_administration_accuracy)),
-            n = n()) %>% 
-  left_join(averaged_repetitions_data) %>% 
-
-
-  
-
-  ggplot(aes(x = type_of_instance)) + 
-  
-  geom_ribbon(aes(ymin = mean_accuracy - se_accuracy, ymax = mean_accuracy + se_accuracy, 
-                  group = interaction(dataset_name, Time), fill = Time),
-              alpha = 0.09) +
-  geom_errorbar(aes(ymin = total_mean_accuracy-total_se_accuracy,
-                    ymax = total_mean_accuracy+total_se_accuracy), width = 0.25, size = 1)+
-  geom_point(aes(y = total_mean_accuracy, fill = Time),size = 5, color = "black", shape = 21) +
-
-  # geom_line(aes(y = mean_accuracy,  group = interaction(dataset_name, Time),color = Time), size = 2, alpha = 0.1)+
-  coord_cartesian(ylim = c(0.2,0.8))+
-  theme_minimal()
-
-
-
-
-```
 ## 2.5. Accuracy by repetitions and age
 
 Same plot that before, but looking at age differences in children between 12 and 24 months
@@ -321,73 +375,13 @@ repetitions_data_long%>%
 
 ```
 
-# 3. Timecourse plots
-
-## 3.1. Timecourse by type of instance
-
-```{r, fig.width= 6, fig.height= 6}
 
 
 
-rep_timecourse <- d_aoi %>%
-  
-    filter(!dataset_name %in% bad_n_datasets) %>% 
-  
-  
-  left_join(repetitions_data) %>% 
-  filter(!is.na(type_of_instance))
 
 
 
-# do you look more to target after having seen this target as a target in this stimulus pair before?
-rep_timecourse %>%
-  # filter(age >= 14) %>%
-  # filter(age > 17 & age < 18) %>%
-  # filter(!dataset_name %in% bad_n_datasets) %>% 
-  group_by(type_of_instance, t_norm) %>%
-  summarize(accuracy = mean(correct, na.rm=TRUE)) %>%
-  filter(t_norm > -3000, t_norm < 4000) %>%
-  ggplot(aes(x = t_norm, y = accuracy, color = type_of_instance)) + 
-  geom_smooth(method="gam")+
-  geom_vline(xintercept=0)+
-  geom_hline(yintercept=0.5,linetype="dashed")+
-  # coord_cartesian(ylim = c(0.4,0.7))+
-  theme_minimal()+
-  theme(legend.position = "bottom")
 
-
-```
-
-The "dip" seems to be happening only in trials in which the pair was repeated but with switched target. Children may be anticipating where to look. 
-
-On the other hand, when the repeated trial involves repeating the target, this involves better accuracy both in the pre and post. In post, both types of repetitions elicit better accuracy levels than no-repetitions. When the pair and target are repeated, the accuracy peak is reached faster.
-
-```{r, fig.width= 6, fig.width= 10}
-
-
-
-# do you look more to target after having seen this target as a target in this stimulus pair before?
-rep_timecourse %>%
-  # filter(age >= 14) %>%
-  # filter(age > 17 & age < 18) %>%
-  # filter(!dataset_name %in% bad_n_datasets) %>% 
-  
-  # group_by(t_norm, dataset_name) %>%
-  group_by(type_of_instance, t_norm, dataset_name) %>%
-  summarize(accuracy = mean(correct, na.rm=TRUE)) %>%
-  filter(t_norm > -3000, t_norm < 4000) %>%
-  ggplot(aes(x = t_norm, y = accuracy, color = type_of_instance)) +
-
-  geom_smooth(method="gam")+
-  geom_vline(xintercept=0)+
-  geom_hline(yintercept=0.5,linetype="dashed")+
-  # coord_cartesian(ylim = c(0.4,0.7))+
-  theme_minimal()+
-  theme(legend.position = "bottom")+
-  facet_wrap(~dataset_name)
-
-
-```
 
 
 ## 3.2. timecourse by type of instance and age
@@ -404,7 +398,11 @@ rep_timecourse <- d_aoi %>%
   left_join(filt_rep_data) %>% 
   
   filter(!is.na(type_of_instance)) %>% 
-  mutate(age_bin = cut(age, breaks = 3)) 
+    # mutate(n_in_dataset = n(), .by = c("dataset_name","type_of_instance", "Time")) %>%
+  filter(n_in_dataset > 10) %>%
+  filter(age >= 12) %>%  
+  filter(age <= 24) %>% 
+  mutate(age_bin = factor(cut(age, breaks = 3))) 
   
 
 
@@ -428,10 +426,12 @@ rep_timecourse %>%
 ```{r}
 options(scipen = 999)
 
-rep_timecourse %>% 
-  filter(age > 16 & age < 18) %>% 
+repetitions_data %>% 
+  
+    filter(!dataset_name %in% bad_n_datasets) %>%
+  # filter(age > 16 & age < 18) %>%
   ggplot(aes(x = age, fill = type_of_instance))+
-  geom_histogram()
+  geom_histogram() 
 
 
 
@@ -673,15 +673,4 @@ rep_timecourse %>%
 
 ```
 
-```{r}
-d_repeated_datasets <- d_trial_summary %>% 
 
-
-d_trial_summary %>% 
-  group_by(stimulus_pair_instance, dataset_name) %>% 
-  summarize(mean_accuracy = mean(post_accuracy, na.rm = T)) %>% 
-  ggplot(aes(x = stimulus_pair_instance, y = mean_accuracy)) +
-  geom_point() +
-  facet_wrap(~dataset_name) +
-  theme_minimal()
-```
