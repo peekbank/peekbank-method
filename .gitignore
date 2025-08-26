@@ -37,3 +37,6 @@
 1_get_data_cache/html/unnamed-chunk-9_e7151644dcb4422afac03b756219bdbb.rdx
 1_get_data_files/figure-html/unnamed-chunk-8-1.png
 1_get_data_files/figure-html/unnamed-chunk-9-1.png
+.Rprofile
+renv/activate.R
+peekbank-method.Rproj
