@@ -154,3 +154,96 @@ ggplot(iccs_long,
   xlab("Measure")
 ```
 
+
+Now trying with different baseline windows
+```{r}
+baseline_cutoffs <- seq(-500, 500, by = 50)
+
+d_summary_cutoffs <- map(baseline_cutoffs, function(baseline_cutoff) {
+  d_trial |>
+    group_by(dataset_name, trial_id, subject_id, administration_id, 
+             target_label) |>
+    summarise(baseline = mean(correct[t_norm < baseline_cutoff], na.rm=TRUE),
+              accuracy = mean(correct[t_norm > 500], na.rm=TRUE), 
+              bc_accuracy = accuracy - baseline, 
+              target = sum(correct[t_norm > 500], na.rm=TRUE),
+              target_baseline = sum(correct[t_norm < baseline_cutoff], na.rm=TRUE),
+              distractor = sum(!correct[t_norm > 500], na.rm=TRUE), 
+              distractor_baseline = sum(!correct[t_norm < baseline_cutoff], na.rm=TRUE), 
+              elogit_baseline = log( (target_baseline + .5) / 
+                                       (distractor_baseline + .5) ),
+              elogit = log( (target + .5) / 
+                              (distractor + .5) ), 
+              elogit_bc = elogit - elogit_baseline,
+              baseline_cutoff = baseline_cutoff,
+              .groups = "drop") |>
+    filter(!is.na(accuracy), !is.na(bc_accuracy), !is.na(elogit), !is.na(elogit_bc))
+}) |> list_rbind()
+
+iccs_cutoffs <- d_summary_cutoffs |>
+  group_by(dataset_name, baseline_cutoff) |> 
+  nest() |>
+  mutate(icc_stimulus_acc = unlist(map(data, ~get_icc(.x, 
+                                                      column = "accuracy",
+                                                      object = "stimulus"))),
+         icc_admin_acc = unlist(map(data, ~get_icc(.x, 
+                                                   column = "accuracy",
+                                                   object = "administration"))),
+         icc_stimulus_bc = unlist(map(data, ~get_icc(.x, 
+                                                     column = "bc_accuracy",
+                                                     object = "stimulus"))),
+         icc_admin_bc = unlist(map(data, ~get_icc(.x, 
+                                                  column = "bc_accuracy",
+                                                  object = "administration"))),
+         icc_stimulus_elogit = unlist(map(data, ~get_icc(.x, 
+                                                         column = "elogit",
+                                                         object = "stimulus"))),
+         icc_admin_elogit = unlist(map(data, ~get_icc(.x, 
+                                                      column = "elogit",
+                                                      object = "administration"))),
+         icc_stimulus_elogitbc = unlist(map(data, ~get_icc(.x, 
+                                                           column = "elogit_bc",
+                                                           object = "stimulus"))),
+         icc_admin_elogitbc = unlist(map(data, ~get_icc(.x, 
+                                                        column = "elogit_bc",
+                                                        object = "administration")))) |>
+  select(-data) |>
+  unnest(cols = c())
+```
+
+```{r}
+iccs_long_cutoffs <- iccs_cutoffs |>
+  pivot_longer(-c(dataset_name, baseline_cutoff), 
+               names_to = "measure", values_to = "icc") |>
+  separate_wider_delim(measure, delim = "_", 
+                       names = c("extra", "dimension", "measure")) |>
+  select(-extra) |> 
+  mutate(measure = case_when(
+    measure == "acc" ~ "accuracy_raw",
+    measure == "bc" ~ "accuracy_bc",
+    measure == "elogit" ~ "elogit_raw",
+    measure == "elogitbc" ~ "elogit_bc"
+  )) |> 
+  separate_wider_delim(measure, delim = "_",
+                       names = c("measure", "correction"))
+
+iccs_long_cutoffs |> 
+  ggplot(aes(x = baseline_cutoff, y = icc, 
+             group = interaction(dataset_name, measure, correction), 
+             col = measure, lty = correction, shape = correction)) +
+  geom_line(alpha = .3) +
+  geom_vline(xintercept = 0) +
+  stat_summary(aes(group = interaction(measure, correction)),
+               lty = "solid") +
+  facet_wrap(~dimension) +
+  ylim(0,1) +
+  scale_shape_manual(values = c(1, 16)) +
+  labs(x = "Baseline window cutoff (ms)",
+       y = "ICC",
+       col = "Measure",
+       lty = "Baseline correction",
+       shape = "Baseline correction") +
+  theme(legend.position = "bottom")
+```
+
+
