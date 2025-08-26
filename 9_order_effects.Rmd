@@ -62,17 +62,19 @@ We also create some new columns:
 ```{r}
 
 d_trial_summary <- d_trial_summary %>%
+  
   # we put in stimulus pair alphabetically because it needs to be in a consistent order
   # so that we can group by the pairing and not by pairing x target
-  mutate(stimulus_pair = paste(sort(c(target_label, distractor_label)), collapse = "_"),
-                  first_stimulus = sort(c(target_label, distractor_label))[1]) %>% 
+  
+  mutate(stimulus_pair = paste(sort(c(target_label, distractor_label)), collapse = "_")) %>% 
+  # mutate(first_stimulus = sort(c(target_label, distractor_label))[1]) %>% 
   arrange(dataset_id, administration_id, trial_order) %>%
   group_by(dataset_id, administration_id, stimulus_pair) %>%
-  mutate(stimulus_pair_instance = seq(1,n()), # instance is how many times you've seen this pair of stimuli
-         is_first_stimulus = ifelse(target_label == first_stimulus, TRUE, FALSE)) %>% 
+  mutate(stimulus_pair_instance = seq(1,n())) %>% # stimulus_pair_instance is how many times you've seen this pair of stimuli
+         # is_first_stimulus = ifelse(target_label == first_stimulus, TRUE, FALSE)) %>% 
   ungroup() %>%
   group_by(dataset_id, administration_id, stimulus_pair, target_label) %>%
-  mutate(stimulus_pair_target_instance = seq(1,n())) %>% # target instance is how many times you've seen this pair of stimuli with this target as a target
+  mutate(stimulus_pair_target_instance = seq(1,n())) %>% # sttarget instance is how many times you've seen this pair of stimuli with this target as a target
   ungroup() %>% 
   mutate(max_stimulus_pair_instance = max(stimulus_pair_instance), .by = "dataset_id")
   
@@ -83,21 +85,24 @@ d_trial_summary <- d_trial_summary %>%
 
 ## 2.1. Repetitions classification
 
-We could focus in trials with stimulus_pair_instance == 1 \| 2 to make it easier to approach. In that case, we should have these combinations
-
-| Stimulus_pair_instance | Stimulus_target_instance |                                                              |
+We could focus in trials with stimulus_pair_instance == 1 \| 2 to make it | Stimulus_pair_instance | Stimulus_target_instance |                                                              |
 |------------------------|--------------------------|--------------------------------------------------------------|
 | 1                      | 1                        | 1st time pair and target are shown                           |
 | 2                      | 1                        | 1st time target was shown even though pair was already shown |
-| 2                      | 2                        | 2nd time target is shown along with pair                     |
+| 2                      | 2                        | 2nd time target is shown along with pair                     |easier to approach. In that case, we should have these combinations
+
+
 
  
 ```{r}
 
 repetitions_data = d_trial_summary %>% 
-  filter(max_stimulus_pair_instance >= 2) %>%
+  filter(max_stimulus_pair_instance >= 2) %>%  # I keep all datasets with at least 2 repetitions for each pair
   
-  filter(stimulus_pair_instance <= 2) %>% 
+  filter(stimulus_pair_instance <= 2) %>%  # I keep all pairs with only two pair repetitions. 
+                                           # because it means we'll have pairs which were not repeated
+                                           # trials which only repeated pair OR targets which repeated both pair and targets
+                                           # maybe it could be an option to compare repeated pair AND repeated pair and target
   
   mutate(type_of_instance = as.factor(case_when(
     
@@ -113,14 +118,20 @@ repetitions_data_long = repetitions_data%>%
   select(administration_id,age,dataset_name, stimulus_pair_instance ,stimulus_pair_target_instance, type_of_instance, post_accuracy, pre_accuracy) %>% 
   pivot_longer(-c(administration_id,age,dataset_name, stimulus_pair_instance ,stimulus_pair_target_instance, type_of_instance),
                values_to = "Accuracy",
-               names_to = "Time") 
+               names_to = "Time")
 
-repetitions_data_long %>% 
-  group_by(dataset_name, stimulus_pair_instance ,stimulus_pair_target_instance, type_of_instance) %>% 
-  summarize(n = n()) %>% 
-  group_by(dataset_name) %>% 
+repetitions_data_long_summary = repetitions_data_long %>% 
+  group_by(dataset_name, stimulus_pair_instance ,stimulus_pair_target_instance, type_of_instance) %>%
+  summarize(n = n()) %>%
+  group_by(dataset_name) %>%
   mutate(total_trials = sum(n),
-         proportion = n/total_trials) %>% 
+         proportion = n/total_trials) 
+
+# datasets with less than certain proportion of trials for any type of instance
+bad_n_datasets = repetitions_data_long_summary[repetitions_data_long_summary$proportion < .1,]$dataset_name
+
+repetitions_data_long_summary%>%
+  # filter(!dataset_name %in% bad_n_datasets) %>% 
 
   ggplot(aes(x = dataset_name, y = proportion, fill = (type_of_instance)))+
   geom_bar(stat = "identity", position = "stack") +
@@ -132,9 +143,7 @@ repetitions_data_long %>%
         legend.position = "top")+
   coord_flip()
 
-bad_n_datasets <- c( "yurovsky_2017" ,"swingley_aslin_2002" ,"sander-montant_2022",
-                     "perry_cowpig","garrison_bergelson_2020", "fmw_2013" , "baumgartner_2014",
-                     "adams_marchman_2018" ) 
+
 
 
 ```
@@ -154,6 +163,7 @@ Select two or three datasets and see if this makes sense
 
 
 repetitions_data_long%>% 
+  filter(!dataset_name %in% bad_n_datasets) %>% 
     group_by(dataset_name, stimulus_pair_instance ,stimulus_pair_target_instance, type_of_instance, Time) %>% 
   summarize(mean_accuracy = mean(Accuracy, na.rm = T),
             se_accuracy = sd(Accuracy, na.rm = T)/sqrt(length(Accuracy)),
@@ -184,6 +194,7 @@ Standard errors might be a bit underestimated because of the number of rows
 ```{r}
 
 repetitions_data_long%>% 
+    filter(!dataset_name %in% bad_n_datasets) %>% 
   
   group_by(dataset_name, administration_id, type_of_instance, Time) %>% 
   summarize(mean_administration_accuracy = mean(Accuracy, na.rm = T),
@@ -271,6 +282,7 @@ Same plot that before, but looking at age differences in children between 12 and
 # ADD AGE.
 
 repetitions_data_long%>% 
+    filter(!dataset_name %in% bad_n_datasets) %>% 
     ungroup() %>% 
   mutate(n_in_dataset = n(), .by = c("dataset_name","type_of_instance", "Time")) %>%
   filter(n_in_dataset > 10) %>%
@@ -318,6 +330,9 @@ repetitions_data_long%>%
 
 
 rep_timecourse <- d_aoi %>%
+  
+    filter(!dataset_name %in% bad_n_datasets) %>% 
+  
   
   left_join(repetitions_data) %>% 
   filter(!is.na(type_of_instance))
