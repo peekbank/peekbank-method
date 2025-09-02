@@ -13,7 +13,8 @@ source(here::here("helper/common.R"))
 # Load data
 
 ```{r}
-load(file = here("cached_intermediates","1_d_trial.Rds"))
+# later version cached, no need to run
+load(file = here("cached_intermediates", "1_d_trial.Rds"))
 ```
 
 # Measure 3: Reaction time
@@ -37,12 +38,17 @@ source("helper/rt_helper.R")
 Compute RTs, relying on the RLE workflow from the shiny app. 
 
 ```{r}
+# cached, don't need to run
 rle_data <- d_trial %>%
-  filter(any(t_norm == 0), # must have data at 0
-         t_norm >= 0) %>% # only pass data after 0
+  filter(
+    any(t_norm == 0), # must have data at 0
+    t_norm >= 0
+  ) %>% # only pass data after 0
   group_by(administration_id, trial_id, trial_order) %>%
-  reframe(lengths = rle(aoi)$lengths, 
-          values = rle(aoi)$values) 
+  reframe(
+    lengths = rle(aoi)$lengths,
+    values = rle(aoi)$values
+  )
 
 d_rt <- rle_data %>%
   group_by(administration_id, trial_id, trial_order) %>%
@@ -50,10 +56,10 @@ d_rt <- rle_data %>%
   mutate(data = lapply(data, get_rt)) %>%
   unnest(cols = c(data)) %>%
   left_join(d_trial %>%
-              select(-t_norm, -correct, -aoi) %>%
-              distinct())
+    select(-t_norm, -correct, -aoi) %>%
+    distinct())
 
-saveRDS(file = here("cached_intermediates","4_d_rt.Rds"), d_rt)
+saveRDS(file = here("cached_intermediates", "4_d_rt.Rds"), d_rt)
 ```
 
 How many trials have RTs for them?
@@ -61,40 +67,98 @@ How many trials have RTs for them?
 Almost every trial makes it through the computation, but what prop do we have RTs for.
 
 ```{r}
-d_rt <- readRDS(file = here("cached_intermediates","4_d_rt.Rds"))
+d_rt <- readRDS(file = here("cached_intermediates", "4_d_rt.Rds"))
 
-rt_stats <- d_rt %>% 
+rt_stats <- d_rt %>%
   ungroup() %>%
-  summarise(nas = mean(is.na(shift_start_rt)), 
-            too_fast = mean(shift_start_rt < 300, na.rm=TRUE), 
-            d_t = mean(shift_type == "D-T", na.rm=TRUE), 
-            t_d = mean(shift_type == "T-D", na.rm=TRUE),
-            other = mean(shift_type == "other", na.rm=TRUE),
-            no_shift = mean(shift_type == "no shift", na.rm=TRUE))
+  summarise(
+    nas = mean(is.na(shift_start_rt)),
+    too_fast = mean(shift_start_rt < 300, na.rm = TRUE),
+    d_t = mean(shift_type == "D-T", na.rm = TRUE),
+    t_d = mean(shift_type == "T-D", na.rm = TRUE),
+    other = mean(shift_type == "other", na.rm = TRUE),
+    no_shift = mean(shift_type == "no shift", na.rm = TRUE)
+  )
 
 knitr::kable(rt_stats, digits = 2)
 ```
+Notes from VB 8/26 on combinatorial things to try:
+
+* launch vs land RT
+* raw vs log 
+* filter by max shift length (x different times)
+* filter min start time
+* do we exclude based on pre-min loss (between t_0 and min start time)
+* do we count initiation as first time you leave or last time you leave (before landing)
+
 
 ## Shift-start vs. regular RT
 
 ```{r}
-ggplot(d_rt, aes(x = shift_start_rt, y = rt)) + 
-  geom_point(alpha = .5, aes(col = age)) + 
-  geom_smooth(method = "lm") + 
+ggplot(d_rt, aes(x = shift_start_rt, y = rt)) +
+  geom_point(alpha = .5, aes(col = age)) +
+  geom_smooth(method = "lm") +
   viridis::scale_color_viridis()
 ```
 
 What if we took out the too-long shifts (which Virginia says were filtered after 600ms)?
 
 ```{r}
-ggplot(d_rt, 
-       aes(x = shift_start_rt, y = rt)) + 
-  geom_point(alpha = .5, aes(col = age)) + 
-  geom_point(data = filter(d_rt, shift_length > 600), 
-             col = "red") +
-  geom_smooth(method = "lm") + 
+ggplot(
+  d_rt,
+  aes(x = shift_start_rt, y = rt)
+) +
+  geom_point(alpha = .5, aes(col = age)) +
+  geom_point(
+    data = filter(d_rt, shift_length > 600),
+    col = "red"
+  ) +
+  geom_smooth(method = "lm") +
   viridis::scale_color_viridis()
 ```
+
+## How to measure shift initiation
+
+```{r}
+# not sure whether we should count shift initiation as when the child first looks away from D or when they are last looking at D before looking at T
+
+# how often are these distinct?
+
+
+d_rt |>
+  ungroup() |>
+  filter(!is.na(shift_start_rt)) |>
+  mutate(
+    initiation_type = shift_start_rt != last_shift_rt,
+    long_shift = shift_length > 600
+  ) |>
+  group_by(initiation_type, long_shift) |>
+  tally()
+```
+about 5% of the data that has a shift has a difference between these two measures
+but only abut 1% of data with a shift has this difference *and* doesn't have a long shift time, so this is probably not of large consequence. 
+
+```{r}
+# does it matter which type of shift we use
+ggplot(d_rt, aes(x = shift_start_rt, y = last_shift_rt)) +
+  geom_point(alpha = .5, aes(col = age)) +
+  geom_smooth(method = "lm") +
+  viridis::scale_color_viridis()
+
+ggplot(
+  d_rt,
+  aes(x = shift_start_rt, y = last_shift_rt)
+) +
+  geom_point(alpha = .5, aes(col = age)) +
+  geom_point(
+    data = filter(d_rt, shift_length > 600),
+    col = "red"
+  ) +
+  geom_smooth(method = "lm") +
+  viridis::scale_color_viridis()
+```
+
+
 
 
 
@@ -103,14 +167,14 @@ ggplot(d_rt,
 Examine RT distribution.
 
 ```{r}
-ggplot(filter(d_rt,shift_start_rt>=300), aes(x = shift_start_rt)) + 
+ggplot(filter(d_rt), aes(x = shift_start_rt)) +
   geom_histogram()
 ```
 
 Logs. 
 
 ```{r}
-ggplot(d_rt, aes(x = shift_start_rt)) + 
+ggplot(d_rt, aes(x = shift_start_rt)) +
   geom_histogram() +
   scale_x_log10()
 ```
@@ -118,42 +182,52 @@ ggplot(d_rt, aes(x = shift_start_rt)) +
 Probably should get rid of the RTs < 250ms or so. 
 
 ```{r}
-mean(d_rt$shift_start_rt<250, na.rm=TRUE)
+mean(d_rt$shift_start_rt < 250, na.rm = TRUE)
 ```
 
 Filter. 
 
 ```{r}
-d_rt_all <- filter(d_rt, 
-                   !is.na(shift_start_rt))
-d_rt <- filter(d_rt, 
-               !is.na(shift_start_rt), 
-               shift_start_rt > 250)
+d_rt_all <- filter(
+  d_rt,
+  !is.na(shift_start_rt)
+)
+d_rt <- filter(
+  d_rt,
+  !is.na(shift_start_rt),
+  shift_start_rt > 250
+)
 ```
 
 Look by age.
 
 ```{r}
-ggplot(d_rt, 
-       aes(x = age, y = rt)) + 
+ggplot(
+  d_rt,
+  aes(x = age, y = rt)
+) +
   geom_point(alpha = .5) +
-  geom_smooth(method="lm") 
+  geom_smooth(method = "lm")
 ```
 Add dataset to try to figure out blockiness. 
 
 ```{r}
-ggplot(d_rt, 
-       aes(x = age, y = rt)) + 
+ggplot(
+  d_rt,
+  aes(x = age, y = rt)
+) +
   geom_point(alpha = .1) +
-  geom_smooth(method="lm") + 
+  geom_smooth(method = "lm") +
   facet_wrap(~dataset_name)
 ```
 
 Histogram by dataset. 
 
 ```{r}
-ggplot(d_rt, 
-       aes(x = rt)) + 
+ggplot(
+  d_rt,
+  aes(x = rt)
+) +
   geom_histogram(bins = 10) +
   scale_x_log10() +
   facet_wrap(~dataset_name, scales = "free_y")
@@ -163,83 +237,121 @@ ggplot(d_rt,
 
 ## RT reliabilities
 
-Let's compute reliabilities now for D-T trials (standard approach, loses half of trials). 
+combinatorics:
+* land / first launch / last launch
+* raw /log
+* filter shift_length <=600 or no
+
+
 
 ```{r}
 d_rt_dt <- d_rt |>
   filter(shift_type == "D-T") |>
-  mutate(log_rt = log(rt), 
-         shift_start_log_rt = log(shift_start_rt), 
-         shift_start_rt_trimmed = ifelse(shift_length <= 600, shift_start_rt, NA)) 
+  mutate(
+    land_rt = rt,
+    first_launch_rt = shift_start_rt,
+    last_launch_rt = last_shift_rt
+  ) |>
+  mutate(
+    across(c("land_rt", "first_launch_rt", "last_launch_rt"), log, .names = "log_{.col}"),
+    across(
+      c(
+        "land_rt", "first_launch_rt", "last_launch_rt",
+        "log_land_rt", "log_first_launch_rt", "log_last_launch_rt"
+      ),
+      ~ ifelse(shift_length <= 600, .x, NA),
+      .names = "trim_first_{.col}"
+    ),
+    across(
+      c(
+        "land_rt", "first_launch_rt", "last_launch_rt",
+        "log_land_rt", "log_first_launch_rt", "log_last_launch_rt"
+      ),
+      ~ ifelse(last_shift_length <= 600, .x, NA),
+      .names = "trim_last_{.col}"
+    )
+  ) |>
+  select(-rt, -shift_start_rt, -last_shift_rt)
 
-# stimulus_rt = 
-#            unlist(map(data, ~get_icc(.x, 
+
+# stimulus_rt =
+#            unlist(map(data, ~get_icc(.x,
 #                                      column = "shift_start_rt",
 #                                      object = "stimulus"))),
-# landing_stimulus_rt = 
-#   unlist(map(data, ~get_icc(.x, 
+# landing_stimulus_rt =
+#   unlist(map(data, ~get_icc(.x,
 #                             column = "rt",
 #                             object = "stimulus"))),
 
 rt_iccs <- d_rt_dt |>
-  group_by(dataset_name) |> 
+  group_by(dataset_name) |>
   nest() |>
-  mutate(
-    shift_rt = 
-      unlist(map(data, ~get_icc(.x, 
-                                column = "shift_start_rt",
-                                object = "administration"))),
-    shift_logrt = 
-      unlist(map(data, ~get_icc(.x, 
-                                column = "shift_start_log_rt",
-                                object = "administration"))),
-    shift_trimmed = 
-      unlist(map(data, ~get_icc(.x, 
-                                column = "shift_start_rt_trimmed",
-                                object = "administration"))),
-    landing_rt = 
-      unlist(map(data, ~get_icc(.x, 
-                                column = "rt",
-                                object = "administration"))),
-    landing_logrt = 
-      unlist(map(data, ~get_icc(.x, 
-                                column = "log_rt",
-                                object = "administration")))) |>
+  mutate(icc_admin = map(data, \(d) {
+    rt_names <- colnames(d)[str_ends(colnames(d), "rt")]
+    icc_values <- map_dbl(rt_names, \(rt_col) {
+      get_icc(d |> filter(!is.na(d[rt_col])), column = rt_col, object = "administration")
+    })
+    tibble(measure = rt_names, icc = icc_values)
+  })) |>
   select(-data) |>
-  unnest(cols = c())
-
-rt_iccs_long <- rt_iccs |>
-  pivot_longer(names_to = "measure", values_to = "icc", 
-               shift_rt:landing_logrt)
+  unnest(icc_admin)
 ```
+TODO figure out what's going on with ICC's of 0 and also the NaNs!
+```{r}
+```
+
 
 Plot. 
 
 ```{r}
-rt_iccs_long$dataset_name <- fct_reorder(rt_iccs_long$dataset_name, rt_iccs_long$icc)
+rt_iccs$dataset_name <- fct_reorder(rt_iccs$dataset_name, rt_iccs$icc)
 
-ggplot(rt_iccs_long,
-       aes(x = dataset_name, y = icc, col = measure)) +
+rt_iccs_coded <- rt_iccs |> mutate(
+  type = case_when(
+    str_detect(measure, "first_launch_rt") ~ "first_launch",
+    str_detect(measure, "last_launch_rt") ~ "last_launch",
+    str_detect(measure, "land_rt") ~ "land"
+  ),
+  measure = str_replace_all(measure, "first_laumch_rt", "") |>
+    str_replace_all("last_launch_rt", "") |>
+    str_replace_all("land_rt", "")
+)
+
+
+ggplot(
+  rt_iccs,
+  aes(x = dataset_name, y = icc, col = measure)
+) +
   geom_point(position = position_dodge(width = .5)) +
-  geom_line(aes(group= measure))+ 
-  coord_flip() 
+  geom_line(aes(group = measure)) +
+  coord_flip() #+
+# facet_grid(.~type)
+
+rt_iccs_coded |>
+  group_by(measure, type) |>
+  summarize(mean_icc = mean(icc)) |> View()
 ```
 
+TODO: rank/score them for the different things 
 Why are some ICCs zero? Let's look at Pomper Saffran 2016.
 
 ```{r}
-ps <- d_rt |> 
+ps <- d_rt |>
   filter(dataset_name == "pomper_saffran_2016")
 
-ggplot(ps, 
-       aes(x = target_label, y = shift_start_rt)) +
-  geom_jitter(alpha = .5, width = .2) + 
-  stat_summary(col = "red")+
-  theme(axis.text.x  = element_text(angle=90, vjust=0.5))
+ggplot(
+  ps,
+  aes(x = target_label, y = shift_start_rt)
+) +
+  geom_jitter(alpha = .5, width = .2) +
+  stat_summary(col = "red") +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5))
 
-ggplot(ps, 
-       aes(x = administration_id, y = shift_start_rt)) +
-  geom_jitter(alpha = .5, width = .2) + 
+ggplot(
+  ps,
+  aes(x = administration_id, y = shift_start_rt)
+) +
+  geom_jitter(alpha = .5, width = .2) +
   stat_summary(col = "red")
 ```
 
@@ -253,15 +365,16 @@ get_icc(ps, object = "administration", column = "shift_start_rt")
 
 
 ```{r}
-ps_icc <- dim_icc(ps, 
-                  model = "2A", 
-                  type = "agreement", 
-                  unit = "average",
-                  object = administration_id, 
-                  rater = target_label,
-                  trial = trial_id, 
-                  score = shift_start_rt, 
-                  bootstrap = 1000)
+ps_icc <- dim_icc(ps,
+  model = "2A",
+  type = "agreement",
+  unit = "average",
+  object = administration_id,
+  rater = target_label,
+  trial = trial_id,
+  score = shift_start_rt,
+  bootstrap = 1000
+)
 
 summary(ps_icc)
 ```
@@ -281,7 +394,7 @@ get_icc(ps_dt, object = "stimulus", column = "shift_start_rt")
 Stimulus ICC goes to zero for D-T trials. Let's look at the cross between subjects and trials for each. 
 
 ```{r}
-ps |> 
+ps |>
   ungroup() |>
   select(subject_id, target_label, shift_start_rt) |>
   arrange(target_label) |>
@@ -289,33 +402,33 @@ ps |>
   arrange(subject_id) |>
   View()
 
-#summarize by stimulus
+# summarize by stimulus
 ps_stimulus_rt_summarized <- ps |>
   ungroup() |>
   group_by(target_label) |>
   summarize(
-    N=n(),
-    mean_rt=mean(shift_start_rt,na.rm=TRUE)
+    N = n(),
+    mean_rt = mean(shift_start_rt, na.rm = TRUE)
   )
 
 ps_stimulus_rt_summarized <- ps |>
   ungroup() |>
   group_by(target_label) |>
   summarize(
-    N=n(),
-    mean_rt=mean(shift_start_rt,na.rm=TRUE)
+    N = n(),
+    mean_rt = mean(shift_start_rt, na.rm = TRUE)
   )
 
 ps_admin_rt_summarized <- ps |>
   ungroup() |>
   group_by(administration_id) |>
   summarize(
-    N=n(),
-    mean_rt=mean(shift_start_rt,na.rm=TRUE)
+    N = n(),
+    mean_rt = mean(shift_start_rt, na.rm = TRUE)
   )
 
 
-ps_dt |> 
+ps_dt |>
   ungroup() |>
   select(subject_id, target_label, shift_start_rt) |>
   arrange(target_label) |>
@@ -323,22 +436,22 @@ ps_dt |>
   arrange(subject_id) |>
   View()
 
-#summarize by stimulus
+# summarize by stimulus
 ps_dt_stimulus_rt_summarized <- ps_dt |>
   ungroup() |>
-  group_by(administration_id,target_label) |>
+  group_by(administration_id, target_label) |>
   summarize(
-    N=n(),
-    mean_rt=mean(shift_start_rt,na.rm=TRUE),
-    unique_participants=length(unique(administration_id))
+    N = n(),
+    mean_rt = mean(shift_start_rt, na.rm = TRUE),
+    unique_participants = length(unique(administration_id))
   )
 
 ps_dt_admin_rt_summarized <- ps_dt |>
   ungroup() |>
   group_by(administration_id) |>
   summarize(
-    N=n(),
-    mean_rt=mean(shift_start_rt,na.rm=TRUE)
+    N = n(),
+    mean_rt = mean(shift_start_rt, na.rm = TRUE)
   )
 ```
 
@@ -348,29 +461,29 @@ Let's check if removing rare items fixes the ICC issue
 
 ```{r}
 rare_items <- ps_dt_stimulus_rt_summarized |>
-  filter(N<8) %>%
+  filter(N < 8) %>%
   pull(target_label)
 rare_participants <- ps_dt_admin_rt_summarized |>
-  filter(N<5) %>%
+  filter(N < 5) %>%
   pull(administration_id)
 
-get_icc(filter(ps_dt,!(target_label %in% rare_items)), object = "stimulus", column = "shift_start_rt")
-get_icc(filter(ps_dt,!(administration_id %in% rare_participants)), object = "stimulus", column = "shift_start_rt")
+get_icc(filter(ps_dt, !(target_label %in% rare_items)), object = "stimulus", column = "shift_start_rt")
+get_icc(filter(ps_dt, !(administration_id %in% rare_participants)), object = "stimulus", column = "shift_start_rt")
 ```
 
 filtering out rare participants or stimuli doesn't seem to matter.
 
 
 ```{r}
-ggplot(ps, aes(x = rt)) + 
-  geom_histogram() + 
+ggplot(ps, aes(x = rt)) +
+  geom_histogram() +
   facet_wrap(~shift_type)
 ```
 This is consistent with the idea that T-D shifts are more random/ uninformative. Let's look at all data. 
 
 ```{r}
-ggplot(d_rt, aes(x = rt)) + 
-  geom_histogram() + 
+ggplot(d_rt, aes(x = rt)) +
+  geom_histogram() +
   facet_wrap(~shift_type)
 ```
 Looks well-supported that T-D RTs are different. I now feel comfortable moving forward with D-T only. 
@@ -378,115 +491,141 @@ Let's compare ICC from RTs to ICCs from accuracy.
 
 ```{r}
 d_summary <- d_trial |>
-  group_by(dataset_name, trial_id, dataset_id, subject_id, administration_id, 
-           target_label) |>
-  summarise(accuracy = mean(correct[t_norm > 500], na.rm=TRUE),
-            prop_data = mean(!is.na(correct[t_norm > 500]))) |>
+  group_by(
+    dataset_name, trial_id, dataset_id, subject_id, administration_id,
+    target_label
+  ) |>
+  summarise(
+    accuracy = mean(correct[t_norm > 500], na.rm = TRUE),
+    prop_data = mean(!is.na(correct[t_norm > 500]))
+  ) |>
   filter(!is.na(accuracy))
 
-trial_ns_acc <- bind_rows(d_summary |>
-                            group_by(dataset_name, subject_id) |>
-                            count() |>
-                            group_by(dataset_name) |>
-                            summarise(n = mean(n), 
-                                      dimension = "admin"),
-                          d_summary |>
-                            group_by(dataset_name, target_label) |>
-                            count() |>
-                            group_by(dataset_name) |>
-                            summarise(n = mean(n), 
-                                      dimension = "stimulus"))
+trial_ns_acc <- bind_rows(
+  d_summary |>
+    group_by(dataset_name, subject_id) |>
+    count() |>
+    group_by(dataset_name) |>
+    summarise(
+      n = mean(n),
+      dimension = "admin"
+    ),
+  d_summary |>
+    group_by(dataset_name, target_label) |>
+    count() |>
+    group_by(dataset_name) |>
+    summarise(
+      n = mean(n),
+      dimension = "stimulus"
+    )
+)
 
-trial_ns_rt <- bind_rows(d_rt_dt |>
-                           group_by(dataset_name, subject_id) |>
-                           count() |>
-                           group_by(dataset_name) |>
-                           summarise(n = mean(n), 
-                                     dimension = "admin"),
-                         bind_rows(d_rt_dt |>
-                                     group_by(dataset_name, subject_id) |>
-                                     count() |>
-                                     group_by(dataset_name) |>
-                                     summarise(n = mean(n), 
-                                               dimension = "stimulus")))
-#load ICCs for accuracy
-load(file = here("cached_intermediates","2_iccs_accuracy.Rds"))
+trial_ns_rt <- bind_rows(
+  d_rt_dt |>
+    group_by(dataset_name, subject_id) |>
+    count() |>
+    group_by(dataset_name) |>
+    summarise(
+      n = mean(n),
+      dimension = "admin"
+    ),
+  bind_rows(d_rt_dt |>
+    group_by(dataset_name, subject_id) |>
+    count() |>
+    group_by(dataset_name) |>
+    summarise(
+      n = mean(n),
+      dimension = "stimulus"
+    ))
+)
+# load ICCs for accuracy
+load(file = here("cached_intermediates", "2_iccs_accuracy.Rds"))
 
 iccs_long <- iccs |>
-  pivot_longer(names_to = "dimension", values_to = "icc", 
-               icc_stimulus_acc:icc_admin_acc) |>
+  pivot_longer(
+    names_to = "dimension", values_to = "icc",
+    icc_stimulus_acc:icc_admin_acc
+  ) |>
   ungroup() |>
-  separate(dimension, into = c("type","dimension","measure")) |>
+  separate(dimension, into = c("type", "dimension", "measure")) |>
   mutate(dataset_name = fct_reorder(dataset_name, icc))
 
 
-acc_rt_iccs <- bind_rows(filter(iccs_long, measure == "acc") |>
-                           left_join(trial_ns_acc), 
-                         rt_iccs_long |>
-                           left_join(trial_ns_rt)) |>
+acc_rt_iccs <- bind_rows(
+  filter(iccs_long, measure == "acc") |>
+    left_join(trial_ns_acc),
+  rt_iccs_long |>
+    left_join(trial_ns_rt)
+) |>
   mutate(dataset_name = fct_reorder(as.factor(dataset_name), icc)) |>
   select(-type)
 
 
-ggplot(acc_rt_iccs, 
-       aes(x = dataset_name, y = icc, col = measure)) +
-  geom_point(aes(size = n), 
-             position = position_dodge(width = .5)) +
-  geom_line(aes(group = measure)) + 
+ggplot(
+  acc_rt_iccs,
+  aes(x = dataset_name, y = icc, col = measure)
+) +
+  geom_point(aes(size = n),
+    position = position_dodge(width = .5)
+  ) +
+  geom_line(aes(group = measure)) +
   facet_wrap(~dimension) +
-  theme(axis.text.x=element_text(angle=-90))
+  theme(axis.text.x = element_text(angle = -90))
 
-acc_rt_iccs |> 
+acc_rt_iccs |>
   arrange(dataset_name) |>
-  mutate(icc = round(icc, digits = 2), 
-         n = round(n))
+  mutate(
+    icc = round(icc, digits = 2),
+    n = round(n)
+  )
 ```
 
 Let's plot by N. 
 
 ```{r}
-ggplot(acc_rt_iccs, 
-       aes(x = n, y = icc, col = dataset_name)) + 
-  geom_point() + 
-  geom_smooth(aes(group = 1), method = "loess", span = 10,  se = FALSE) + 
+ggplot(
+  acc_rt_iccs,
+  aes(x = n, y = icc, col = dataset_name)
+) +
+  geom_point() +
+  geom_smooth(aes(group = 1), method = "loess", span = 10, se = FALSE) +
   # scale_x_log10() +
-  facet_wrap(dimension~measure, scales = "free_x") + 
-  xlab("N trials per child/word") + 
-  ylab("Intraclass Correlation Coefficient") + 
-  ylim(0,1)
-
+  facet_wrap(dimension ~ measure, scales = "free_x") +
+  xlab("N trials per child/word") +
+  ylab("Intraclass Correlation Coefficient") +
+  ylim(0, 1)
 ```
 This is interesting! We are getting a bunch of signal about individual participants from RT, actually higher ICC than accuracies. Not so much for stimulus information, where it seems like we are doing better from accuracy. Also, as predicted the number of trials per child or per word appears to relate across datasets to the ICC (though there's lots of variance at the bottom end that presumably relates to the variation in ability across kids/variation in difficulty across words). If you choose very different words you get high reliability on that dimension (see "reliability paradoxes" idea).
 
 ## Compare ICCs for RT and Accuracy
 
 ```{r}
-#combine
+# combine
 all_iccs <- iccs %>%
   left_join(rt_iccs)
 
-#plot - Participants
-ggplot(all_iccs, aes(admin_rt,icc_admin_acc))+
-  geom_point(size=1.5)+
-  geom_text(aes(label=dataset_name))+
-  geom_abline(intercept=0,slope=1)+
-  xlim(0,1)+
-  ylim(0,1)
+# plot - Participants
+ggplot(all_iccs, aes(admin_rt, icc_admin_acc)) +
+  geom_point(size = 1.5) +
+  geom_text(aes(label = dataset_name)) +
+  geom_abline(intercept = 0, slope = 1) +
+  xlim(0, 1) +
+  ylim(0, 1)
 ```
 
 plot - Items
 
 ```{r}
-ggplot(all_iccs, aes(stimulus_rt,icc_stimulus_acc))+
-  geom_point(size=1.5)+
-  geom_text(aes(label=dataset_name))+
-  geom_abline(intercept=0,slope=1)+
-  xlim(0,1)+
-  ylim(0,1)
+ggplot(all_iccs, aes(stimulus_rt, icc_stimulus_acc)) +
+  geom_point(size = 1.5) +
+  geom_text(aes(label = dataset_name)) +
+  geom_abline(intercept = 0, slope = 1) +
+  xlim(0, 1) +
+  ylim(0, 1)
 ```
 
 ## Look at RTs as a function of filtering
 
 ```{r}
-save(d_rt_dt, file= here("cached_intermediates","4_d_rt_dt.Rds"))
+save(d_rt_dt, file = here("cached_intermediates", "4_d_rt_dt.Rds"))
 ```
