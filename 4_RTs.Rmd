@@ -9,36 +9,20 @@ output: html_document
 ```{r}
 source(here::here("helper/common.R"))
 ```
+# Load data and prep intermediates
 
-# Load data
+
 
 ```{r}
 # later version cached, no need to run
 load(file = here("cached_intermediates", "1_d_trial.Rds"))
 ```
 
-# Measure 3: Reaction time
-
-## Computing RT 
-First compute reaction time. 
-
-NOTE 1/31/24 - consider computing RT from LAUNCH not from LANDING - this may make a difference to what we end up finding. 
-MZ: 4/29/24 - both launch and landing-based RT computed by rt helper function
-* `rt`: landing-time based RT
-* `shift_start_rt`: launch-time based RT
-
-We need RLE data, then we use the RT helper from peekbank-shiny. 
-
-Note MCF: 8/25/25 - we cached this function in the current repo to remove dependencies. 
-
 ```{r}
 source("helper/rt_helper.R")
 ```
 
-Compute RTs, relying on the RLE workflow from the shiny app. 
-
 ```{r}
-# cached, don't need to run
 rle_data <- d_trial %>%
   filter(
     any(t_norm == 0), # must have data at 0
@@ -61,49 +45,31 @@ d_rt <- rle_data %>%
 
 saveRDS(file = here("cached_intermediates", "4_d_rt.Rds"), d_rt)
 ```
-
-How many trials have RTs for them?
-
-Almost every trial makes it through the computation, but what prop do we have RTs for.
-
+# Measure 3: Reaction time
 ```{r}
 d_rt <- readRDS(file = here("cached_intermediates", "4_d_rt.Rds"))
-
-rt_stats <- d_rt %>%
-  ungroup() %>%
-  summarise(
-    nas = mean(is.na(shift_start_rt)),
-    too_fast = mean(shift_start_rt < 300, na.rm = TRUE),
-    d_t = mean(shift_type == "D-T", na.rm = TRUE),
-    t_d = mean(shift_type == "T-D", na.rm = TRUE),
-    other = mean(shift_type == "other", na.rm = TRUE),
-    no_shift = mean(shift_type == "no shift", na.rm = TRUE)
-  )
-
-knitr::kable(rt_stats, digits = 2)
 ```
-Notes from VB 8/26 on combinatorial things to try:
 
-* launch vs land RT
+IV analysis options:
+* what time point to use for RT -- the first time you leave, the last time you leave before landing, when you land
 * raw vs log 
-* filter by max shift length (x different times)
+* filter by max shift length
 * filter min start time
 * do we exclude based on pre-min loss (between t_0 and min start time)
-* do we count initiation as first time you leave or last time you leave (before landing)
 
+outcome measures:
+* reliability = ICC
+* data loss = how many datapoints are kept
 
-## Shift-start vs. regular RT
+## How much data shows differences?
 
+### time point to use for RT + max shift length
 ```{r}
 ggplot(d_rt, aes(x = shift_start_rt, y = rt)) +
   geom_point(alpha = .5, aes(col = age)) +
   geom_smooth(method = "lm") +
   viridis::scale_color_viridis()
-```
 
-What if we took out the too-long shifts (which Virginia says were filtered after 600ms)?
-
-```{r}
 ggplot(
   d_rt,
   aes(x = shift_start_rt, y = rt)
@@ -117,23 +83,558 @@ ggplot(
   viridis::scale_color_viridis()
 ```
 
+this is filtering at 600ms based on first leaving distractor
+
+```{r}
+# does type of start initiation matter
+
+d_rt |>
+  ungroup() |>
+  filter(!is.na(shift_start_rt)) |>
+  mutate(
+    initiation_type_matters = shift_start_rt != last_shift_rt,
+    long_shift_occurs = shift_length > 600
+  ) |>
+  group_by(initiation_type_matters, long_shift_occurs) |>
+  tally() |>
+  ungroup() |>
+  mutate(pct = n / sum(n))
+```
+for the most part, these combos won't matter because >90% of the data has the kid only leaving once and doesn't have a long shift. 
+
+distribution of shift lengths -- cut off at 1000ms; by far most shifts are <250ms
+
+```{r}
+d_rt |> ggplot(aes(x = shift_length)) +
+  geom_histogram(binwidth = 50) +
+  coord_cartesian(xlim = c(0, 1000))
+d_rt |> ggplot(aes(x = last_shift_length)) +
+  geom_histogram(binwidth = 50) +
+  coord_cartesian(xlim = c(0, 1000))
+```
+### how important is consistency in 0-400ms window
+how much of the time are kids looking at the same thing between 0 and 400 ms -- many studies require looks to distractor + no shifts for 250/300/367 ms; how much data loss is coming from this?
+
+```{r}
+t_0 <- d_trial |>
+  filter(t_norm == 0) |>
+  mutate(t_0_aoi = aoi) |>
+  select(administration_id, trial_id, dataset_name, t_0_aoi) |>
+  mutate(t_0_aoi = ifelse(t_0_aoi %in% c("target", "distractor"), t_0_aoi, "other"))
+t_375 <- d_trial |>
+  filter(t_norm == 375) |>
+  mutate(t_375_aoi = aoi) |>
+  select(administration_id, trial_id, dataset_name, t_375_aoi) |>
+  mutate(t_375_aoi = ifelse(t_375_aoi %in% c("target", "distractor"), t_375_aoi, "other"))
+early_dist <- d_trial |>
+  filter(t_norm < 400 & t_norm >= 0) |>
+  group_by(administration_id, trial_id, dataset_name, aoi) |>
+  tally() |>
+  left_join(t_0) |>
+  left_join(t_375) |>
+  pivot_wider(names_from = aoi, values_from = n, values_fill = 0) |>
+  mutate(type = case_when(
+    target + distractor + missing + other != 16 ~ "some missing ts",
+    target == 16 ~ "only target",
+    distractor == 16 ~ "only distractor",
+    missing + other == 16 ~ "all off",
+    target == 0 & distractor > 8 ~ "d+m (mostly d)",
+    target == 0 ~ "d+m (mostly m)",
+    distractor == 0 & target > 8 ~ "t+m (mostly t)",
+    distractor == 0 ~ "t+m (mostly m)",
+    T ~ "both"
+  ))
+
+ggplot(early_dist, aes(x = t_0_aoi, fill = type)) +
+  facet_wrap(~t_375_aoi) +
+  geom_bar()
+
+early_dist |>
+  group_by(type, t_0_aoi, t_375_aoi) |>
+  tally() |>
+  ungroup() |>
+  mutate(pct = round(n / sum(n), 3)) |>
+  arrange(desc(pct))
+```
+we want to know of the ones that are on t/d/m at start
+
+~31% is on distractor for 0-375
+~29% is on target for 0-375
+
+~14% is missing/other for 0-375(this is going to get tossed in all cases!)
+
+~5.5% goes from d to t
+~5.5% goes from t to d 
+
+~5.5% is mostly on d during the time, with some being on other (at start/end/middle)
+~5% is mostly on t during the time, with some being on other (at start/end/middle)
+
+to look at:
+* when we have d/other or t/other what's the typical patterns
+  * how much is other & when
+* for both t/d this probably can't be salvaged but look at patterns
+
+```{r}
+early_dist |>
+  filter(target == 0) |>
+  filter(missing + other < 16) |>
+  filter(distractor != 16) |>
+  ggplot(aes(x = distractor)) +
+  geom_bar()
+
+early_dist |>
+  filter(distractor == 0) |>
+  filter(missing + other < 16) |>
+  filter(target != 16) |>
+  ggplot(aes(x = target)) +
+  geom_bar()
+```
+so, most of the d/m or t/m mixes is heavily weighted to d or t with only a little m.
+when does this m occur?
+```{r}
+d_trial |>
+  filter(t_norm < 400 & t_norm >= 0) |>
+  inner_join(early_dist |> filter(target == 0) |> filter(missing + other < 16) |> filter(distractor != 16) |> select(administration_id, dataset_name, trial_id, num_distractor = distractor)) |>
+  mutate(is_distractor = ifelse(aoi == "distractor", 1, 0)) |>
+  group_by(t_norm, num_distractor) |>
+  summarize(is_distractor = mean(is_distractor)) |>
+  ggplot(aes(x = t_norm, y = is_distractor, col = num_distractor, group = num_distractor)) +
+  geom_point() +
+  geom_line() +
+  scale_color_viridis()
+```
+so, most of the d/m that is mostly d has the m at the beginning or end (rather than in the middle) -- possibly this is just because of how fixations work? 
+this is especially true when d is >11 or so, which is most of this chunk of data. 
+
+```{r}
+d_trial |>
+  filter(t_norm < 400 & t_norm >= 0) |>
+  inner_join(early_dist |> filter(distractor == 0) |> filter(missing + other < 16) |> filter(target != 16) |> select(administration_id, dataset_name, trial_id, num_target = target)) |>
+  mutate(is_target = ifelse(aoi == "target", 1, 0)) |>
+  group_by(t_norm, num_target) |>
+  summarize(is_target = mean(is_target)) |>
+  ggplot(aes(x = t_norm, y = is_target, col = num_target, group = num_target)) +
+  geom_point() +
+  geom_line() +
+  scale_color_viridis()
+```
+what about when there is both t and d?
+
+I think all we're seeing here is autocorrelation, and also not sure how to deal with 3 way data. 
+
+```{r}
+d_trial |>
+  filter(t_norm < 400 & t_norm >= 0) |>
+  inner_join(early_dist |> filter(distractor > 0) |> filter(missing + other < 16) |> filter(target > 0) |> select(administration_id, dataset_name, trial_id, num_target = target, num_distractor = distractor)) |>
+  mutate(distractor_target = case_when(
+    aoi == "target" ~ 1,
+    aoi == "distractor" ~ 0,
+    T ~ NA
+  )) |>
+  group_by(t_norm, num_target) |>
+  summarize(distractor_target = mean(distractor_target, na.rm = T)) |>
+  ggplot(aes(x = t_norm, y = distractor_target, col = num_target, group = num_target)) +
+  geom_point() +
+  geom_line() +
+  scale_color_viridis()
+
+d_trial |>
+  filter(t_norm < 400 & t_norm >= 0) |>
+  inner_join(early_dist |> filter(distractor > 0) |> filter(missing + other < 16) |> filter(target > 0) |> select(administration_id, dataset_name, trial_id, num_target = target, num_distractor = distractor)) |>
+  mutate(distractor_target = case_when(
+    aoi == "target" ~ 1,
+    aoi == "distractor" ~ 0,
+    T ~ NA
+  )) |>
+  group_by(t_norm, num_distractor) |>
+  summarize(distractor_target = mean(distractor_target, na.rm = T)) |>
+  ggplot(aes(x = t_norm, y = distractor_target, col = num_distractor, group = num_distractor)) +
+  geom_point() +
+  geom_line() +
+  scale_color_viridis()
+```
+Take-aways from data-viz:
+* most of the data is reasonably behaved 30% T-T, 30% D-D, we're looking at whether we can save another like 5%ish onto either by relaxing early missing data requirements
+* for other exclusions around long-shift, again, not much data is being affected (maybe 5% but some of this is also going to overlap more with data that has other issues)
+
+reasonable options for where looking when:
+* at t=0 at D (nothing else)
+* during window (of variable window length), only looking at D (window {100, 200, 300, 400})
+* during window (of variable window length), not looking at T (window {100, 200, 300, 400})
+* during window (of variable window length), not looking at T and looking at D 3/4+ of the time (window {100, 200, 300, 400})
+* at t=0 at D & during window (of variable window length), not looking at T (window {100, 200, 300, 400})
+* at t=0 at D & * during window (of variable window length), not looking at T and looking at D 3/4+ of the time (window {100, 200, 300, 400})
+
+so maybe the combinatorics are:
+
+always: during window no looking at T
+* looking at D at t=0 (yes/no)
+* window length {100, 200, 300, 400}
+* looking at D at t=end of window (yes,no)
+* looking at D 3/4+ of the time during the window
+
+so we'd want to add functions for 
+* window length 0, 100, 200, 300, 400 (where 0=no_window)
+* time_0 (binary)
+* time_end (binary)
+* during (binary) does the 3/4s thing
+
+The obvious place to do this is inside the RLE, but that means working with RLE time-series, which is harder. 
+it's built it that t=0 has to be D, that's the part we'd need to re-write
+
+## Attempt 1 at combinatorics
+This only analyses D-T shifts
+looking at
+* the 3 options for RT = the first time you leave, the last time you leave before landing, when you land
+* raw v log RT
+* the option to trim for max shift length of 600ms either calculated from first leaving or final leaving
+
+all of this is within a requirement of RT data at time 0 (to appropriate thing) but no minimums for shift-start
+
+```{r}
+d_rt_dt <- d_rt |>
+  filter(shift_type == "D-T") |>
+  mutate(
+    land_rt = rt,
+    first_launch_rt = shift_start_rt,
+    last_launch_rt = last_shift_rt
+  ) |>
+  mutate(
+    across(c("land_rt", "first_launch_rt", "last_launch_rt"), log, .names = "log{.col}"),
+    across(
+      c(
+        "land_rt", "first_launch_rt", "last_launch_rt",
+        "log_land_rt", "log_first_launch_rt", "log_last_launch_rt"
+      ),
+      ~ ifelse(shift_length <= 600, .x, NA),
+      .names = "trim_first_{.col}"
+    ),
+    across(
+      c(
+        "land_rt", "first_launch_rt", "last_launch_rt",
+        "log_land_rt", "log_first_launch_rt", "log_last_launch_rt"
+      ),
+      ~ ifelse(last_shift_length <= 600, .x, NA),
+      .names = "trim_last_{.col}"
+    )
+  ) |>
+  select(-rt, -shift_start_rt, -last_shift_rt)
+
+rt_iccs <- d_rt_dt |>
+  group_by(dataset_name) |>
+  nest() |>
+  mutate(icc_admin = map(data, \(d) {
+    rt_names <- colnames(d)[str_ends(colnames(d), "rt")]
+    n_total <- map_dbl(rt_names, \(rt_col) {
+      d |>
+        filter(!is.na(d[rt_col])) |>
+        nrow()
+    })
+    n_admin <- map_dbl(rt_names, \(rt_col) {
+      d |>
+        filter(!is.na(d[rt_col])) |>
+        select(administration_id) |>
+        unique() |>
+        nrow()
+    })
+    max_kid <- map_dbl(rt_names, \(rt_col) {
+      d |>
+        filter(!is.na(d[rt_col])) |>
+        group_by(administration_id) |>
+        tally() |>
+        summarize(m = max(n)) |>
+        pluck(1, 1)
+    })
+    min_kid <- map_dbl(rt_names, \(rt_col) {
+      d |>
+        filter(!is.na(d[rt_col])) |>
+        group_by(administration_id) |>
+        tally() |>
+        summarize(m = min(n)) |>
+        pluck(1, 1)
+    })
+    icc_values <- map_dbl(rt_names, \(rt_col) {
+      get_icc(d |> filter(!is.na(d[rt_col])), column = rt_col, object = "administration")
+    })
+    icc_2_values <- map_dbl(rt_names, \(rt_col) {
+      get_icc(d |> filter(!is.na(d[rt_col])) |> group_by(administration_id) |> mutate(trials = n()) |> filter(trials > 1), column = rt_col, object = "administration")
+    })
+    tibble(measure = rt_names, icc = icc_values, icc_2 = icc_2_values, n_total = n_total, n_admin = n_admin, min_kid = min_kid, max_kid = max_kid)
+  })) |>
+  select(-data) |>
+  unnest(icc_admin)
+```
+
+note, still have 0 values, even if we require multiple trials per kid. 
+double check on consistency v agreement on ICC. 
+
+```{r}
+rt_iccs$dataset_name <- fct_reorder(rt_iccs$dataset_name, rt_iccs$icc)
+
+rt_iccs_coded <- rt_iccs |> mutate(
+  type = case_when(
+    str_detect(measure, "first_launch_rt") ~ "first_launch",
+    str_detect(measure, "last_launch_rt") ~ "last_launch",
+    str_detect(measure, "land_rt") ~ "land"
+  ),
+  logged = case_when(
+    str_detect(measure, "log") ~ "log",
+    T ~ "raw"
+  ),
+  trimming = case_when(
+    str_detect(measure, "trim_first") ~ "trim_first",
+    str_detect(measure, "trim_last") ~ "trim_last",
+    T ~ "untrimmed"
+  )
+)
+
+rt_iccs_coded |>
+  group_by(type, logged, trimming) |>
+  summarize(mean_icc = mean(icc), datapoints = sum(n_total)) |>
+  View()
+
+rt_iccs_coded |> View()
+```
+
+raw rt leads to better ICC than log rt
+
+untrimmed landing is pretty good!
+
+but, major issues is that we are seeing 0s! (and 1 x 1) which doesn't make sense?
+
+graphing this is hard!
+
+```{r}
+ggplot(
+  rt_iccs_coded,
+  aes(x = dataset_name, y = icc, col = type)
+) +
+  geom_point(position = position_dodge(width = .5)) +
+  geom_line(aes(group = measure)) +
+  coord_flip() +
+  facet_grid(logged ~ trimming)
+```
+
+
+## Attempt 2 at combinatorics
+
+so we'd want to add functions for 
+* window length 0, 100, 200, 300, 400 (where 0=no_window)
+* time_0 (binary)
+* time_end (binary)
+* during (binary) does the 3/4s thing
+
+This only analyses D-T shifts
+looking at
+* the 3 options for RT = the first time you leave, the last time you leave before landing, when you land
+* raw v log RT
+* the option to trim for max shift length of 600ms either calculated from first leaving or final leaving
+
+all of this is within a requirement of RT data at time 0 (to appropriate thing) but no minimums for shift-start
+
+```{r}
+rle_data <- d_trial %>%
+  filter(
+    any(t_norm == 0), # must have data at 0
+    t_norm >= 0
+  ) %>% # only pass data after 0
+  group_by(administration_id, trial_id, trial_order) %>%
+  reframe(
+    lengths = rle(aoi)$lengths,
+    values = rle(aoi)$values
+  )
+
+d_rt_more <- rle_data %>%
+  group_by(administration_id, trial_id, trial_order) %>%
+  nest() |>
+  expand_grid(window = c(0, 200, 400), time_0 = c(T, F), time_end = c(T, F), during = c(T, F)) %>%
+  head() |>
+  mutate(rts = pmap(list(data, time_0, window, time_end, during), ~ get_rt(data, t_0 = time_0, window_length = window, t_end = time_end, window_mostly_region = during))) |>
+  unnest(cols = c(rts))
+
+saveRDS(file = here("cached_intermediates", "4_d_rt_more.Rds"), d_rt_more)
+
+d_rt_more[1, ] %>%
+  mutate(data = pmap(., ~ get_rt(data[[1]], t_0 = time_0, window_length = window, t_end = time_end, window_mostly_region = during))) |>
+  View()
+```
+
+
+```{r}
+d_rt_dt <- d_rt |>
+  filter(shift_type == "D-T") |>
+  mutate(
+    land_rt = rt,
+    first_launch_rt = shift_start_rt,
+    last_launch_rt = last_shift_rt
+  ) |>
+  mutate(
+    across(c("land_rt", "first_launch_rt", "last_launch_rt"), log, .names = "log{.col}"),
+    across(
+      c(
+        "land_rt", "first_launch_rt", "last_launch_rt",
+        "log_land_rt", "log_first_launch_rt", "log_last_launch_rt"
+      ),
+      ~ ifelse(shift_length <= 600, .x, NA),
+      .names = "trim_first_{.col}"
+    ),
+    across(
+      c(
+        "land_rt", "first_launch_rt", "last_launch_rt",
+        "log_land_rt", "log_first_launch_rt", "log_last_launch_rt"
+      ),
+      ~ ifelse(last_shift_length <= 600, .x, NA),
+      .names = "trim_last_{.col}"
+    )
+  ) |>
+  select(-rt, -shift_start_rt, -last_shift_rt)
+
+rt_iccs <- d_rt_dt |>
+  group_by(dataset_name) |>
+  nest() |>
+  mutate(icc_admin = map(data, \(d) {
+    rt_names <- colnames(d)[str_ends(colnames(d), "rt")]
+    n_total <- map_dbl(rt_names, \(rt_col) {
+      d |>
+        filter(!is.na(d[rt_col])) |>
+        nrow()
+    })
+    n_admin <- map_dbl(rt_names, \(rt_col) {
+      d |>
+        filter(!is.na(d[rt_col])) |>
+        select(administration_id) |>
+        unique() |>
+        nrow()
+    })
+    max_kid <- map_dbl(rt_names, \(rt_col) {
+      d |>
+        filter(!is.na(d[rt_col])) |>
+        group_by(administration_id) |>
+        tally() |>
+        summarize(m = max(n)) |>
+        pluck(1, 1)
+    })
+    min_kid <- map_dbl(rt_names, \(rt_col) {
+      d |>
+        filter(!is.na(d[rt_col])) |>
+        group_by(administration_id) |>
+        tally() |>
+        summarize(m = min(n)) |>
+        pluck(1, 1)
+    })
+    icc_values <- map_dbl(rt_names, \(rt_col) {
+      get_icc(d |> filter(!is.na(d[rt_col])), column = rt_col, object = "administration")
+    })
+    icc_2_values <- map_dbl(rt_names, \(rt_col) {
+      get_icc(d |> filter(!is.na(d[rt_col])) |> group_by(administration_id) |> mutate(trials = n()) |> filter(trials > 1), column = rt_col, object = "administration")
+    })
+    tibble(measure = rt_names, icc = icc_values, icc_2 = icc_2_values, n_total = n_total, n_admin = n_admin, min_kid = min_kid, max_kid = max_kid)
+  })) |>
+  select(-data) |>
+  unnest(icc_admin)
+```
+
+note, still have 0 values, even if we require multiple trials per kid. 
+double check on consistency v agreement on ICC. 
+
+```{r}
+rt_iccs$dataset_name <- fct_reorder(rt_iccs$dataset_name, rt_iccs$icc)
+
+rt_iccs_coded <- rt_iccs |> mutate(
+  type = case_when(
+    str_detect(measure, "first_launch_rt") ~ "first_launch",
+    str_detect(measure, "last_launch_rt") ~ "last_launch",
+    str_detect(measure, "land_rt") ~ "land"
+  ),
+  logged = case_when(
+    str_detect(measure, "log") ~ "log",
+    T ~ "raw"
+  ),
+  trimming = case_when(
+    str_detect(measure, "trim_first") ~ "trim_first",
+    str_detect(measure, "trim_last") ~ "trim_last",
+    T ~ "untrimmed"
+  )
+)
+
+rt_iccs_coded |>
+  group_by(type, logged, trimming) |>
+  summarize(mean_icc = mean(icc), datapoints = sum(n_total)) |>
+  View()
+
+rt_iccs_coded |> View()
+```
+
+raw rt leads to better ICC than log rt
+
+untrimmed landing is pretty good!
+
+but, major issues is that we are seeing 0s! (and 1 x 1) which doesn't make sense?
+
+graphing this is hard!
+
+```{r}
+ggplot(
+  rt_iccs_coded,
+  aes(x = dataset_name, y = icc, col = type)
+) +
+  geom_point(position = position_dodge(width = .5)) +
+  geom_line(aes(group = measure)) +
+  coord_flip() +
+  facet_grid(logged ~ trimming)
+```
+
+
+
+# Old
+## Computing RT 
+First compute reaction time. 
+
+NOTE 1/31/24 - consider computing RT from LAUNCH not from LANDING - this may make a difference to what we end up finding. 
+MZ: 4/29/24 - both launch and landing-based RT computed by rt helper function
+* `rt`: landing-time based RT
+* `shift_start_rt`: launch-time based RT
+
+We need RLE data, then we use the RT helper from peekbank-shiny. 
+
+Note MCF: 8/25/25 - we cached this function in the current repo to remove dependencies. 
+
+
+
+Compute RTs, relying on the RLE workflow from the shiny app. 
+
+
+
+How many trials have RTs for them?
+
+Almost every trial makes it through the computation, but what prop do we have RTs for.
+
+```{r}
+d_rt <- readRDS(file = here("cached_intermediates", "4_d_rt.Rds"))
+
+# rt_stats <- d_rt %>%
+#   ungroup() %>%
+#   summarise(
+#     nas = mean(is.na(shift_start_rt)),
+#     too_fast = mean(shift_start_rt < 300, na.rm = TRUE),
+#     d_t = mean(shift_type == "D-T", na.rm = TRUE),
+#     t_d = mean(shift_type == "T-D", na.rm = TRUE),
+#     other = mean(shift_type == "other", na.rm = TRUE),
+#     no_shift = mean(shift_type == "no shift", na.rm = TRUE)
+#   )
+#
+# knitr::kable(rt_stats, digits = 2)
+```
+
+
+
+
 ## How to measure shift initiation
 
 ```{r}
 # not sure whether we should count shift initiation as when the child first looks away from D or when they are last looking at D before looking at T
 
 # how often are these distinct?
-
-
-d_rt |>
-  ungroup() |>
-  filter(!is.na(shift_start_rt)) |>
-  mutate(
-    initiation_type = shift_start_rt != last_shift_rt,
-    long_shift = shift_length > 600
-  ) |>
-  group_by(initiation_type, long_shift) |>
-  tally()
 ```
 about 5% of the data that has a shift has a difference between these two measures
 but only abut 1% of data with a shift has this difference *and* doesn't have a long shift time, so this is probably not of large consequence. 
@@ -243,94 +744,9 @@ combinatorics:
 * filter shift_length <=600 or no
 
 
-
-```{r}
-d_rt_dt <- d_rt |>
-  filter(shift_type == "D-T") |>
-  mutate(
-    land_rt = rt,
-    first_launch_rt = shift_start_rt,
-    last_launch_rt = last_shift_rt
-  ) |>
-  mutate(
-    across(c("land_rt", "first_launch_rt", "last_launch_rt"), log, .names = "log_{.col}"),
-    across(
-      c(
-        "land_rt", "first_launch_rt", "last_launch_rt",
-        "log_land_rt", "log_first_launch_rt", "log_last_launch_rt"
-      ),
-      ~ ifelse(shift_length <= 600, .x, NA),
-      .names = "trim_first_{.col}"
-    ),
-    across(
-      c(
-        "land_rt", "first_launch_rt", "last_launch_rt",
-        "log_land_rt", "log_first_launch_rt", "log_last_launch_rt"
-      ),
-      ~ ifelse(last_shift_length <= 600, .x, NA),
-      .names = "trim_last_{.col}"
-    )
-  ) |>
-  select(-rt, -shift_start_rt, -last_shift_rt)
-
-
-# stimulus_rt =
-#            unlist(map(data, ~get_icc(.x,
-#                                      column = "shift_start_rt",
-#                                      object = "stimulus"))),
-# landing_stimulus_rt =
-#   unlist(map(data, ~get_icc(.x,
-#                             column = "rt",
-#                             object = "stimulus"))),
-
-rt_iccs <- d_rt_dt |>
-  group_by(dataset_name) |>
-  nest() |>
-  mutate(icc_admin = map(data, \(d) {
-    rt_names <- colnames(d)[str_ends(colnames(d), "rt")]
-    icc_values <- map_dbl(rt_names, \(rt_col) {
-      get_icc(d |> filter(!is.na(d[rt_col])), column = rt_col, object = "administration")
-    })
-    tibble(measure = rt_names, icc = icc_values)
-  })) |>
-  select(-data) |>
-  unnest(icc_admin)
-```
-TODO figure out what's going on with ICC's of 0 and also the NaNs!
-```{r}
-```
-
-
 Plot. 
 
-```{r}
-rt_iccs$dataset_name <- fct_reorder(rt_iccs$dataset_name, rt_iccs$icc)
 
-rt_iccs_coded <- rt_iccs |> mutate(
-  type = case_when(
-    str_detect(measure, "first_launch_rt") ~ "first_launch",
-    str_detect(measure, "last_launch_rt") ~ "last_launch",
-    str_detect(measure, "land_rt") ~ "land"
-  ),
-  measure = str_replace_all(measure, "first_laumch_rt", "") |>
-    str_replace_all("last_launch_rt", "") |>
-    str_replace_all("land_rt", "")
-)
-
-
-ggplot(
-  rt_iccs,
-  aes(x = dataset_name, y = icc, col = measure)
-) +
-  geom_point(position = position_dodge(width = .5)) +
-  geom_line(aes(group = measure)) +
-  coord_flip() #+
-# facet_grid(.~type)
-
-rt_iccs_coded |>
-  group_by(measure, type) |>
-  summarize(mean_icc = mean(icc)) |> View()
-```
 
 TODO: rank/score them for the different things 
 Why are some ICCs zero? Let's look at Pomper Saffran 2016.
