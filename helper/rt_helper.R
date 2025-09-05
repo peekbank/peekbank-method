@@ -1,10 +1,10 @@
 ## RT function tested in peekbank_rts.Rmd
 # takes rle_data dataframe (already rle'd)
-get_rt <- function(rle_data, SAMPLING_RATE = 40, t_0 = TRUE, window_length = 0, t_end = FALSE, window_mostly_region = FALSE) {
+get_rt <- function(rle_data, SAMPLING_RATE = 40, t_0 = TRUE, window_length_ms = 0, t_end = FALSE, window_mostly_region = FALSE, mostly_fraction = 3 / 4) {
   # end if no data
-  print(rle_data)
 
-  print(rle_data$values)
+  window_length <- window_length_ms * SAMPLING_RATE / 1000
+
 
   if (is.null(rle_data$values) | is.null(rle_data$lengths)) {
     return(tibble(
@@ -46,7 +46,7 @@ get_rt <- function(rle_data, SAMPLING_RATE = 40, t_0 = TRUE, window_length = 0, 
         shift_type = "time_series_too_short"
       ))
     }
-    if (other_aoi %in% rle$values[1:end_window_idx]) {
+    if (other_aoi %in% rle_data$values[1:end_window_idx]) {
       return(tibble(
         rt = NA,
         shift_type = "both_td_in_window"
@@ -67,9 +67,13 @@ get_rt <- function(rle_data, SAMPLING_RATE = 40, t_0 = TRUE, window_length = 0, 
         time_points <- sum(rle_data$lengths[in_region_idx])
       }
       if (end_window_value == onset_aoi) { # count the partial amount
-        time_points <- time_points + window_length - elapsed[end_window_idx - 1]
+        if (end_window_idx == 1) {
+          time_points <- window_length
+        } else {
+          time_points <- time_points + window_length - elapsed[end_window_idx - 1]
+        }
       }
-      if (time_points < 3 / 4 * window_length) {
+      if (time_points < mostly_fraction * window_length) {
         return(tibble(
           rt = NA,
           shift_type = "window_not_enough_td"
