@@ -467,7 +467,7 @@ saveRDS(file = here("cached_intermediates", "4_d_rt_2.Rds"), d_rt_2)
 
 
 ```{r}
-readRDS(here("cached_intermediates", "4_d_rt_2.Rds"))
+d_rt_2 <- readRDS(here("cached_intermediates", "4_d_rt_2.Rds"))
 d_rt_dt_2 <- d_rt_2 |>
   filter(shift_type == "D-T") |>
   mutate(
@@ -517,33 +517,37 @@ rt_iccs_2 <- d_rt_dt_2 |>
         unique() |>
         nrow()
     })
-    max_kid <- map_dbl(rt_names, \(rt_col) {
+    n_admin_2 <- map_dbl(rt_names, \(rt_col) {
       d |>
         filter(!is.na(d[rt_col])) |>
         group_by(administration_id) |>
-        tally() |>
-        summarize(m = max(n)) |>
-        pluck(1, 1)
-    })
-    min_kid <- map_dbl(rt_names, \(rt_col) {
-      d |>
-        filter(!is.na(d[rt_col])) |>
-        group_by(administration_id) |>
-        tally() |>
-        summarize(m = min(n)) |>
-        pluck(1, 1)
+        mutate(trials = n()) |>
+        filter(trials > 4) |>
+        select(administration_id) |>
+        unique() |>
+        nrow()
     })
     icc_values <- map_dbl(rt_names, \(rt_col) {
       get_icc(d |> filter(!is.na(d[rt_col])), column = rt_col, object = "administration")
     })
     icc_2_values <- map_dbl(rt_names, \(rt_col) {
-      get_icc(d |> filter(!is.na(d[rt_col])) |> group_by(administration_id) |> mutate(trials = n()) |> filter(trials > 1), column = rt_col, object = "administration")
+      get_icc(d |> filter(!is.na(d[rt_col])) |> group_by(administration_id) |> mutate(trials = n()) |> filter(trials > 4), column = rt_col, object = "administration")
     })
-    tibble(measure = rt_names, icc = icc_values, icc_2 = icc_2_values, n_total = n_total, n_admin = n_admin, min_kid = min_kid, max_kid = max_kid)
+    tibble(measure = rt_names, icc = icc_values, icc_2 = icc_2_values, n_total = n_total, n_admin = n_admin, n_admin_2 = n_admin_2)
   })) |>
   select(-data) |>
   unnest(icc_admin)
 toc()
+
+fix <- rt_iccs_2 |>
+  select(window, time_0, time_end, during, frac, dataset_name, n_admin_2) |>
+  unnest(n_admin_2) |>
+  unique()
+
+rt_iccs_2 <- rt_iccs_2 |>
+  select(-data, -n_admin_2) |>
+  left_join(fix)
+
 saveRDS(file = here("cached_intermediates", "4_d_icc_2.Rds"), rt_iccs_2)
 ```
 
@@ -635,6 +639,55 @@ So, combining across these two plots and what the absolute top 20 iccs are, I th
 
 we also didn't consider a commonly used criteria which is to be on d for the *entirety* of the window.
 
+#### robustness
+what if we look instead at a more conservative version -- only kids who contributed 5+ datapoints, and only datasets where there were 10+ of these kids? 
+
+```{r}
+rt_iccs_2_summ <- rt_iccs_coded_2 |>
+  filter(n_admin_2 > 9) |>
+  group_by(type, logged, trimming, window, time_0, time_end, during, frac) |>
+  summarize(mean_icc = mean(icc_2), datapoints = sum(n_total))
+
+rt_iccs_2_summ |>
+  arrange(desc(mean_icc)) |>
+  head(20) |>
+  knitr::kable()
+```
+still seeing that for the most part, last_launch and land are best, here it's all log, 400 and time_end true
+
+```{r}
+rt_iccs_2_summ |> ggplot(aes(x = str_c(logged, "_", type), y = mean_icc, group = interaction(type, logged, trimming))) +
+  geom_point(aes(col = trimming), position = position_dodge(width = .4)) +
+  stat_summary(position = position_dodge(width = .4)) +
+  coord_flip() +
+  geom_hline(yintercept = .6) +
+  scale_color_brewer(type = "qual", palette = 1)
+```
+
+
+```{r}
+rt_iccs_2_summ |>
+  ggplot(aes(x = str_c("during", during, "_", "window_end", time_end), y = mean_icc, group = interaction(time_0, time_end, window))) +
+  geom_point(aes(col = as.character(window)), position = position_dodge(width = .4)) +
+  stat_summary(position = position_dodge(width = .4)) +
+  coord_flip() +
+  facet_wrap(~ str_c("time_0", time_0)) +
+  geom_hline(yintercept = .6) +
+  scale_color_brewer(type = "qual", palette = 2)
+```
+
+```{r}
+rt_iccs_2_summ |>
+  filter(window == 400) |>
+  filter(time_end == T) |>
+  ggplot(aes(x = str_c(logged, "_", type), y = mean_icc, group = interaction(type, logged, trimming))) +
+  geom_point(aes(col = trimming), position = position_dodge(width = .4)) +
+  stat_summary(position = position_dodge(width = .4)) +
+  coord_flip() +
+  geom_hline(yintercept = .6) +
+  scale_color_brewer(type = "qual", palette = 1)
+```
+
 ## Attempt 3 at combinatorics
 
 so for attempt 3, we expand the grid on windows between 200 and 400 and add a new dimension -- the fraction required during that window, ranging across {0, .5, .75, 1}, whereas attempt 2 only checked 0 and .75.
@@ -717,29 +770,23 @@ rt_iccs_3 <- d_rt_dt_3 |>
         unique() |>
         nrow()
     })
-    max_kid <- map_dbl(rt_names, \(rt_col) {
+    n_admin_2 <- map_dbl(rt_names, \(rt_col) {
       d |>
         filter(!is.na(d[rt_col])) |>
         group_by(administration_id) |>
-        tally() |>
-        summarize(m = max(n)) |>
-        pluck(1, 1)
-    })
-    min_kid <- map_dbl(rt_names, \(rt_col) {
-      d |>
-        filter(!is.na(d[rt_col])) |>
-        group_by(administration_id) |>
-        tally() |>
-        summarize(m = min(n)) |>
-        pluck(1, 1)
+        mutate(trials = n()) |>
+        filter(trials > 4) |>
+        select(administration_id) |>
+        unique() |>
+        nrow()
     })
     icc_values <- map_dbl(rt_names, \(rt_col) {
       get_icc(d |> filter(!is.na(d[rt_col])), column = rt_col, object = "administration")
     })
     icc_2_values <- map_dbl(rt_names, \(rt_col) {
-      get_icc(d |> filter(!is.na(d[rt_col])) |> group_by(administration_id) |> mutate(trials = n()) |> filter(trials > 1), column = rt_col, object = "administration")
+      get_icc(d |> filter(!is.na(d[rt_col])) |> group_by(administration_id) |> mutate(trials = n()) |> filter(trials > 4), column = rt_col, object = "administration")
     })
-    tibble(measure = rt_names, icc = icc_values, icc_2 = icc_2_values, n_total = n_total, n_admin = n_admin, min_kid = min_kid, max_kid = max_kid)
+    tibble(measure = rt_names, icc = icc_values, icc_2 = icc_2_values, n_total = n_total, n_admin = n_admin, n_admin_2 = n_admin_2)
   })) |>
   select(-data) |>
   unnest(icc_admin)
@@ -841,43 +888,619 @@ not hugely!
 so, what's the takeaway here?
 kind of want to check for cross-data-set reliability
 
-## by dataset reliability
+####robustness
+
+again, what if we limit to kids with 5+ and studies with 10+ of those?
 
 ```{r}
-ranks <- rt_iccs_coded_2 |>
-  bind_rows(rt_iccs_coded_3) |>
-  unique() |>
-  group_by(dataset_name) |>
-  mutate(max_icc = max(icc)) |>
-  arrange(desc(icc)) |>
-  mutate(rank = row_number(), norm_icc = icc / max_icc) |>
-  ungroup() |>
+rt_iccs_3_summ <- rt_iccs_coded_3 |>
+  filter(n_admin_2 > 9) |>
   group_by(type, logged, trimming, window, time_0, time_end, during, frac) |>
-  summarize(min_normed_icc = min(norm_icc), mean_normed_icc = mean(norm_icc))
+  summarize(mean_icc = mean(icc_2), datapoints = sum(n_total))
 
-ranks |>
-  arrange(desc(mean_normed_icc)) |>
+rt_iccs_3_summ |>
+  arrange(desc(mean_icc)) |>
   head(20) |>
   knitr::kable()
 ```
-
-
-land, log, 400 window, time_end true, and variable beyond that
-
-the top (rank) is land - log - untrimmed - 400 - time_0 - time_end, no during
-the top (% of best ICC) is land - log - untrimmed - 400 - time_end, 75% during
-
-another way to check this is to look at what measures are *always* pretty near the top by saying that their value is at least X% of the best icc for that dataset
+huh, maybe we should trim? 
 
 ```{r}
-ranks |>
-  filter(min_normed_icc > .7) |>
+rt_iccs_3_summ |> ggplot(aes(x = str_c(logged, "_", type), y = mean_icc, group = interaction(type, logged, trimming))) +
+  geom_point(aes(col = trimming), position = position_dodge(width = .4)) +
+  stat_summary(position = position_dodge(width = .4)) +
+  coord_flip() +
+  geom_hline(yintercept = .6) +
+  scale_color_brewer(type = "qual", palette = 1)
+```
+actually, not a huge difference for trim v untrimmed (except for raw_land)
+
+```{r}
+rt_iccs_3_summ |>
+  ggplot(aes(x = str_c("frac", frac), y = mean_icc, group = interaction(time_0, frac, window))) +
+  geom_point(aes(col = as.character(window)), position = position_dodge(width = .6)) +
+  stat_summary(position = position_dodge(width = .6)) +
+  coord_flip() +
+  facet_wrap(~ str_c("time_0", time_0)) +
+  geom_hline(yintercept = .6) +
+  scale_color_brewer(type = "qual", palette = 2)
+```
+
+## Attempt 4
+from attempt 3, we saw that requiring kids to be on distractor at 400ms got highest reliability, but this also the highest we tried, so I'm concerned that there's some sort of losing data making icc better rather than actual (good) reliability. 
+
+to check on that, for one setting, let's try doing windows of > 400 ms and up to when the peak RTs we're observing are. 
+
+looks like the peak tends to be <1000ms
+
+we're also not doing the full combinatorics here, I just want to check what the pattern is. 
+
+```{r}
+rle_data <- d_trial %>%
+  filter(
+    any(t_norm == 0), # must have data at 0
+    t_norm >= 0
+  ) %>% # only pass data after 0
+  group_by(administration_id, trial_id, trial_order) %>%
+  reframe(
+    lengths = rle(aoi)$lengths,
+    values = rle(aoi)$values
+  )
+
+tic()
+d_rt_4 <- rle_data %>%
+  group_by(administration_id, trial_id, trial_order) %>%
+  nest() |>
+  expand_grid(window = c(450, 500, 600, 700, 800, 900, 1000), time_0 = c(F), time_end = c(T), during = c(T), frac = c(0)) %>%
+  mutate(rts = pmap(
+    list(data, time_0, window, time_end, during, frac),
+    \(d, t0, w, te, dur, fr) get_rt(d,
+      t_0 = t0, window_length = w,
+      t_end = te, window_mostly_region = dur, mostly_fraction = fr
+    )
+  )) |>
+  unnest(cols = c(rts))
+
+toc()
+
+saveRDS(file = here("cached_intermediates", "4_d_rt_4.Rds"), d_rt_4)
+```
+
+```{r}
+d_rt_4 <- readRDS(here("cached_intermediates", "4_d_rt_4.Rds"))
+d_rt_dt_4 <- d_rt_4 |>
+  filter(shift_type == "D-T") |>
+  mutate(
+    land_rt = rt
+  ) |>
+  select(-rt, -shift_start_rt, -last_shift_rt) |>
+  left_join(d_trial %>%
+    select(-t_norm, -correct, -aoi) %>%
+    distinct())
+
+tic()
+rt_iccs_4 <- d_rt_dt_4 |>
+  group_by(dataset_name, window, time_0, time_end, during, frac) |>
+  nest() |>
+  mutate(icc_admin = map(data, \(d) {
+    rt_names <- colnames(d)[str_ends(colnames(d), "rt")]
+    n_total <- map_dbl(rt_names, \(rt_col) {
+      d |>
+        filter(!is.na(d[rt_col])) |>
+        nrow()
+    })
+    n_admin <- map_dbl(rt_names, \(rt_col) {
+      d |>
+        filter(!is.na(d[rt_col])) |>
+        select(administration_id) |>
+        unique() |>
+        nrow()
+    })
+    n_admin_2 <- map_dbl(rt_names, \(rt_col) {
+      d |>
+        filter(!is.na(d[rt_col])) |>
+        group_by(administration_id) |>
+        mutate(trials = n()) |>
+        filter(trials > 4) |>
+        select(administration_id) |>
+        unique() |>
+        nrow()
+    })
+    icc_values <- map_dbl(rt_names, \(rt_col) {
+      get_icc(d |> filter(!is.na(d[rt_col])), column = rt_col, object = "administration")
+    })
+    icc_2_values <- map_dbl(rt_names, \(rt_col) {
+      get_icc(d |> filter(!is.na(d[rt_col])) |> group_by(administration_id) |> mutate(trials = n()) |> filter(trials > 4), column = rt_col, object = "administration")
+    })
+    tibble(measure = rt_names, icc = icc_values, icc_2 = icc_2_values, n_total = n_total, n_admin = n_admin, n_admin_2 = n_admin_2)
+  })) |>
+  select(-data) |>
+  unnest(icc_admin)
+toc()
+
+saveRDS(file = here("cached_intermediates", "4_d_rt_icc_4.Rds"), rt_iccs_4)
+```
+
+```{r}
+rt_iccs_4 <- readRDS(here("cached_intermediates", "4_d_rt_icc_4.Rds"))
+
+rt_iccs_4$dataset_name <- fct_reorder(rt_iccs_4$dataset_name, rt_iccs_4$icc)
+
+rt_iccs_coded_4 <- rt_iccs_4 |> mutate(
+  type = case_when(
+    str_detect(measure, "first_launch_rt") ~ "first_launch",
+    str_detect(measure, "last_launch_rt") ~ "last_launch",
+    str_detect(measure, "land_rt") ~ "land"
+  ),
+  logged = case_when(
+    str_detect(measure, "log") ~ "log",
+    T ~ "raw"
+  ),
+  trimming = case_when(
+    str_detect(measure, "trim_first") ~ "trim_first",
+    str_detect(measure, "trim_last") ~ "trim_last",
+    T ~ "untrimmed"
+  )
+)
+
+
+rt_iccs_coded_4 |> View()
+```
+
+### results
+
+```{r}
+rt_iccs_4_summ <- rt_iccs_coded_4 |>
+  bind_rows(rt_iccs_coded_3) |>
+  filter(type == "land", logged == "raw", trimming == "untrimmed", time_0 == F, time_end == T, during == T, frac == 0) |>
+  group_by(type, logged, trimming, window, time_0, time_end, during, frac) |>
+  summarize(mean_icc = mean(icc), datapoints = sum(n_total))
+
+rt_iccs_4_summ |>
+  arrange(desc(mean_icc)) |>
+  head(20) |>
   knitr::kable()
 ```
-this again suggests that what you really should do is land (either raw or logged); with a 400 window and time_end and don't both about the rest? (and that you actually maybe shouldn't filter at 0 or within?)
+that's reassuring! here we see that it is a local peak at 400. 
 
-should try to do some validity measures on this!
+```{r}
+rt_iccs_coded_4 |>
+  bind_rows(rt_iccs_coded_3) |>
+  filter(type == "land", logged == "raw", trimming == "untrimmed", time_0 == F, time_end == T, during == T, frac == 0) |>
+  ggplot(aes(x = window, y = icc)) +
+  geom_point(aes(col = dataset_name)) +
+  stat_summary()
+```
 
+
+```{r}
+rt_iccs_4_summ <- rt_iccs_coded_4 |>
+  bind_rows(rt_iccs_coded_3) |>
+  filter(type == "land", logged == "raw", trimming == "untrimmed", time_0 == F, time_end == T, during == T, frac == 0) |>
+  filter(n_admin_2 > 9) |>
+  group_by(type, logged, trimming, window, time_0, time_end, during, frac) |>
+  summarize(mean_icc = mean(icc_2), datapoints = sum(n_total))
+
+rt_iccs_4_summ |>
+  arrange(desc(mean_icc)) |>
+  head(20) |>
+  knitr::kable()
+
+rt_iccs_coded_4 |>
+  bind_rows(rt_iccs_coded_3) |>
+  filter(type == "land", logged == "raw", trimming == "untrimmed", time_0 == F, time_end == T, during == T, frac == 0) |>
+  filter(n_admin_2 > 9) |>
+  ggplot(aes(x = window, y = icc_2)) +
+  geom_point(aes(col = dataset_name)) +
+  stat_summary()
+```
+in the more filtered one, we're seeing it a little differently. we should look more closely at the 300-500 range I think, maybe with more measures. 
+
+## how much is this driven by 0s and 1s
+
+```{r}
+all <- rt_iccs_coded_2 |>
+  bind_rows(rt_iccs_coded_3) |>
+  bind_rows(rt_iccs_coded_4)
+
+all_raw <- all |>
+  group_by(type, logged, trimming, window, time_0, time_end, during, frac) |>
+  summarize(icc_raw = mean(icc)) |>
+  arrange(desc(icc_raw)) |>
+  head(50)
+
+all_raw_no_0 <- all |>
+  filter(icc > 0, icc < 1) |>
+  group_by(type, logged, trimming, window, time_0, time_end, during, frac) |>
+  summarize(icc_raw_no_0 = mean(icc)) |>
+  arrange(desc(icc_raw_no_0)) |>
+  head(50)
+
+all_filter <- all |>
+  filter(n_admin_2 > 9) |>
+  group_by(type, logged, trimming, window, time_0, time_end, during, frac) |>
+  summarize(icc_filter = mean(icc_2)) |>
+  arrange(desc(icc_filter)) |>
+  head(50)
+
+all_filter_no_0 <- all |>
+  filter(n_admin_2 > 9) |>
+  filter(icc_2 > 0, icc_2 < 1) |>
+  group_by(type, logged, trimming, window, time_0, time_end, during, frac) |>
+  summarize(icc_filter_no_0 = mean(icc_2)) |>
+  arrange(desc(icc_filter_no_0)) |>
+  head(50)
+
+all_icc <- all_raw |>
+  inner_join(all_raw_no_0) |>
+  inner_join(all_filter) |>
+  inner_join(all_filter_no_0)
+
+View(all_icc)
+```
+so, across these, suggests that log is better; landing is fine (but last launch is also fine); trimming is probably not necessary; being on distractor at end of time window (=400) is good; being on distractor at T=0 is good, fine to wander in between. 
+
+
+## Attempt 5: what's like the essential comparison
+
+we could take the options that were well performing (+ non-logged versions)
+
+land x (log | raw) x (trim |untrim) x (windows in 300-500) x (on at time 0) x (on at time end) 
+
+knowing there's a lot of substitutions one could make!
+
+```{r}
+rle_data <- d_trial %>%
+  filter(
+    any(t_norm == 0), # must have data at 0
+    t_norm >= 0
+  ) %>% # only pass data after 0
+  group_by(administration_id, trial_id, trial_order) %>%
+  reframe(
+    lengths = rle(aoi)$lengths,
+    values = rle(aoi)$values
+  )
+
+tic()
+d_rt_5 <- rle_data %>%
+  group_by(administration_id, trial_id, trial_order) %>%
+  nest() |>
+  expand_grid(window = c(300, 350, 400, 450, 500), time_0 = c(T), time_end = c(T), during = c(F), frac = c(0)) %>%
+  mutate(rts = pmap(
+    list(data, time_0, window, time_end, during, frac),
+    \(d, t0, w, te, dur, fr) get_rt(d,
+      t_0 = t0, window_length = w,
+      t_end = te, window_mostly_region = dur, mostly_fraction = fr
+    )
+  )) |>
+  unnest(cols = c(rts))
+
+toc()
+
+saveRDS(file = here("cached_intermediates", "4_d_rt_5.Rds"), d_rt_5)
+```
+
+```{r}
+d_rt_5 <- readRDS(here("cached_intermediates", "4_d_rt_5.Rds"))
+d_rt_dt_5 <- d_rt_5 |>
+  filter(shift_type == "D-T") |>
+  mutate(
+    land_rt = rt,
+    last_launch_rt = last_shift_rt
+  ) |>
+  mutate(
+    across(c("land_rt", ), log, .names = "log_{.col}"),
+    across(
+      c(
+        "land_rt",
+        "log_land_rt",
+      ),
+      ~ ifelse(last_shift_length <= 600, .x, NA),
+      .names = "trim_last_{.col}"
+    )
+  ) |>
+  select(-rt, -shift_start_rt, -last_shift_rt) |>
+  left_join(d_trial %>%
+    select(-t_norm, -correct, -aoi) %>%
+    distinct())
+
+tic()
+rt_iccs_5 <- d_rt_dt_5 |>
+  group_by(dataset_name, window, time_0, time_end, during, frac) |>
+  nest() |>
+  mutate(icc_admin = map(data, \(d) {
+    rt_names <- colnames(d)[str_ends(colnames(d), "rt")]
+    n_total <- map_dbl(rt_names, \(rt_col) {
+      d |>
+        filter(!is.na(d[rt_col])) |>
+        nrow()
+    })
+    n_admin <- map_dbl(rt_names, \(rt_col) {
+      d |>
+        filter(!is.na(d[rt_col])) |>
+        select(administration_id) |>
+        unique() |>
+        nrow()
+    })
+    n_admin_2 <- map_dbl(rt_names, \(rt_col) {
+      d |>
+        filter(!is.na(d[rt_col])) |>
+        group_by(administration_id) |>
+        mutate(trials = n()) |>
+        filter(trials > 4) |>
+        select(administration_id) |>
+        unique() |>
+        nrow()
+    })
+    icc_values <- map_dbl(rt_names, \(rt_col) {
+      get_icc(d |> filter(!is.na(d[rt_col])), column = rt_col, object = "administration")
+    })
+    icc_2_values <- map_dbl(rt_names, \(rt_col) {
+      get_icc(d |> filter(!is.na(d[rt_col])) |> group_by(administration_id) |> mutate(trials = n()) |> filter(trials > 4), column = rt_col, object = "administration")
+    })
+    tibble(measure = rt_names, icc = icc_values, icc_2 = icc_2_values, n_total = n_total, n_admin = n_admin, n_admin_2 = n_admin_2)
+  })) |>
+  select(-data) |>
+  unnest(icc_admin)
+toc()
+
+saveRDS(file = here("cached_intermediates", "4_d_rt_icc_5.Rds"), rt_iccs_5)
+```
+### results
+```{r}
+rt_iccs_5 <- readRDS(here("cached_intermediates", "4_d_rt_icc_5.Rds"))
+
+rt_iccs_5$dataset_name <- fct_reorder(rt_iccs_5$dataset_name, rt_iccs_5$icc)
+
+rt_iccs_coded_5 <- rt_iccs_5 |> mutate(
+  type = case_when(
+    str_detect(measure, "first_launch_rt") ~ "first_launch",
+    str_detect(measure, "last_launch_rt") ~ "last_launch",
+    str_detect(measure, "land_rt") ~ "land"
+  ),
+  logged = case_when(
+    str_detect(measure, "log") ~ "log",
+    T ~ "raw"
+  ),
+  trimming = case_when(
+    str_detect(measure, "trim_first") ~ "trim_first",
+    str_detect(measure, "trim_last") ~ "trim_last",
+    T ~ "untrimmed"
+  )
+)
+
+
+rt_iccs_coded_5 |> View()
+```
+
+
+```{r}
+all <- rt_iccs_coded_5
+
+all_raw <- all |>
+  group_by(type, logged, trimming, window, time_0, time_end, during, frac) |>
+  summarize(icc_raw = mean(icc))
+
+all_raw_no_0 <- all |>
+  filter(icc > 0, icc < 1) |>
+  group_by(type, logged, trimming, window, time_0, time_end, during, frac) |>
+  summarize(icc_raw_no_0 = mean(icc))
+
+all_filter <- all |>
+  filter(n_admin_2 > 9) |>
+  group_by(type, logged, trimming, window, time_0, time_end, during, frac) |>
+  summarize(icc_filter = mean(icc_2))
+
+all_filter_no_0 <- all |>
+  filter(n_admin_2 > 9) |>
+  filter(icc_2 > 0, icc_2 < 1) |>
+  group_by(type, logged, trimming, window, time_0, time_end, during, frac) |>
+  summarize(icc_filter_no_0 = mean(icc_2))
+
+all_icc <- all_raw |>
+  left_join(all_raw_no_0) |>
+  left_join(all_filter) |>
+  left_join(all_filter_no_0)
+```
+
+```{r}
+all_icc |>
+  filter(type == "land") |>
+  ggplot(aes(x = as.character(window), y = icc_filter, group = interaction(logged, trimming, window))) +
+  geom_point(aes(col = str_c(logged, "_", trimming)), position = position_dodge(width = .6)) +
+  coord_flip() +
+  geom_hline(yintercept = .6) +
+  scale_color_brewer(type = "qual", palette = 2)
+```
+
+so 400 is better than 350, and works pretty well regardless of log or trim
+450 and 500 logged are also good
+if we filter log is important
+
+## compare to ~common practices
+
+so I think the proposed options are
+* on continuously 0-{350|400} + land
+* on continuously 0-{350|400} + first launch + trim to 600
+* mine
+
+and we can do both log and non-log
+
+note that we actually need to rerun to get traditional launch!
+```{r}
+rle_data <- d_trial %>%
+  filter(
+    any(t_norm == 0), # must have data at 0
+    t_norm >= 0
+  ) %>% # only pass data after 0
+  group_by(administration_id, trial_id, trial_order) %>%
+  reframe(
+    lengths = rle(aoi)$lengths,
+    values = rle(aoi)$values
+  )
+
+tic()
+d_rt_6 <- rle_data %>%
+  group_by(administration_id, trial_id, trial_order) %>%
+  nest() |>
+  expand_grid(window = c(350, 400), time_0 = c(T), time_end = c(T), during = c(T), frac = c(1)) %>%
+  mutate(rts = pmap(
+    list(data, time_0, window, time_end, during, frac),
+    \(d, t0, w, te, dur, fr) get_rt(d,
+      t_0 = t0, window_length = w,
+      t_end = te, window_mostly_region = dur, mostly_fraction = fr
+    )
+  )) |>
+  unnest(cols = c(rts))
+
+toc()
+
+saveRDS(file = here("cached_intermediates", "4_d_rt_6.Rds"), d_rt_6)
+```
+
+```{r}
+d_rt_6 <- readRDS(here("cached_intermediates", "4_d_rt_6.Rds"))
+d_rt_dt_6 <- d_rt_6 |>
+  filter(shift_type == "D-T") |>
+  mutate(
+    first_launch_rt = shift_start_rt,
+  ) |>
+  mutate(
+    across(c("first_launch_rt", ), log, .names = "log_{.col}"),
+    across(
+      c(
+        "first_launch_rt", ,
+        "log_first_launch_rt",
+      ),
+      ~ ifelse(shift_length <= 600, .x, NA),
+      .names = "trim_first_{.col}"
+    ),
+  ) |>
+  select(-rt, -shift_start_rt, -last_shift_rt, -first_launch_rt, -log_first_launch_rt) |>
+  left_join(d_trial %>%
+    select(-t_norm, -correct, -aoi) %>%
+    distinct())
+
+tic()
+rt_iccs_6 <- d_rt_dt_6 |>
+  group_by(dataset_name, window, time_0, time_end, during, frac) |>
+  nest() |>
+  mutate(icc_admin = map(data, \(d) {
+    rt_names <- colnames(d)[str_ends(colnames(d), "rt")]
+    n_total <- map_dbl(rt_names, \(rt_col) {
+      d |>
+        filter(!is.na(d[rt_col])) |>
+        nrow()
+    })
+    n_admin <- map_dbl(rt_names, \(rt_col) {
+      d |>
+        filter(!is.na(d[rt_col])) |>
+        select(administration_id) |>
+        unique() |>
+        nrow()
+    })
+    n_admin_2 <- map_dbl(rt_names, \(rt_col) {
+      d |>
+        filter(!is.na(d[rt_col])) |>
+        group_by(administration_id) |>
+        mutate(trials = n()) |>
+        filter(trials > 4) |>
+        select(administration_id) |>
+        unique() |>
+        nrow()
+    })
+    icc_values <- map_dbl(rt_names, \(rt_col) {
+      get_icc(d |> filter(!is.na(d[rt_col])), column = rt_col, object = "administration")
+    })
+    icc_2_values <- map_dbl(rt_names, \(rt_col) {
+      get_icc(d |> filter(!is.na(d[rt_col])) |> group_by(administration_id) |> mutate(trials = n()) |> filter(trials > 4), column = rt_col, object = "administration")
+    })
+    tibble(measure = rt_names, icc = icc_values, icc_2 = icc_2_values, n_total = n_total, n_admin = n_admin, n_admin_2 = n_admin_2)
+  })) |>
+  select(-data) |>
+  unnest(icc_admin)
+toc()
+
+saveRDS(file = here("cached_intermediates", "4_d_rt_icc_6.Rds"), rt_iccs_6)
+```
+```{r}
+rt_iccs_6 <- readRDS(here("cached_intermediates", "4_d_rt_icc_6.Rds"))
+
+rt_iccs_6$dataset_name <- fct_reorder(rt_iccs_6$dataset_name, rt_iccs_6$icc)
+
+rt_iccs_coded_6 <- rt_iccs_6 |> mutate(
+  type = case_when(
+    str_detect(measure, "first_launch_rt") ~ "first_launch",
+    str_detect(measure, "last_launch_rt") ~ "last_launch",
+    str_detect(measure, "land_rt") ~ "land"
+  ),
+  logged = case_when(
+    str_detect(measure, "log") ~ "log",
+    T ~ "raw"
+  ),
+  trimming = case_when(
+    str_detect(measure, "trim_first") ~ "trim_first",
+    str_detect(measure, "trim_last") ~ "trim_last",
+    T ~ "untrimmed"
+  )
+)
+
+
+rt_iccs_coded_6 |> View()
+```
+
+```{r}
+all <- rt_iccs_coded_2 |>
+  bind_rows(rt_iccs_coded_3) |>
+  bind_rows(rt_iccs_coded_4) |>
+  bind_rows(rt_iccs_coded_5) |>
+  bind_rows(rt_iccs_coded_6)
+
+traditional_land <- all |>
+  filter(frac == 1, type == "land", window %in% c(350, 400), trimming == "untrimmed", time_0, time_end) |>
+  mutate(approach = "trad_land")
+
+traditional_launch <- all |>
+  filter(frac == 1, type == "first_launch", trimming == "trim_first", window %in% c(350, 400), time_0, time_end) |>
+  mutate(approach = "trad_launch")
+
+data_driven <- all |>
+  filter(type == "land", window %in% c(350, 400), time_end, time_0, during == F, trimming == "untrimmed", frac == 0) |>
+  mutate(approach = "data_driven")
+
+comp <- traditional_land |>
+  bind_rows(traditional_launch) |>
+  bind_rows(data_driven)
+```
+
+```{r}
+comp |> ggplot(aes(x = as.character(window), y = icc, color = approach, group = approach)) +
+  facet_wrap(~logged) +
+  geom_point(position = position_dodge(width = .5)) +
+  stat_summary(fun.data = "mean_cl_boot", color = "black", position = position_dodge(width = .5)) +
+  geom_hline(yintercept = .6) +
+  coord_flip()
+
+comp |>
+  filter(icc > 0, icc < 1) |>
+  ggplot(aes(x = as.character(window), y = icc, color = approach, group = approach)) +
+  facet_wrap(~logged) +
+  geom_point(position = position_dodge(width = .5)) +
+  stat_summary(fun.data = "mean_cl_boot", color = "black", position = position_dodge(width = .5)) +
+  coord_flip()
+
+
+comp |> ggplot(aes(x = as.character(window), y = log(n_total), color = approach, group = approach)) +
+  facet_wrap(~logged) +
+  geom_point(position = position_dodge(width = .5)) +
+  stat_summary(fun.data = "mean_cl_boot", color = "black", position = position_dodge(width = .5)) +
+  coord_flip()
+```
+So, I think the conclusion is that what people have been doing is ~fine, but also has been tossing out more data than necessary (especially on datasets where there might be tracker loss). 
+
+From onset to earliest response, want the kid not looking at target and at least mostly looking at distractor -- easy to operationalize as on distractor at time 0 and time end. No need for trimming for shift length, and landing RT is fine to use. 
+
+Using log RT is better and 400 ms is a better cutoff than 350 (unclear what happens inbetween). 
 
 # Old
 ## Computing RT 
