@@ -1502,6 +1502,98 @@ From onset to earliest response, want the kid not looking at target and at least
 
 Using log RT is better and 400 ms is a better cutoff than 350 (unclear what happens inbetween). 
 
+## validity?
+
+so we don't have great validity options here because it's less clear what RT should index, but we can check for age effects (very expected, but could index non-linguistic noise) and CDI (not necessarily expected to correlate as much with RT as accuracy)
+
+so we'll go with the 400ms versions of the 3 above (here we aren't logging, but we could compare to logged as well)
+
+### get the RTs from caches
+
+```{r}
+trad_launch <- readRDS(here("cached_intermediates", "4_d_rt_6.Rds")) |>
+  filter(frac == 1, window == 400, time_0, time_end) |>
+  filter(shift_length <= 600) |>
+  filter(shift_type == "D-T") |>
+  mutate(useable_rt = shift_start_rt) |>
+  mutate(approach = "trad_launch") |>
+  group_by(approach, administration_id) |>
+  summarize(mean_rt = mean(useable_rt), n_rts = n())
+
+
+trad_land <- readRDS(here("cached_intermediates", "4_d_rt_3.Rds")) |>
+  filter(frac == 1, window == 400, time_0, time_end) |>
+  filter(shift_type == "D-T") |>
+  mutate(useable_rt = rt) |>
+  mutate(approach = "trad_land") |>
+  group_by(approach, administration_id) |>
+  summarize(mean_rt = mean(useable_rt), n_rts = n())
+
+new <- readRDS(here("cached_intermediates", "4_d_rt_3.Rds")) |>
+  filter(frac == 0, window == 400, time_0, time_end) |>
+  filter(shift_type == "D-T") |>
+  mutate(useable_rt = rt) |>
+  mutate(approach = "new") |>
+  group_by(approach, administration_id) |>
+  summarize(mean_rt = mean(useable_rt), n_rts = n())
+
+cdi_data <- readRDS(here("cached_intermediates", "1_cdi_subjects.Rds"))
+
+approaches_for_cdi <- trad_launch |>
+  bind_rows(trad_land, new) |>
+  left_join(d_trial |> select(dataset_name, administration_id, subject_id) |> unique())
+
+for_cdi_corr <- approaches_for_cdi |> left_join(cdi_data)
+
+dataset_relevant <- approaches_for_cdi |>
+  ungroup() |>
+  select(dataset_name, administration_id) |>
+  unique()
+
+cdi_data |>
+  inner_join(dataset_relevant) |>
+  filter(!(is.na(prod) & is.na(comp))) |>
+  select(dataset_name) |>
+  unique()
+
+for_cdi_corr |>
+  ungroup() |>
+  filter(!(is.na(prod) & is.na(comp))) |>
+  select(dataset_name) |>
+  unique()
+```
+
+something is wrong here -- the administration id/subject ids from cdi aren't lining up with the ones from RT --> is this somehow a dataset versioning issue?
+
+```{r}
+# cdi data
+cdi_corr <- for_cdi_corr |>
+  filter(!(is.na(prod) & is.na(comp))) |>
+  filter(!is.na(mean_rt))
+group_by(dataset_name, approach) |>
+  summarise(
+    cor_comp = ifelse(sum(!is.na(comp)) > 0, cor.test(mean_rt, comp)$estimate, NA),
+    cor_prod = ifelse(sum(!is.na(prod)) > 0, cor.test(mean_rt, prod)$estimate, NA),
+    cor_age = ifelse(sum(!is.na(age)) > 0, cor.test(mean_rt, age)$estimate, NA),
+    n_comp = sum(!is.na(comp)),
+    n_prod = sum(!is.na(prod)),
+    n_total = sum(!is.na(mean_rt)),
+    mean_trials = mean(n_rts)
+  )
+```
+
+### visualize
+
+```{r}
+cdi_corr |> ggplot(aes(x = approach, y = cor_prod)) +
+  geom_point() +
+  coord_flip()
+```
+
+
+
+
+
 # Old
 ## Computing RT 
 First compute reaction time. 
