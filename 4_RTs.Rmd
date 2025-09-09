@@ -1098,6 +1098,39 @@ again, ferguson is weird and not trustworthy, but otherwise, we're seeing pretty
 
 some by-dataset variability on whether log helps or not
 
+
+## Compare with accuracy ICC
+
+```{r}
+load(file = "cached_intermediates/3_accs.Rds")
+
+accs_best <- accs |>
+  filter(t_start == 400, t_end == 4000) |>
+  filter(object == "administration") |>
+  select(dataset_name, icc) |>
+  mutate(type = "acc")
+
+rts_best <- readRDS(here("cached_intermediates", "4_rt_iccs_log.rds")) |>
+  filter(frac == 0, measure == "land_rt") |>
+  ungroup() |>
+  select(dataset_name, icc) |>
+  mutate(type = "rt")
+
+accs_best |>
+  bind_rows(rts_best) |>
+  ggplot(aes(x = dataset_name, y = icc, col = type)) +
+  geom_point() +
+  coord_flip()
+
+accs_best |>
+  bind_rows(rts_best) |>
+  ggplot(aes(x = type, y = icc, col = type)) +
+  geom_point() +
+  stat_summary() +
+  coord_flip()
+```
+RT tends to have higher reliability than accuracy (whether that is *meaningful* reliability is another matter) 
+
 ## Summary
 
 for further purposes are doing (raw) RT on a window=400, on distractor (target) at 0 and 400, not on the other one during those 400 ms, no other requirements
