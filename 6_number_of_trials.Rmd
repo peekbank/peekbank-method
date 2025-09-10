@@ -7,30 +7,590 @@ output: html_document
 
 ```{r}
 source(here::here("helper/common.R"))
+
+
+d_aoi <- readRDS(here("cached_intermediates", "1_d_aoi.Rds"))
 ```
 
-Goal is to find out how reliability (test-retest and ICC) varies with number of trials, both within and across datasets. 
+Goal is to find out how reliability (test-retest) varies with number of trials, within datasets. (ICC for cross dataset is covered elsewhere) 
 
-Want to look at test-retest in totlot (FM 2012) and Adams Marchman (2018) because we have that. 
+what dataset have repeated administrations?
+```{r}
+admins <- d_aoi |>
+  select(dataset_name, subject_id, administration_id, age) |>
+  unique()
+repeated <- admins |>
+  group_by(dataset_name, subject_id) |>
+  tally() |>
+  filter(n > 1)
 
-Look at condition differences across datasets
+repeated_subjects <- admins |> inner_join(repeated)
+```
 
-# Across datasets - n observations
+adams_marchman has 2 admins for each age and up to 5 ages 
+fernald totlot has 1 admin at each of 4 ages
+fmw sometimes has 2 admins at 1 age and 2 ages
+weaver_zettersten has 2 admins at 1 age 
+potter_remix has 2 admins at 1 age 
+
+so, we can say a pair is "close enough" if the ages are within 1 month of each other and then we'll have a bunch of test-retest pairs. 
+
+* for those pairs, for each admin, we want # of trials (administered), trial accuracy, trial RT, # trials with RT
+and then we want the correlation between admin-1 and admin-2 ?
+
+I don't know how much there's item overlap (probably is), so might be able to do something finer grained? 
+
+```{r}
+# identify pairs
+# hmm, sometimes we have times with 3+ 1 month apart,
+# for now allow all the pairs that result so like 14-15 and 15-16 for the same kid
+
+pairs <- repeated_subjects |>
+  group_by(dataset_name, subject_id) |>
+  mutate(
+    forward_age = lead(age),
+    forward_diff = forward_age - age,
+    test_num = case_when(
+      forward_diff < 1.5 ~ 1,
+    ),
+    mean_age = case_when(
+      test_num == 1 ~ (age + forward_age) / 2,
+    ),
+    second_admin = case_when(
+      test_num == 1 ~ lead(administration_id)
+    )
+  ) |>
+  filter(!is.na(test_num)) |>
+  rename(first_admin = administration_id) |>
+  select(-n, -age) |>
+  left_join(repeated_subjects |> select(-age, -n), by = c("dataset_name", "subject_id", "second_admin" = "administration_id")) |>
+  ungroup() |>
+  mutate(pair_number = row_number()) |>
+  select(-forward_age, -forward_diff, -test_num)
+
+pairs_long <- pairs |> pivot_longer(c("first_admin", "second_admin"), names_to = "session_num", values_to = "administration_id")
+```
+
+* for those pairs, for each admin, we want # of trials (administered), trial accuracy, trial RT, # trials with RT
+
+```{r}
+acc <- d_aoi |>
+  inner_join(pairs_long |> select(dataset_name, administration_id, subject_id) |> unique()) |>
+  filter(t_norm >= 400) |>
+  filter(t_norm <= 4000) |>
+  group_by(dataset_name, subject_id, administration_id, trial_id, trial_order, target_label) |>
+  summarize(acc = mean(correct, na.rm = T)) |>
+  filter(!is.na(acc))
+
+acc_mean <- acc |>
+  group_by(dataset_name, subject_id, administration_id) |>
+  summarize(acc_trials = n(), acc = mean(acc, na.rm = T))
+
+rt <- readRDS(here("cached_intermediates", "4_rt_canonical.rds")) |>
+  inner_join(pairs_long |> select(dataset_name, administration_id, subject_id) |> unique()) |>
+  filter(shift_type == "D-T")
+
+rt_mean <- rt |>
+  group_by(dataset_name, subject_id, administration_id) |>
+  summarize(rt_trials = n(), mean_rt = mean(rt))
+```
+```{r}
+all <- pairs_long |>
+  left_join(acc_mean) |>
+  left_join(rt_mean)
+
+all_wide <- all |>
+  mutate(session_num = ifelse(session_num == "first_admin", 1, 2)) |>
+  pivot_wider(values_from = c("administration_id", "acc", "acc_trials", "rt_trials", "mean_rt"), names_from = session_num) |>
+  mutate(age_bin = case_when(
+    mean_age < 18 ~ "12-17",
+    mean_age < 21 ~ "18-20",
+    mean_age < 28 ~ "21-27",
+    mean_age < 33 ~ "28-32",
+    mean_age >= 33 ~ "33+"
+  ))
+```
+
+## test-retest on summary
+
+let's start with some graphs
+
+```{r}
+ggplot(all_wide, aes(x = mean_rt_1, y = mean_rt_2, col = age_bin)) +
+  geom_point(alpha = .5) +
+  geom_abline() +
+  facet_wrap(~dataset_name) +
+  scale_color_viridis(discrete = T)
+
+ggplot(all_wide, aes(x = acc_1, y = acc_2, col = age_bin)) +
+  geom_point(alpha = .5) +
+  geom_abline() +
+  facet_wrap(~dataset_name) +
+  scale_color_viridis(discrete = T)
+```
+what ages?
+
+```{r}
+ggplot(all_wide, aes(x = mean_age, fill = age_bin)) +
+  facet_wrap(~dataset_name, scales = "free_y") +
+  geom_histogram()
+ggplot(all_wide, aes(x = mean_age, fill = age_bin)) +
+  geom_histogram(binwidth = 1)
+```
+how much data
+
+```{r}
+ggplot(all_wide, aes(x = acc_trials_1, y = acc_trials_2, col = age_bin)) +
+  geom_point(alpha = .5) +
+  geom_abline() +
+  facet_wrap(~dataset_name) +
+  scale_color_viridis(discrete = T)
+
+ggplot(all_wide, aes(x = rt_trials_1, y = rt_trials_2, col = age_bin)) +
+  geom_point(alpha = .5) +
+  geom_abline() +
+  facet_wrap(~dataset_name) +
+  scale_color_viridis(discrete = T)
+```
+
+how much more acc than RT data?
+
+```{r}
+ggplot(all_wide, aes(x = acc_trials_1, y = rt_trials_1, col = age_bin)) +
+  geom_point(alpha = .5) +
+  geom_abline(slope = 1) +
+  geom_abline(slope = 1 / 3) +
+  facet_wrap(~dataset_name) +
+  scale_color_viridis(discrete = T)
+
+ggplot(all_wide, aes(x = acc_trials_2, y = rt_trials_2, col = age_bin)) +
+  geom_point(alpha = .5) +
+  geom_abline(slope = 1) +
+  geom_abline(slope = 1 / 3) +
+  facet_wrap(~dataset_name) +
+  scale_color_viridis(discrete = T)
+```
+yeah, seems like kids generally have 3x the number of accuracy trials as RT trials (ish)
+
+
+so a number of kids do have a good number of trials, so we could reasonable do subsampling
+
+
+```{r}
+test_retest <- all_wide |>
+  group_by(dataset_name, age_bin) |>
+  summarise(
+    cor_rt = ifelse(sum(!is.na(mean_rt_1) & !is.na(mean_rt_2)) > 2, cor.test(mean_rt_1, mean_rt_2)$estimate, NA),
+    cor_acc = ifelse(sum(!is.na(acc_1) & !is.na(acc_2)) > 2, cor.test(acc_1, acc_2)$estimate, NA),
+  )
+```
+
+```{r}
+ggplot(test_retest, aes(x = dataset_name, y = cor_rt, col = age_bin)) +
+  geom_point() +
+  coord_flip() +
+  scale_color_viridis(discrete = T)
+ggplot(test_retest, aes(x = dataset_name, y = cor_acc, col = age_bin)) +
+  geom_point() +
+  coord_flip() +
+  scale_color_viridis(discrete = T)
+```
+# simulate post-hoc cutoffs
+start with the easy thing, what happens if you exclude pairs that don't have enough (valid) trials at each time point in the pair?
+
+for RT
+```{r}
+cutoffs <- expand_grid(min = c(1, 2, 3, 4, 5, 8, 10, 12, 15))
+
+cutoff_rt <- all_wide |>
+  group_by(dataset_name, age_bin) |>
+  cross_join(cutoffs) |>
+  filter(rt_trials_1 >= min, rt_trials_2 >= min) |>
+  group_by(dataset_name, age_bin, min) |>
+  summarise(
+    cor_rt = ifelse(sum(!is.na(mean_rt_1) & !is.na(mean_rt_2)) > 2, cor.test(mean_rt_1, mean_rt_2)$estimate, NA),
+    pairs = n()
+  )
+
+ggplot(cutoff_rt, aes(x = min, y = cor_rt, col = age_bin)) +
+  scale_color_viridis(discrete = T) +
+  stat_summary(position = position_dodge(.5)) +
+  stat_summary(position = position_dodge(.5), geom = "line") +
+  geom_hline(yintercept = 0)
+
+
+ggplot(cutoff_rt, aes(x = min, y = cor_rt, col = age_bin)) +
+  geom_point(position = position_dodge(.5)) +
+  geom_line(position = position_dodge(.5)) +
+  scale_color_viridis(discrete = T) +
+  facet_wrap(~dataset_name) +
+  geom_hline(yintercept = 0)
+```
+something is weird with the 28-32 bin, 
+otherwise, seems like cutting out kids who don't have at least a few RT trials is reasonable (for few in the 2-5 range?)
+
+for accuracy 
+```{r}
+cutoffs <- expand_grid(min = c(1, 2, 3, 4, 5, 8, 10, 12, 15))
+
+cutoff_acc <- all_wide |>
+  group_by(dataset_name, age_bin) |>
+  cross_join(cutoffs) |>
+  filter(acc_trials_1 >= min, acc_trials_2 >= min) |>
+  group_by(dataset_name, age_bin, min) |>
+  summarise(
+    cor_acc = ifelse(sum(!is.na(acc_1) & !is.na(acc_2)) > 2, cor.test(acc_1, acc_2)$estimate, NA), pairs = n()
+  )
+
+ggplot(cutoff_acc, aes(x = min, y = cor_acc, col = age_bin)) +
+  scale_color_viridis(discrete = T) +
+  stat_summary(position = position_dodge(.5)) +
+  stat_summary(position = position_dodge(.5), geom = "line") +
+  geom_hline(yintercept = 0)
+
+
+ggplot(cutoff_acc, aes(x = min, y = cor_acc, col = age_bin)) +
+  geom_point(position = position_dodge(.5)) +
+  geom_line(position = position_dodge(.5)) +
+  scale_color_viridis(discrete = T) +
+  facet_wrap(~dataset_name) +
+  geom_hline(yintercept = 0)
+```
+
+don't see as much for acc trials, but we expect that kids have like 3x the accuray trials as the RT trials, so scale might be off, but we're also not seeing differences up around 15 either
+
+# simulate different trial counts
+
+## RT
+let's start with RT
+we'll look at all the kids where we *actually* have 5+ datapoints for each time
+and then look at how t-rt varies if we only take 1,2,3,4,5 of them 
+
+for now, maybe just use slice (rather than a random sampling), but could reconsider
+
+```{r}
+eligible_5 <- all_wide |>
+  filter(rt_trials_1 > 4, rt_trials_2 > 4) |>
+  select(dataset_name, subject_id, mean_age, pair_number, administration_id_1, administration_id_2) |>
+  pivot_longer(c("administration_id_1", "administration_id_2"), names_to = "session_num", values_to = "administration_id") |>
+  select(dataset_name, subject_id, administration_id)
+
+rt_subsample_5 <- expand_grid(num_samples = c(1, 2, 3, 4, 5)) |>
+  mutate(rts = map(num_samples, \(num) {
+    rt |>
+      group_by(dataset_name, subject_id, administration_id) |>
+      inner_join(eligible_5) |>
+      group_by(dataset_name, subject_id, administration_id) |>
+      slice(1:num) |>
+      summarize(rt_trials = n(), mean_rt = mean(rt))
+  })) |>
+  unnest(rts)
+
+
+rt_sub_corr_5 <- pairs_long |>
+  left_join(rt_subsample_5) |>
+  mutate(session_num = ifelse(session_num == "first_admin", 1, 2)) |>
+  filter(!is.na(num_samples)) |>
+  pivot_wider(values_from = c("administration_id", "rt_trials", "mean_rt"), names_from = session_num) |>
+  mutate(age_bin = case_when(
+    mean_age < 18 ~ "12-17",
+    mean_age < 21 ~ "18-20",
+    mean_age < 28 ~ "21-27",
+    mean_age < 33 ~ "28-32",
+    mean_age >= 33 ~ "33+"
+  )) |>
+  filter(!is.na(mean_rt_1)) |>
+  filter(!is.na(mean_rt_2)) |>
+  group_by(dataset_name, age_bin, num_samples) |>
+  summarise(
+    cor_rt = ifelse(sum(!is.na(mean_rt_1) & !is.na(mean_rt_2)) > 2, cor.test(mean_rt_1, mean_rt_2)$estimate, NA),
+    pairs = n()
+  )
+
+ggplot(rt_sub_corr_5 |> filter(pairs > 9), aes(x = num_samples, y = cor_rt, col = age_bin)) +
+  scale_color_viridis(discrete = T) +
+  stat_summary(position = position_dodge(.5)) +
+  stat_summary(position = position_dodge(.5), geom = "line") +
+  geom_hline(yintercept = 0)
+
+
+ggplot(rt_sub_corr_5, aes(x = num_samples, y = cor_rt, col = age_bin)) +
+  geom_point(position = position_dodge(.5)) +
+  geom_line(position = position_dodge(.5)) +
+  scale_color_viridis(discrete = T) +
+  facet_wrap(~dataset_name) +
+  geom_hline(yintercept = 0)
+```
+some datasets don't have very many kids left, so capping to dataset-age bins with 10 kids
+
+seems like more helps, but also some datasets are weird? 
+
+```{r}
+eligible_10 <- all_wide |>
+  filter(rt_trials_1 > 9, rt_trials_2 > 9) |>
+  select(dataset_name, subject_id, mean_age, pair_number, administration_id_1, administration_id_2) |>
+  pivot_longer(c("administration_id_1", "administration_id_2"), names_to = "session_num", values_to = "administration_id") |>
+  select(dataset_name, subject_id, administration_id)
+
+rt_subsample_10 <- expand_grid(num_samples = c(1, 2, 3, 4, 5, 6, 7, 8, 9, 10)) |>
+  mutate(rts = map(num_samples, \(num) {
+    rt |>
+      group_by(dataset_name, subject_id, administration_id) |>
+      inner_join(eligible_10) |>
+      group_by(dataset_name, subject_id, administration_id) |>
+      slice(1:num) |>
+      summarize(rt_trials = n(), mean_rt = mean(rt))
+  })) |>
+  unnest(rts)
+
+
+rt_sub_corr_10 <- pairs_long |>
+  left_join(rt_subsample_10) |>
+  mutate(session_num = ifelse(session_num == "first_admin", 1, 2)) |>
+  filter(!is.na(num_samples)) |>
+  pivot_wider(values_from = c("administration_id", "rt_trials", "mean_rt"), names_from = session_num) |>
+  mutate(age_bin = case_when(
+    mean_age < 18 ~ "12-17",
+    mean_age < 21 ~ "18-20",
+    mean_age < 28 ~ "21-27",
+    mean_age < 33 ~ "28-32",
+    mean_age >= 33 ~ "33+"
+  )) |>
+  filter(!is.na(mean_rt_1)) |>
+  filter(!is.na(mean_rt_2)) |>
+  group_by(dataset_name, age_bin, num_samples) |>
+  summarise(
+    cor_rt = ifelse(sum(!is.na(mean_rt_1) & !is.na(mean_rt_2)) > 2, cor.test(mean_rt_1, mean_rt_2)$estimate, NA),
+    pairs = n()
+  )
+
+ggplot(rt_sub_corr_10 |> filter(pairs > 9), aes(x = num_samples, y = cor_rt, col = age_bin)) +
+  scale_color_viridis(discrete = T) +
+  stat_summary(position = position_dodge(.5)) +
+  stat_summary(position = position_dodge(.5), geom = "line") +
+  geom_hline(yintercept = 0)
+
+
+ggplot(rt_sub_corr_10, aes(x = num_samples, y = cor_rt, col = age_bin)) +
+  geom_point(position = position_dodge(.5)) +
+  geom_line(position = position_dodge(.5)) +
+  scale_color_viridis(discrete = T) +
+  facet_wrap(~dataset_name) +
+  geom_hline(yintercept = 0)
+```
+
+more RT samples is better, maybe some diminishing returns about like 5 or 7? 
+
+
+
+and the real goal is to simulate anyway!
+
+so, two options for how to approach this -- 1 is to filter kids by a min # of datapoints (ignore kids who don't contribute data) and the other is to subsample kids to the number of datapoints (simulate different experiment lengths)
+
+
+
+
+## acc
+let's start with RT
+we'll look at all the kids where we *actually* have 5+ datapoints for each time
+and then look at how t-rt varies if we only take 1,2,3,4,5 of them 
+
+for now, maybe just use slice (rather than a random sampling), but could reconsider
+
+```{r}
+eligible_5 <- all_wide |>
+  filter(acc_trials_1 > 4, acc_trials_2 > 4) |>
+  select(dataset_name, subject_id, mean_age, pair_number, administration_id_1, administration_id_2) |>
+  pivot_longer(c("administration_id_1", "administration_id_2"), names_to = "session_num", values_to = "administration_id") |>
+  select(dataset_name, subject_id, administration_id)
+
+acc_subsample_5 <- expand_grid(num_samples = c(1, 2, 3, 4, 5)) |>
+  mutate(accs = map(num_samples, \(num) {
+    acc |>
+      group_by(dataset_name, subject_id, administration_id) |>
+      inner_join(eligible_5) |>
+      group_by(dataset_name, subject_id, administration_id) |>
+      slice(1:num) |>
+      summarize(acc_trials = n(), mean_acc = mean(acc))
+  })) |>
+  unnest(accs)
+
+
+acc_sub_corr_5 <- pairs_long |>
+  left_join(acc_subsample_5) |>
+  mutate(session_num = ifelse(session_num == "first_admin", 1, 2)) |>
+  filter(!is.na(num_samples)) |>
+  pivot_wider(values_from = c("administration_id", "acc_trials", "mean_acc"), names_from = session_num) |>
+  mutate(age_bin = case_when(
+    mean_age < 18 ~ "12-17",
+    mean_age < 21 ~ "18-20",
+    mean_age < 28 ~ "21-27",
+    mean_age < 33 ~ "28-32",
+    mean_age >= 33 ~ "33+"
+  )) |>
+  filter(!is.na(mean_acc_1)) |>
+  filter(!is.na(mean_acc_2)) |>
+  group_by(dataset_name, age_bin, num_samples) |>
+  summarise(
+    cor_acc = ifelse(sum(!is.na(mean_acc_1) & !is.na(mean_acc_2)) > 2, cor.test(mean_acc_1, mean_acc_2)$estimate, NA),
+    pairs = n()
+  )
+
+ggplot(acc_sub_corr_5 |> filter(pairs > 4), aes(x = num_samples, y = cor_acc, col = age_bin)) +
+  scale_color_viridis(discrete = T) +
+  stat_summary(position = position_dodge(.5)) +
+  stat_summary(position = position_dodge(.5), geom = "line") +
+  geom_hline(yintercept = 0)
+
+
+ggplot(acc_sub_corr_5 |> filter(pairs > 4), aes(x = num_samples, y = cor_acc, col = age_bin)) +
+  geom_point(position = position_dodge(.5)) +
+  geom_line(position = position_dodge(.5)) +
+  scale_color_viridis(discrete = T) +
+  facet_wrap(~dataset_name) +
+  geom_hline(yintercept = 0)
+```
+some datasets don't have very many kids left, so capping to dataset-age bins with 10 kids
+
+seems like more helps, but also some datasets are weird? 
+
+```{r}
+eligible_10 <- all_wide |>
+  filter(acc_trials_1 > 9, acc_trials_2 > 9) |>
+  select(dataset_name, subject_id, mean_age, pair_number, administration_id_1, administration_id_2) |>
+  pivot_longer(c("administration_id_1", "administration_id_2"), names_to = "session_num", values_to = "administration_id") |>
+  select(dataset_name, subject_id, administration_id)
+
+acc_subsample_10 <- expand_grid(num_samples = c(1, 2, 3, 4, 5, 6, 7, 8, 9, 10)) |>
+  mutate(accs = map(num_samples, \(num) {
+    acc |>
+      group_by(dataset_name, subject_id, administration_id) |>
+      inner_join(eligible_10) |>
+      group_by(dataset_name, subject_id, administration_id) |>
+      slice(1:num) |>
+      summarize(acc_trials = n(), mean_acc = mean(acc))
+  })) |>
+  unnest(accs)
+
+
+acc_sub_corr_10 <- pairs_long |>
+  left_join(acc_subsample_10) |>
+  mutate(session_num = ifelse(session_num == "first_admin", 1, 2)) |>
+  filter(!is.na(num_samples)) |>
+  pivot_wider(values_from = c("administration_id", "acc_trials", "mean_acc"), names_from = session_num) |>
+  mutate(age_bin = case_when(
+    mean_age < 18 ~ "12-17",
+    mean_age < 21 ~ "18-20",
+    mean_age < 28 ~ "21-27",
+    mean_age < 33 ~ "28-32",
+    mean_age >= 33 ~ "33+"
+  )) |>
+  filter(!is.na(mean_acc_1)) |>
+  filter(!is.na(mean_acc_2)) |>
+  group_by(dataset_name, age_bin, num_samples) |>
+  summarise(
+    cor_acc = ifelse(sum(!is.na(mean_acc_1) & !is.na(mean_acc_2)) > 2, cor.test(mean_acc_1, mean_acc_2)$estimate, NA),
+    pairs = n()
+  )
+
+ggplot(acc_sub_corr_10 |> filter(pairs > 4), aes(x = num_samples, y = cor_acc, col = age_bin)) +
+  scale_color_viridis(discrete = T) +
+  stat_summary(position = position_dodge(.5)) +
+  stat_summary(position = position_dodge(.5), geom = "line") +
+  geom_hline(yintercept = 0)
+
+
+ggplot(acc_sub_corr_10 |> filter(pairs > 4), aes(x = num_samples, y = cor_acc, col = age_bin)) +
+  geom_point(position = position_dodge(.5)) +
+  geom_line(position = position_dodge(.5)) +
+  scale_color_viridis(discrete = T) +
+  facet_wrap(~dataset_name) +
+  geom_hline(yintercept = 0)
+```
+
+accuracy also shows a more is better, with some stabilizing? but we can also check even higher. 
+
+```{r}
+eligible_20 <- all_wide |>
+  filter(acc_trials_1 > 19, acc_trials_2 > 19) |>
+  select(dataset_name, subject_id, mean_age, pair_number, administration_id_1, administration_id_2) |>
+  pivot_longer(c("administration_id_1", "administration_id_2"), names_to = "session_num", values_to = "administration_id") |>
+  select(dataset_name, subject_id, administration_id)
+
+acc_subsample_20 <- expand_grid(num_samples = c(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20)) |>
+  mutate(accs = map(num_samples, \(num) {
+    acc |>
+      group_by(dataset_name, subject_id, administration_id) |>
+      inner_join(eligible_20) |>
+      group_by(dataset_name, subject_id, administration_id) |>
+      slice(1:num) |>
+      summarize(acc_trials = n(), mean_acc = mean(acc))
+  })) |>
+  unnest(accs)
+
+
+acc_sub_corr_20 <- pairs_long |>
+  left_join(acc_subsample_20) |>
+  mutate(session_num = ifelse(session_num == "first_admin", 1, 2)) |>
+  filter(!is.na(num_samples)) |>
+  pivot_wider(values_from = c("administration_id", "acc_trials", "mean_acc"), names_from = session_num) |>
+  mutate(age_bin = case_when(
+    mean_age < 18 ~ "12-17",
+    mean_age < 21 ~ "18-20",
+    mean_age < 28 ~ "21-27",
+    mean_age < 33 ~ "28-32",
+    mean_age >= 33 ~ "33+"
+  )) |>
+  filter(!is.na(mean_acc_1)) |>
+  filter(!is.na(mean_acc_2)) |>
+  group_by(dataset_name, age_bin, num_samples) |>
+  summarise(
+    cor_acc = ifelse(sum(!is.na(mean_acc_1) & !is.na(mean_acc_2)) > 2, cor.test(mean_acc_1, mean_acc_2)$estimate, NA),
+    pairs = n()
+  )
+
+ggplot(acc_sub_corr_20 |> filter(pairs > 4), aes(x = num_samples, y = cor_acc, col = age_bin)) +
+  scale_color_viridis(discrete = T) +
+  stat_summary(position = position_dodge(.5)) +
+  stat_summary(position = position_dodge(.5), geom = "line") +
+  geom_hline(yintercept = 0)
+
+
+ggplot(acc_sub_corr_20 |> filter(pairs > 4), aes(x = num_samples, y = cor_acc, col = age_bin)) +
+  geom_point(position = position_dodge(.5)) +
+  geom_line(position = position_dodge(.5)) +
+  scale_color_viridis(discrete = T) +
+  facet_wrap(~dataset_name) +
+  geom_hline(yintercept = 0)
+```
+
+
+and the real goal is to simulate anyway!
+
+so, two options for how to approach this -- 1 is to filter kids by a min # of datapoints (ignore kids who don't contribute data) and the other is to subsample kids to the number of datapoints (simulate different experiment lengths)
+
+
+
+
+# Old
+# [deprecated] Across datasets - n observations
 
 Let's start by looking at number of trials per kid/per item as a predictor of ICC across datasets. 
 
 ```{r}
 d_n_trial_sim <- d_trial |>
-  group_by(dataset_name, trial_id, dataset_id, subject_id, administration_id,
-           age, target_label) |>
-  summarise(accuracy = mean(correct[t_norm > 300 & t_norm < 4000], na.rm=TRUE)) 
+  group_by(
+    dataset_name, trial_id, dataset_id, subject_id, administration_id,
+    age, target_label
+  ) |>
+  summarise(accuracy = mean(correct[t_norm > 300 & t_norm < 4000], na.rm = TRUE))
 ```
 
 Now our simulation. 
 
 ```{r}
-get_n_trials <- function (x, column = "accuracy", 
-                          object = "stimulus") {
+get_n_trials <- function(x, column = "accuracy",
+                         object = "stimulus") {
   if (object == "stimulus") {
     n_trials <- x |>
       group_by(target_label) |>
@@ -38,7 +598,6 @@ get_n_trials <- function (x, column = "accuracy",
       ungroup() |>
       summarise(n_trials = mean(n)) |>
       pull(n_trials)
-      
   } else {
     n_trials <- x |>
       group_by(administration_id) |>
@@ -46,24 +605,23 @@ get_n_trials <- function (x, column = "accuracy",
       ungroup() |>
       summarise(n_trials = mean(n)) |>
       pull(n_trials)
-      
   }
-  
+
   return(n_trials)
 }
 
-icc_n_trial_sim <- function (object) 
-{
+icc_n_trial_sim <- function(object) {
   # compute ICCs
-  d_n_trial_sim |> 
-    group_by(dataset_name) |> 
+  d_n_trial_sim |>
+    group_by(dataset_name) |>
     nest() |>
-    mutate(icc = unlist(map(data, ~get_icc(., "accuracy", object))),
-           n_trials = unlist(map(data, ~get_n_trials(., "accuracy", object)))) |>
+    mutate(
+      icc = unlist(map(data, ~ get_icc(., "accuracy", object))),
+      n_trials = unlist(map(data, ~ get_n_trials(., "accuracy", object)))
+    ) |>
     select(-data) |>
-    unnest(cols = c()) 
+    unnest(cols = c())
 }
-
 ```
 
 
@@ -71,9 +629,11 @@ icc_n_trial_sim <- function (object)
 n_trial_params <- expand_grid(object = c("stimulus", "administration"))
 
 tic()
-n_trial_sim <- n_trial_params |> 
-  mutate(icc = pmap(list(object), 
-                    icc_n_trial_sim)) |>
+n_trial_sim <- n_trial_params |>
+  mutate(icc = pmap(
+    list(object),
+    icc_n_trial_sim
+  )) |>
   unnest(col = icc)
 toc()
 
@@ -85,17 +645,19 @@ Plot resulting ICCs.
 ```{r}
 load("cached_intermediates/6_n_trials.Rds")
 
-ggplot(n_trial_sim,
-       aes(x = n_trials, y = icc, col = dataset_name)) + 
-  geom_point() + 
+ggplot(
+  n_trial_sim,
+  aes(x = n_trials, y = icc, col = dataset_name)
+) +
+  geom_point() +
   geom_smooth(method = "lm", aes(col = NA, group = 1), se = FALSE) +
   geom_label_repel(aes(label = dataset_name), size = 1) +
-  facet_wrap(~object, scales = "free_x") + 
-  ylab("ICC") + 
-  xlab("Number of observations per group") + 
-  ggthemes::theme_few() + 
-  theme(legend.position = "bottom") + 
-  ylim(0,1)
+  facet_wrap(~object, scales = "free_x") +
+  ylab("ICC") +
+  xlab("Number of observations per group") +
+  ggthemes::theme_few() +
+  theme(legend.position = "bottom") +
+  ylim(0, 1)
 ```
 # Resampling approach to this question
 
@@ -111,9 +673,11 @@ What datasets have longitudinal data? Just Adams Marchman and FMW.
 ```{r}
 longitudinal <- d_n_trial_sim |>
   group_by(dataset_name) |>
-  summarise(n_admins = length(unique(administration_id)), 
-            n_subs = length(unique(subject_id))) |>
-  filter(n_admins != n_subs) 
+  summarise(
+    n_admins = length(unique(administration_id)),
+    n_subs = length(unique(subject_id))
+  ) |>
+  filter(n_admins != n_subs)
 longitudinal
 ```
 
@@ -129,52 +693,57 @@ Could also compute T-RT over age/development for each but this is a different th
 
 
 ```{r}
-
 complete_obs <- d_n_trial_sim |>
   filter(dataset_name %in% longitudinal$dataset_name) |>
-  group_by(dataset_name, subject_id, administration_id) |> 
+  group_by(dataset_name, subject_id, administration_id) |>
   count() |>
   group_by(dataset_name, subject_id) |>
   count() |>
   filter((dataset_name == "adams_marchman_2018" & n == 4) |
-           (dataset_name == "fmw_2013" & n > 1))
-  
-  
+    (dataset_name == "fmw_2013" & n > 1))
+
+
 
 admin_means <- d_n_trial_sim |>
   filter(subject_id %in% complete_obs$subject_id) |>
   group_by(dataset_name, subject_id, administration_id) |>
-  summarise(accuracy = mean(accuracy, na.rm=TRUE), 
-            age = age[1]) |>
+  summarise(
+    accuracy = mean(accuracy, na.rm = TRUE),
+    age = age[1]
+  ) |>
   group_by(dataset_name, subject_id) |>
-  mutate(age_group = ifelse(dataset_name == "adams_marchman_2018", 
-                            c(1,1,2,2), c(1,1))) |>
+  mutate(age_group = ifelse(dataset_name == "adams_marchman_2018",
+    c(1, 1, 2, 2), c(1, 1)
+  )) |>
   group_by(dataset_name, subject_id, age_group) |>
   mutate(test_session = 1:n()) |>
   select(-administration_id) |>
   pivot_wider(names_from = "test_session", values_from = "accuracy") |>
-  rename(session1 = `1`, 
-         session2 = `2`,
-         session3 = `3`)
-
+  rename(
+    session1 = `1`,
+    session2 = `2`,
+    session3 = `3`
+  )
 ```
 
 ```{r}
 ggplot(admin_means, aes(x = session1, y = session2)) +
-  facet_wrap(~dataset_name) + 
-  geom_point() + 
+  facet_wrap(~dataset_name) +
+  geom_point() +
   geom_smooth(method = "lm")
 
 admin_means |>
   group_by(dataset_name, age_group) |>
   nest() |>
-  mutate(cor = lapply(data, 
-                      function(df) {
-                        s1 = df$session1 
-                        s2 = df$session2
-                        
-                        broom::tidy(cor.test(x = s1, y = s2))
-                        })) |>
+  mutate(cor = lapply(
+    data,
+    function(df) {
+      s1 <- df$session1
+      s2 <- df$session2
+
+      broom::tidy(cor.test(x = s1, y = s2))
+    }
+  )) |>
   select(-data) |>
   unnest(cols = cor)
 ```
@@ -188,7 +757,7 @@ Now let's take advantage of datasets with lots of trials per kid and see what we
 UNMODIFIED CODE BELOW
 
 ```{r}
-get_n_trials <- function (x, column = "accuracy", object = "stimulus") {
+get_n_trials <- function(x, column = "accuracy", object = "stimulus") {
   if (object == "stimulus") {
     n_trials <- x |>
       group_by(target_label) |>
@@ -196,7 +765,6 @@ get_n_trials <- function (x, column = "accuracy", object = "stimulus") {
       ungroup() |>
       summarise(n_trials = mean(n)) |>
       pull(n_trials)
-      
   } else {
     n_trials <- x |>
       group_by(administration_id) |>
@@ -204,24 +772,23 @@ get_n_trials <- function (x, column = "accuracy", object = "stimulus") {
       ungroup() |>
       summarise(n_trials = mean(n)) |>
       pull(n_trials)
-      
   }
-  
+
   return(n_trials)
 }
 
-icc_sim <- function (object) 
-{
+icc_sim <- function(object) {
   # compute ICCs
-  d_sim |> 
-    group_by(dataset_name) |> 
+  d_sim |>
+    group_by(dataset_name) |>
     nest() |>
-    mutate(icc = unlist(map(data, ~get_icc(., "accuracy", object))),
-           n_trials = unlist(map(data, ~get_n_trials(., "accuracy", object)))) |>
+    mutate(
+      icc = unlist(map(data, ~ get_icc(., "accuracy", object))),
+      n_trials = unlist(map(data, ~ get_n_trials(., "accuracy", object)))
+    ) |>
     select(-data) |>
-    unnest(cols = c()) 
+    unnest(cols = c())
 }
-
 ```
 
 
@@ -238,15 +805,16 @@ Plot resulting ICCs.
 ```{r}
 load("cached_intermediates/6_n_trials.Rds")
 
-ggplot(iccs,
-       aes(x = n_trials, y = icc, col = dataset_name)) + 
-  geom_point() + 
+ggplot(
+  iccs,
+  aes(x = n_trials, y = icc, col = dataset_name)
+) +
+  geom_point() +
   geom_smooth(method = "lm", aes(group = 1)) +
-  geom_label_repel(aes(label = dataset_name)) + 
-  facet_wrap(~object, scales = "free_x") + 
-  ylab("ICC") + 
-  xlab("Number of observations per group") + 
-  ggthemes::theme_few() + 
-  theme(legend.position = "bottom") 
-
+  geom_label_repel(aes(label = dataset_name)) +
+  facet_wrap(~object, scales = "free_x") +
+  ylab("ICC") +
+  xlab("Number of observations per group") +
+  ggthemes::theme_few() +
+  theme(legend.position = "bottom")
 ```

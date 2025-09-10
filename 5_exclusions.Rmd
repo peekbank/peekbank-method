@@ -977,10 +977,9 @@ rt_data <- readRDS(here("cached_intermediates", "4_rt_canonical.rds")) |> filter
 ```{r}
 rt_data |>
   group_by(administration_id, dataset_name) |>
-  tally()
-ggplot(aes(x = n, fill = dataset_name)) +
+  tally() |>
+  ggplot(aes(x = n, fill = dataset_name)) +
   geom_histogram(binwidth = 2) +
-  geom_vline(xintercept = 7) +
   facet_wrap(~dataset_name, scales = "free_y") +
   theme(legend.position = "none")
 
@@ -989,7 +988,6 @@ rt_data |>
   tally() |>
   ggplot(aes(x = n, fill = dataset_name)) +
   geom_histogram(binwidth = 1) +
-  geom_vline(xintercept = 7) +
   theme(legend.position = "none")
 ```
 so, the scale seems to be in the 0-20 trials per admin (that have valid RTs, which is in general only about 30-40% of trials)
@@ -1026,6 +1024,7 @@ saveRDS(rt_icc, here("cached_intermediates", "5_exclusions_kid_rt_icc.rds"))
 ```
 
 ```{r}
+rt_icc <- readRDS(here("cached_intermediates", "5_exclusions_kid_rt_icc.rds"))
 ggplot(rt_icc, aes(x = min_trials, y = icc_values)) +
   scale_color_viridis() +
   # geom_line(aes(group = dataset_name)) +
