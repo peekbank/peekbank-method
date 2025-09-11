@@ -9,41 +9,173 @@ output: html_document
 
 ```{r}
 source(here::here("helper/common.R"))
+
+d_aoi <- readRDS(here("cached_intermediates", "1_d_aoi.Rds"))
 ```
 
 
 
 
-# Measure 2: Baseline-corrected accuracy
+# Baseline-corrected accuracy
 
-For our next measure, we'll repeat the same exercise, but we'll baseline-corrected looking. Let's start by implementing baseline-correction in the simplest way possible. 
+the idea with baseline-corrected accuracy is that due to saliency effects (etc etc), accuracy measures might incorporate both kids word knowledge & whatever item properties, and we might be able to get the kids word knowledge more precisely by subtracting out the "accuracy" from the pre-stimulus time. 
 
-Zooming in on Adams-Marchman, since that had very high administration reliability. 
+* note that there might be a thing where baseline corrected accuracy is especially 
 
-NOTE 1/31/24 - check how big the baseline window is for AM2018!! if it's short, this might not work. 
+we'll want to look by dataset, since datasets vary widely in how much pre--looking time there is!
 
 ```{r}
-qplot(data = filter(d_trial, 
-                    dataset_name == "adams_marchman_2018"), 
-      x = t_norm, geom = "histogram")
+ggplot(d_aoi, aes(x = t_norm)) +
+  geom_histogram() +
+  facet_wrap(~dataset_name, scales = "free_y") +
+  geom_vline(xintercept = 0) +
+  geom_vline(xintercept = 400)
 ```
 
+let's make a filtered set for datasets that have sub -2000 RTs (long baselines) and start there, since those will be the *most* likely to have useful baseline correction. 
+
+we will want to repeat this for other datasets later
 ```{r}
-am <- d_trial |>
+d_long_baseline_datasets <- d_aoi |>
+  filter(t_norm == -3000) |>
+  group_by(dataset_name) |>
+  tally()
+
+d_long_baseline <- d_aoi |> inner_join(d_long_baseline_datasets |> select(dataset_name))
+
+acc <- d_long_baseline |>
+  group_by(
+    trial_id, subject_id, administration_id,
+    target_label, dataset_name
+  ) |>
+  summarise(
+    baseline_0 = mean(correct[t_norm < 0], na.rm = TRUE),
+    baseline_400 = mean(correct[t_norm < 400], na.rm = TRUE),
+    accuracy = mean(correct[t_norm > 400], na.rm = TRUE),
+    bc_0_accuracy = accuracy - baseline_0,
+    bc_400_accuracy = accuracy - baseline_400
+  ) |>
+  filter(!is.na(accuracy), !is.na(bc_0_accuracy), !is.na(bc_400_accuracy))
+
+
+icc <- acc |>
+  group_by(dataset_name) |>
+  nest() |>
+  mutate(
+    bc_0_acc = map(data, \(d) get_icc(d, column = "bc_0_accuracy", object = "administration")),
+    bc_400_acc = map(data, \(d) get_icc(d, column = "bc_400_accuracy", object = "administration")),
+    acc = map(data, \(d) get_icc(d, column = "accuracy", object = "administration"))
+  ) |>
+  unnest(bc_400_acc) |>
+  unnest(bc_0_acc) |>
+  unnest(acc) |>
+  select(-data) |>
+  pivot_longer(c("bc_400_acc", "bc_0_acc", "acc"), names_to = "type", values_to = "icc")
+
+ggplot(icc, aes(x = dataset_name, y = icc, col = type)) +
+  geom_point() +
+  coord_flip()
+```
+so, on these datasets, we do get higher icc from baseline corrections (on most of the datasets). -it's also unclear if this is *useful* signal or artefact. 
+
+*but* these were specifically selected for long starting windows -- what if we do it to all the datasets?
+
+```{r}
+acc <- d_aoi |>
+  group_by(
+    trial_id, subject_id, administration_id,
+    target_label, dataset_name
+  ) |>
+  summarise(
+    baseline_0 = mean(correct[t_norm < 0], na.rm = TRUE),
+    baseline_400 = mean(correct[t_norm < 400], na.rm = TRUE),
+    accuracy = mean(correct[t_norm > 400], na.rm = TRUE),
+    bc_0_accuracy = accuracy - baseline_0,
+    bc_400_accuracy = accuracy - baseline_400
+  )
+
+icc <- acc |>
+  group_by(dataset_name) |>
+  nest() |>
+  filter(!dataset_name %in% c("adams_marchman_2018", "fernald_marchman_2012")) |> # don't crash, repeat on cluster later
+  mutate(
+    bc_0_acc = map(data, \(d) get_icc(d |> filter(!is.na("bc_0_accuracy")), column = "bc_0_accuracy", object = "administration")),
+    bc_400_acc = map(data, \(d) get_icc(d |> filter(!is.na("bc_400_accuracy")), column = "bc_400_accuracy", object = "administration")),
+    acc = map(data, \(d) get_icc(d |> filter(!is.na("accuracy")), column = "accuracy", object = "administration"))
+  ) |>
+  unnest(bc_400_acc) |>
+  unnest(bc_0_acc) |>
+  unnest(acc) |>
+  select(-data) |>
+  pivot_longer(c("bc_400_acc", "bc_0_acc", "acc"), names_to = "type", values_to = "icc")
+
+ggplot(icc, aes(x = type, y = icc, col = type)) +
+  geom_point() +
+  coord_flip() +
+  stat_summary()
+
+ggplot(icc, aes(x = dataset_name, y = icc, col = type)) +
+  geom_jitter(width = .3) +
+  coord_flip()
+```
+so, looks like the benefits of baseline correction would only apply to datasets with a lot of baseline. 
+
+```{r}
+baseline_amount <- d_aoi |>
+  filter(t_norm <= 0, !is.na(correct)) |>
+  group_by(dataset_name) |>
+  summarize(mean_pre = mean(t_norm, na.rm = T))
+
+icc |>
+  left_join(baseline_amount) |>
+  ggplot(aes(x = mean_pre, y = icc, col = type)) +
+  geom_point() +
+  geom_smooth(method = "lm")
+```
+dataset reliability from other things potentially confounds with how long they chose to window, so we could also look at diffs. 
+
+```{r}
+icc |>
+  left_join(baseline_amount) |>
+  pivot_wider(names_from = "type", values_from = "icc") |>
+  mutate(
+    benefit_pre_0 = bc_0_acc - acc,
+    benefit_pre_400 = bc_400_acc - acc
+  ) |>
+  pivot_longer(c("benefit_pre_0", "benefit_pre_400"), names_to = "type", values_to = "diff") |>
+  ggplot(aes(x = mean_pre, y = diff, col = type)) +
+  geom_point() +
+  geom_smooth(method = "lm") +
+  geom_hline(yintercept = 0)
+```
+so, basically, if you have a long enough pre-window, such that the mean pre-0 value is -1500ish (so pre-window of 3000+), then baseline correcting might get you *slightly* higher reliability. 
+
+
+# Old
+```{r}
+am <- d_aoi |>
   filter(dataset_name == "adams_marchman_2018") |>
-  group_by(trial_id, subject_id, administration_id, 
-           target_label) |>
-  summarise(baseline = mean(correct[t_norm < 500], na.rm=TRUE),
-            accuracy = mean(correct[t_norm > 500], na.rm=TRUE), 
-            bc_accuracy = accuracy - baseline) |>
+  group_by(
+    trial_id, subject_id, administration_id,
+    target_label
+  ) |>
+  summarise(
+    baseline = mean(correct[t_norm < 400], na.rm = TRUE),
+    accuracy = mean(correct[t_norm > 400], na.rm = TRUE),
+    bc_accuracy = accuracy - baseline
+  ) |>
   filter(!is.na(accuracy), !is.na(bc_accuracy))
 
-ggplot(am, 
-       aes(x = accuracy)) +
+ggplot(
+  am,
+  aes(x = accuracy)
+) +
   geom_histogram()
 
-ggplot(am, 
-       aes(x = bc_accuracy)) +
+ggplot(
+  am,
+  aes(x = bc_accuracy)
+) +
   geom_histogram()
 ```
 
@@ -62,19 +194,27 @@ OK, so for this dataset it seems like within-trial baseline correction is **redu
 ```{r}
 sa <- d_trial |>
   filter(dataset_name == "swingley_aslin_2002") |>
-  group_by(trial_id, subject_id, administration_id, 
-           target_label) |>
-  summarise(baseline = mean(correct[t_norm < 500], na.rm=TRUE),
-            accuracy = mean(correct[t_norm > 500], na.rm=TRUE), 
-            bc_accuracy = accuracy - baseline) |>
+  group_by(
+    trial_id, subject_id, administration_id,
+    target_label
+  ) |>
+  summarise(
+    baseline = mean(correct[t_norm < 500], na.rm = TRUE),
+    accuracy = mean(correct[t_norm > 500], na.rm = TRUE),
+    bc_accuracy = accuracy - baseline
+  ) |>
   filter(!is.na(accuracy))
 
-ggplot(am, 
-       aes(x = accuracy)) +
+ggplot(
+  am,
+  aes(x = accuracy)
+) +
   geom_histogram()
 
-ggplot(am, 
-       aes(x = bc_accuracy)) +
+ggplot(
+  am,
+  aes(x = bc_accuracy)
+) +
   geom_histogram()
 
 # disaggregated
@@ -88,49 +228,63 @@ Weirdly it looks like the reverse is happening. Let's get more systematic.
 
 ```{r}
 d_summary <- d_trial |>
-  group_by(dataset_name, trial_id, subject_id, administration_id, 
-           target_label) |>
-  summarise(baseline = mean(correct[t_norm < 500], na.rm=TRUE),
-            accuracy = mean(correct[t_norm > 500], na.rm=TRUE), 
-            bc_accuracy = accuracy - baseline, 
-            target = sum(correct[t_norm > 500], na.rm=TRUE),
-            target_baseline = sum(correct[t_norm < 500], na.rm=TRUE),
-            distractor = sum(!correct[t_norm > 500], na.rm=TRUE), 
-            distractor_baseline = sum(!correct[t_norm < 500], na.rm=TRUE), 
-            elogit_baseline = log( (target_baseline + .5) / 
-                                     (distractor_baseline + .5) ),
-            elogit = log( (target + .5) / 
-                            (distractor + .5) ), 
-            elogit_bc = elogit - elogit_baseline) |>
+  group_by(
+    dataset_name, trial_id, subject_id, administration_id,
+    target_label
+  ) |>
+  summarise(
+    baseline = mean(correct[t_norm < 500], na.rm = TRUE),
+    accuracy = mean(correct[t_norm > 500], na.rm = TRUE),
+    bc_accuracy = accuracy - baseline,
+    target = sum(correct[t_norm > 500], na.rm = TRUE),
+    target_baseline = sum(correct[t_norm < 500], na.rm = TRUE),
+    distractor = sum(!correct[t_norm > 500], na.rm = TRUE),
+    distractor_baseline = sum(!correct[t_norm < 500], na.rm = TRUE),
+    elogit_baseline = log((target_baseline + .5) /
+      (distractor_baseline + .5)),
+    elogit = log((target + .5) /
+      (distractor + .5)),
+    elogit_bc = elogit - elogit_baseline
+  ) |>
   filter(!is.na(accuracy), !is.na(bc_accuracy), !is.na(elogit), !is.na(elogit_bc))
 
 iccs <- d_summary |>
-  group_by(dataset_name) |> 
+  group_by(dataset_name) |>
   nest() |>
-  mutate(icc_stimulus_acc = unlist(map(data, ~get_icc(.x, 
-                                                      column = "accuracy",
-                                                      object = "stimulus"))),
-         icc_admin_acc = unlist(map(data, ~get_icc(.x, 
-                                                   column = "accuracy",
-                                                   object = "administration"))),
-         icc_stimulus_bc = unlist(map(data, ~get_icc(.x, 
-                                                     column = "bc_accuracy",
-                                                     object = "stimulus"))),
-         icc_admin_bc = unlist(map(data, ~get_icc(.x, 
-                                                  column = "bc_accuracy",
-                                                  object = "administration"))),
-         icc_stimulus_elogit = unlist(map(data, ~get_icc(.x, 
-                                                         column = "elogit",
-                                                         object = "stimulus"))),
-         icc_admin__elogit = unlist(map(data, ~get_icc(.x, 
-                                                       column = "elogit",
-                                                       object = "administration"))),
-         icc_stimulus_elogitbc = unlist(map(data, ~get_icc(.x, 
-                                                           column = "elogit_bc",
-                                                           object = "stimulus"))),
-         icc_admin_elogitbc = unlist(map(data, ~get_icc(.x, 
-                                                        column = "elogit_bc",
-                                                        object = "administration")))) |>
+  mutate(
+    icc_stimulus_acc = unlist(map(data, ~ get_icc(.x,
+      column = "accuracy",
+      object = "stimulus"
+    ))),
+    icc_admin_acc = unlist(map(data, ~ get_icc(.x,
+      column = "accuracy",
+      object = "administration"
+    ))),
+    icc_stimulus_bc = unlist(map(data, ~ get_icc(.x,
+      column = "bc_accuracy",
+      object = "stimulus"
+    ))),
+    icc_admin_bc = unlist(map(data, ~ get_icc(.x,
+      column = "bc_accuracy",
+      object = "administration"
+    ))),
+    icc_stimulus_elogit = unlist(map(data, ~ get_icc(.x,
+      column = "elogit",
+      object = "stimulus"
+    ))),
+    icc_admin__elogit = unlist(map(data, ~ get_icc(.x,
+      column = "elogit",
+      object = "administration"
+    ))),
+    icc_stimulus_elogitbc = unlist(map(data, ~ get_icc(.x,
+      column = "elogit_bc",
+      object = "stimulus"
+    ))),
+    icc_admin_elogitbc = unlist(map(data, ~ get_icc(.x,
+      column = "elogit_bc",
+      object = "administration"
+    )))
+  ) |>
   select(-data) |>
   unnest(cols = c())
 ```
@@ -140,17 +294,19 @@ Let's plot these.
 ```{r}
 iccs_long <- iccs |>
   pivot_longer(-dataset_name, names_to = "measure", values_to = "icc") |>
-  separate(measure, into = c("extra", "dimension","measure")) |>
-  select(-extra) 
+  separate(measure, into = c("extra", "dimension", "measure")) |>
+  select(-extra)
 
-ggplot(iccs_long, 
-       aes(x = measure, y = icc, group = dataset_name)) + 
+ggplot(
+  iccs_long,
+  aes(x = measure, y = icc, group = dataset_name)
+) +
   geom_point() +
-  geom_line(alpha = .5) + 
-  stat_summary(aes(group = 1), col = "red") + 
+  geom_line(alpha = .5) +
+  stat_summary(aes(group = 1), col = "red") +
   facet_wrap(~dimension) +
-  ylim(0,1) + 
-  ylab("ICC") + 
+  ylim(0, 1) +
+  ylab("ICC") +
   xlab("Measure")
 ```
 
@@ -161,54 +317,68 @@ baseline_cutoffs <- seq(-500, 500, by = 50)
 
 d_summary_cutoffs <- map(baseline_cutoffs, function(baseline_cutoff) {
   d_trial |>
-    group_by(dataset_name, trial_id, subject_id, administration_id, 
-             target_label) |>
-    summarise(baseline = mean(correct[t_norm < baseline_cutoff], na.rm=TRUE),
-              accuracy = mean(correct[t_norm > 500], na.rm=TRUE), 
-              bc_accuracy = accuracy - baseline, 
-              target = sum(correct[t_norm > 500], na.rm=TRUE),
-              target_baseline = sum(correct[t_norm < baseline_cutoff], na.rm=TRUE),
-              distractor = sum(!correct[t_norm > 500], na.rm=TRUE), 
-              distractor_baseline = sum(!correct[t_norm < baseline_cutoff], na.rm=TRUE), 
-              elogit_baseline = log( (target_baseline + .5) / 
-                                       (distractor_baseline + .5) ),
-              elogit = log( (target + .5) / 
-                              (distractor + .5) ), 
-              elogit_bc = elogit - elogit_baseline,
-              baseline_cutoff = baseline_cutoff,
-              .groups = "drop") |>
+    group_by(
+      dataset_name, trial_id, subject_id, administration_id,
+      target_label
+    ) |>
+    summarise(
+      baseline = mean(correct[t_norm < baseline_cutoff], na.rm = TRUE),
+      accuracy = mean(correct[t_norm > 500], na.rm = TRUE),
+      bc_accuracy = accuracy - baseline,
+      target = sum(correct[t_norm > 500], na.rm = TRUE),
+      target_baseline = sum(correct[t_norm < baseline_cutoff], na.rm = TRUE),
+      distractor = sum(!correct[t_norm > 500], na.rm = TRUE),
+      distractor_baseline = sum(!correct[t_norm < baseline_cutoff], na.rm = TRUE),
+      elogit_baseline = log((target_baseline + .5) /
+        (distractor_baseline + .5)),
+      elogit = log((target + .5) /
+        (distractor + .5)),
+      elogit_bc = elogit - elogit_baseline,
+      baseline_cutoff = baseline_cutoff,
+      .groups = "drop"
+    ) |>
     filter(!is.na(accuracy), !is.na(bc_accuracy), !is.na(elogit), !is.na(elogit_bc))
 }) |> list_rbind()
 ```
 
 ```{r eval=F}
 iccs_cutoffs <- d_summary_cutoffs |>
-  group_by(dataset_name, baseline_cutoff) |> 
+  group_by(dataset_name, baseline_cutoff) |>
   nest() |>
-  mutate(icc_stimulus_acc = unlist(map(data, ~get_icc(.x, 
-                                                      column = "accuracy",
-                                                      object = "stimulus"))),
-         icc_admin_acc = unlist(map(data, ~get_icc(.x, 
-                                                   column = "accuracy",
-                                                   object = "administration"))),
-         icc_stimulus_bc = unlist(map(data, ~get_icc(.x, 
-                                                     column = "bc_accuracy",
-                                                     object = "stimulus"))),
-         icc_admin_bc = unlist(map(data, ~get_icc(.x, 
-                                                  column = "bc_accuracy",
-                                                  object = "administration"))),
-         icc_stimulus_elogit = unlist(map(data, ~get_icc(.x, 
-                                                         column = "elogit",
-                                                         object = "stimulus"))),
-         icc_admin_elogit = unlist(map(data, ~get_icc(.x, 
-                                                      column = "elogit",
-                                                      object = "administration"))),
-         icc_stimulus_elogitbc = unlist(map(data, ~get_icc(.x, 
-                                                           column = "elogit_bc",
-                                                           object = "stimulus"))),
-         icc_admin_elogitbc = unlist(map(data, ~get_icc(.x, 
-                                                        column = "elogit_bc",
-                                                        object = "administration")))) |>
+  mutate(
+    icc_stimulus_acc = unlist(map(data, ~ get_icc(.x,
+      column = "accuracy",
+      object = "stimulus"
+    ))),
+    icc_admin_acc = unlist(map(data, ~ get_icc(.x,
+      column = "accuracy",
+      object = "administration"
+    ))),
+    icc_stimulus_bc = unlist(map(data, ~ get_icc(.x,
+      column = "bc_accuracy",
+      object = "stimulus"
+    ))),
+    icc_admin_bc = unlist(map(data, ~ get_icc(.x,
+      column = "bc_accuracy",
+      object = "administration"
+    ))),
+    icc_stimulus_elogit = unlist(map(data, ~ get_icc(.x,
+      column = "elogit",
+      object = "stimulus"
+    ))),
+    icc_admin_elogit = unlist(map(data, ~ get_icc(.x,
+      column = "elogit",
+      object = "administration"
+    ))),
+    icc_stimulus_elogitbc = unlist(map(data, ~ get_icc(.x,
+      column = "elogit_bc",
+      object = "stimulus"
+    ))),
+    icc_admin_elogitbc = unlist(map(data, ~ get_icc(.x,
+      column = "elogit_bc",
+      object = "administration"
+    )))
+  ) |>
   select(-data) |>
   unnest(cols = c())
 
@@ -219,36 +389,46 @@ saveRDS(iccs_cutoffs, here("cached_intermediates", "7_iccs_cutoffs.Rds"))
 iccs_cutoffs <- readRDS(here("cached_intermediates", "7_iccs_cutoffs.Rds"))
 
 iccs_long_cutoffs <- iccs_cutoffs |>
-  pivot_longer(-c(dataset_name, baseline_cutoff), 
-               names_to = "measure", values_to = "icc") |>
-  separate_wider_delim(measure, delim = "_", 
-                       names = c("extra", "dimension", "measure")) |>
-  select(-extra) |> 
+  pivot_longer(-c(dataset_name, baseline_cutoff),
+    names_to = "measure", values_to = "icc"
+  ) |>
+  separate_wider_delim(measure,
+    delim = "_",
+    names = c("extra", "dimension", "measure")
+  ) |>
+  select(-extra) |>
   mutate(measure = case_when(
     measure == "acc" ~ "accuracy_raw",
     measure == "bc" ~ "accuracy_bc",
     measure == "elogit" ~ "elogit_raw",
     measure == "elogitbc" ~ "elogit_bc"
-  )) |> 
-  separate_wider_delim(measure, delim = "_",
-                       names = c("measure", "correction"))
+  )) |>
+  separate_wider_delim(measure,
+    delim = "_",
+    names = c("measure", "correction")
+  )
 
-iccs_long_cutoffs |> 
-  ggplot(aes(x = baseline_cutoff, y = icc, 
-             group = interaction(dataset_name, measure, correction), 
-             col = measure, lty = correction, shape = correction)) +
+iccs_long_cutoffs |>
+  ggplot(aes(
+    x = baseline_cutoff, y = icc,
+    group = interaction(dataset_name, measure, correction),
+    col = measure, lty = correction, shape = correction
+  )) +
   geom_line(alpha = .3) +
   geom_vline(xintercept = 0) +
   stat_summary(aes(group = interaction(measure, correction)),
-               lty = "solid") +
+    lty = "solid"
+  ) +
   facet_wrap(~dimension) +
-  ylim(0,1) +
+  ylim(0, 1) +
   scale_shape_manual(values = c(1, 16)) +
-  labs(x = "Baseline window cutoff (ms)",
-       y = "ICC",
-       col = "Measure",
-       lty = "Baseline correction",
-       shape = "Baseline correction") +
+  labs(
+    x = "Baseline window cutoff (ms)",
+    y = "ICC",
+    col = "Measure",
+    lty = "Baseline correction",
+    shape = "Baseline correction"
+  ) +
   theme(legend.position = "bottom")
 ```
 

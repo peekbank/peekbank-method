@@ -18,6 +18,8 @@ d_aoi <- readRDS(here("cached_intermediates", "1_d_aoi.Rds"))
 
 Create d_trial_summary dataframe which contains pre_accuracy and post_accuracy grouped by: dataset_id, dataset_name, administration_id, trial_id, trial_order, age, target_id, target_label, distractor_label.
 
+Note that some datasets have different exemplars of the same labels which should probably (?) be treated as separate, but we don't have distractor id joined on d_aoi here
+
 ```{r}
 d_trial_summary <- d_aoi %>%
   group_by(
@@ -101,6 +103,15 @@ so, there's both looking at what the looking trajectories are (which people have
 and could also look at the effects on acc / RT / not having RT etc (from other processed data)
 
 are there datasets where the second time a stimulus pair is shown, either target is same or target is different for the same pair? 
+
+also a question of whether *exact* stimulus pair matters (same pictures), or whether this also occurs with different exemplars (hypothesis is that it would only happen for exact stimulus, but we have the data to check)
+
+for the purpose of methods paper mostly want to check how RT and accuracy vary across 
+* trial_num 
+* repeated stim (x target)
+because if they don't show effects on those measures, it's less of a concern. 
+
+separately, pre-looking one sided would especially cause issues for baseline correction when there is counterbalancing
 
 # 2. Repetitions classification
 
@@ -203,6 +214,55 @@ repetitions_data_long_summary %>%
   ) +
   coord_flip()
 ```
+
+# Check accuracy and RT
+
+```{r}
+repetitions_data_long |>
+  filter(!dataset_name %in% bad_n_datasets) %>% # filtering datasets. |>
+  group_by(dataset_name, type_of_instance, administration_id) |>
+  filter(Time == "post_accuracy") |>
+  summarize(mean_acc = mean(Accuracy, na.rm = T)) |>
+  ggplot(aes(x = type_of_instance, y = mean_acc, col = dataset_name)) +
+  stat_summary(fun.data = "mean_cl_boot", position = position_dodge(width = .5))
+```
+there might be something here -- we can't really tell and it could be ordering effects if it's not_repeated versus the other two, but there are datasets where it could matter (and thus be worth investigating further for methods paper)
+
+```{r}
+rt <- readRDS(here("cached_intermediates", "4_rt_canonical.rds"))
+
+repetitions_data |>
+  filter(!dataset_name %in% bad_n_datasets) |>
+  left_join(rt |> filter(shift_type == "D-T")) |>
+  group_by(dataset_name, type_of_instance, administration_id) |>
+  summarize(mean_rt = mean(rt, na.rm = T)) |>
+  ggplot(aes(x = type_of_instance, y = mean_rt, col = dataset_name)) +
+  stat_summary(fun.data = "mean_cl_boot", position = position_dodge(width = .5))
+```
+again, could be sparsity, could be trial order, but seems like there might be something 
+
+is there an effect of trial order within these categories?
+
+```{r}
+repetitions_data |>
+  filter(!dataset_name %in% bad_n_datasets) |>
+  left_join(rt |> filter(shift_type == "D-T")) |>
+  group_by(dataset_name, type_of_instance, administration_id) |>
+  ggplot(aes(x = trial_order, y = rt, col = dataset_name)) +
+  geom_smooth(method = "lm") +
+  facet_wrap(~type_of_instance)
+
+repetitions_data |>
+  filter(!dataset_name %in% bad_n_datasets) %>% # filtering datasets. |>
+  group_by(dataset_name, type_of_instance, administration_id) |>
+  ggplot(aes(x = trial_order, y = post_accuracy, col = dataset_name)) +
+  geom_smooth(method = "lm") +
+  facet_wrap(~type_of_instance)
+```
+so, there's a possibility of trial order effects (of unknown size and direction), so we can't really rule out dealing with combinations of that and familiarity effects. 
+
+if we think trial order might matter with need to get distractor id
+
 # 4. Timecourse plots
 
 Data cleaning (sort of...)
@@ -210,7 +270,6 @@ Data cleaning (sort of...)
 ```{r}
 rep_timecourse <- d_aoi %>%
   filter(!dataset_name %in% bad_n_datasets) %>% # filtering datasets.
-
   left_join(repetitions_data) %>%
   filter(!is.na(type_of_instance))
 ```
