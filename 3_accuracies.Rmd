@@ -7,8 +7,8 @@ output: html_document
 
 ```{r}
 source(here::here("helper/common.R"))
-library(tictoc)
 
+d_aoi <- readRDS(here("cached_intermediates", "1_d_aoi.Rds"))
 t_increment <- 200
 ```
 # Cached icc runs
@@ -22,7 +22,9 @@ icc_window_sim <- function(t_start = -500, t_end = 4000, object) {
     summarise(
       accuracy = mean(correct, na.rm = TRUE),
       prop_data = mean(!is.na(correct))
-    )
+    ) |>
+    group_by(dataset_name, dataset_id, administration_id, target_label) |>
+    mutate(repetition = row_number())
 
   # compute ICCs
   df |>
@@ -38,7 +40,7 @@ icc_window_sim <- function(t_start = -500, t_end = 4000, object) {
 acc_params <- expand_grid(
   t_start = seq(-1000, 1500, t_increment),
   t_end = seq(2000, 4000, t_increment),
-  object = c("stimulus", "administration")
+  object = c("administration")
 )
 
 # multidyplr attempt
@@ -51,13 +53,13 @@ cluster_copy(cluster, "d_aoi")
 
 tic()
 accs <- acc_params |>
-  partition(cluster) |>
+  # partition(cluster) |>
   mutate(icc = pmap(list(t_start, t_end, object), icc_window_sim)) |>
-  collect() |>
+  # collect() |>
   unnest(col = icc)
 toc()
 
-writeRDS(file = here("cached_intermediates", "3_accs.Rds"), accs)
+saveRDS(accs, here("cached_intermediates", "3_accs.Rds"))
 ```
 
 # Reliability
@@ -65,7 +67,7 @@ writeRDS(file = here("cached_intermediates", "3_accs.Rds"), accs)
 These simulations use ICCs as a way to understand how we summarize accuracy data. In particular, we're going to look at how ICCs change as a function of window size. 
 
 ```{r}
-load(file = "cached_intermediates/3_accs.Rds")
+accs <- readRDS(here("cached_intermediates/3_accs.Rds"))
 ```
 
 Looks like for stimulus and administration you get consistent but modest gains if you take the longest window. BUT for stimuli, the early part of the trial adds reliability (probably because of bias due to stimulus-level preferences?). In contrast, for administrations, the early part of the trial is less informative. 500ms seems like a pretty good compromise. 
@@ -78,6 +80,7 @@ Summary data frame.
 
 ```{r}
 accs_summary <- accs |>
+  filter(object == "administration") |>
   group_by(t_start, t_end, object) |>
   summarize(
     N = n(),
@@ -95,8 +98,7 @@ ggplot(accs_summary, aes(x = t_start, y = t_end, fill = mean_icc)) +
   scale_fill_viridis(name = "Mean ICC", option = "inferno") +
   scale_x_continuous(breaks = c(-1000, -500, 0, 500, 1000, 1500)) +
   xlab("Window Start Time (in ms)") +
-  ylab("Window End Time (in ms)") +
-  facet_wrap(~object)
+  ylab("Window End Time (in ms)")
 ```
 
 Window-by-window. 
@@ -114,13 +116,12 @@ ggplot(
   scale_color_viridis(name = "Mean ICC", direction = -1) +
   theme(legend.position = "none") +
   ylab("Mean ICC") +
-  xlab("Analysis Window (in ms)") +
-  facet_wrap(~object)
+  xlab("Analysis Window (in ms)")
 ```
 
 
 
-# Window size by age
+# Window size by age (redo)
 
 Let's do one more simulation where we check if this result holds across two ages. We'll break down age into > 24 months and < 24 months, which roughly splits the dataset. There are `r  length(unique(d_aoi$administration_id[d_aoi$age < 24]))` younger kids and `r length(unique(d_aoi$administration_id[d_aoi$age >= 24]))` older kids. 
 
@@ -196,171 +197,56 @@ ggplot(
   facet_grid(age ~ object)
 ```
 # Fine grained reliability
-
-looks like long window is best, but when exactly is the best start point?
-
 ```{r}
-d_aoi <- readRDS(here("cached_intermediates", "1_d_aoi.Rds"))
-icc_window_sim_age <- function(t_start = -1000, t_end = 4000, object) {
-  df <- d_aoi |>
-    mutate(younger = age < 24) |>
-    filter(t_norm > t_start, t_norm < t_end) |>
-    group_by(
-      dataset_name, dataset_id, younger, administration_id,
-      target_label, trial_id
-    ) |>
-    summarise(
-      accuracy = mean(correct, na.rm = TRUE),
-      prop_data = mean(!is.na(correct))
-    )
-
-  # compute ICCs
-  df |>
-    group_by(dataset_name, younger) |>
-    nest() |>
-    mutate(icc = unlist(map(data, ~ get_icc(., "accuracy", object)))) |>
-    select(-data) |>
-    unnest(cols = c())
-}
-
+# ran on cluster
 acc_params <- expand_grid(
-  t_start = seq(250, 500, 25),
+  t_start = c(200, 250, 300, 350, 400, 450, 500, 550, 600),
   t_end = 4000,
   object = c("administration")
 )
+library(multidplyr)
+# multidyplr attempt
+cluster <- new_cluster(14)
+cluster_library(cluster, "dplyr")
+cluster_library(cluster, "tidyr")
+cluster_library(cluster, "purrr")
+cluster_library(cluster, "agreement")
+cluster_copy(cluster, "icc_window_sim")
+cluster_copy(cluster, "get_icc")
+cluster_copy(cluster, "d_aoi")
 
 
-
-tic()
 accs <- acc_params |>
-  mutate(icc = pmap(list(t_start, t_end, object), icc_window_sim_age)) |>
+  partition(cluster) |>
+  mutate(icc = pmap(list(t_start, t_end, object), icc_window_sim)) |>
+  collect() |>
   unnest(col = icc)
-toc()
 
-saveRDS(accs, here("cached_intermediates", "2_iccs_narrow.Rds"))
+
+saveRDS(accs, here("cached_intermediates", "3_acc_icc_finegrain.rds"))
 ```
 
 ## Visualizations
 
 Now plot. 
 
-```{r}
-accs_byage <- readRDS(here("cached_intermediates", "2_iccs_narrow.Rds"))
-accs_byage_summary <- accs_byage |>
-  group_by(younger, t_start, t_end, object) |>
-  summarize(
-    N = n(),
-    mean_icc = mean(icc, na.rm = TRUE)
-  ) |>
-  mutate(window_size = t_end - t_start) |>
-  mutate(age = ifelse(younger, ">=24 months", "<24 months"))
-
-accs_byage_summary |>
-  arrange(desc(mean_icc)) |>
-  knitr::kable()
-```
-My bet is that these ICC differences mostly don't matter;  we're probably seeing that anything starting in the 350-500 range is fine. (also orderings for younger and older kids are remarkably similar, even as their overall iccs are different, probably from different datasets)
-
-
-
-# (Old -- to update) Validity via experimental effect
-
-We're going to use the size and significance of the Swingley & Aslin (2002) mispronunciation effect as our simulation target instead of ICCs. 
-
-This is with younger kids. 
-
-We have to reload data because our working dataframe is only "vanilla" familiar word trials. 
-
+Not sure what was wrong with reflook and yurovsky?
 
 ```{r}
-library(peekbankr)
-subjects <- get_subjects()
-sa_administrations <- get_administrations(dataset_name = "swingley_aslin_2002")
-sa_trial_types <- get_trial_types(dataset_name = "swingley_aslin_2002")
-sa_trials <- get_trials(dataset_name = "swingley_aslin_2002")
-sa_aoi_timepoints <- get_aoi_timepoints(dataset_name = "swingley_aslin_2002")
+accs_finegrain <- readRDS(here("cached_intermediates", "3_acc_icc_finegrain.rds"))
 
-sa_data <- sa_aoi_timepoints |>
-  left_join(sa_administrations) |>
-  left_join(sa_trials) |>
-  left_join(sa_trial_types) |>
-  left_join(subjects) |>
-  filter(condition != "filler") |>
-  mutate(condition = if_else(condition == "cp", "Correct", "Mispronounced"))
+
+
+accs_finegrain |> ggplot(aes(x = t_start, y = icc)) +
+  geom_point(aes(col = dataset_name)) +
+  stat_summary()
+
+accs_finegrain |> ggplot(aes(x = t_start, y = icc)) +
+  geom_point(aes(col = dataset_name)) +
+  facet_wrap(~dataset_name) +
+  theme(legend.position = "none")
 ```
-visualize the curves:
-
-```{r}
-correct_accuracy <- sa_data |>
-  group_by(t_norm, condition) |>
-  summarise(correct = sum(aoi == "target") /
-    sum(aoi %in% c("target", "distractor")))
-
-ggplot(correct_accuracy, aes(x = t_norm, y = correct, col = condition)) +
-  geom_point() +
-  geom_smooth() +
-  geom_hline(yintercept = .5, lty = 2, col = "black")
-```
-
-
-```{r }
-sa_sim <- function(t_start = -500, t_end = 4000) {
-  by_subject_accuracies <- sa_data |>
-    filter(t_norm >= t_start, t_norm <= t_end) |>
-    group_by(condition, t_norm, administration_id) |>
-    summarize(correct = sum(aoi == "target") /
-      sum(aoi %in% c("target", "distractor")))
-
-  mean_accuracies <- by_subject_accuracies |>
-    group_by(administration_id, condition) |>
-    summarize(mean_correct = mean(correct)) |>
-    group_by(administration_id) |>
-    summarise(diff = mean_correct[condition == "Correct"] -
-      mean_correct[condition == "Mispronounced"])
-
-  tibble(
-    acc_diff = mean(mean_accuracies$diff),
-    p_val = t.test(mean_accuracies$diff)$p.value
-  )
-}
-```
-
-```{r}
-sa_acc_params <- expand_grid(
-  t_start = seq(-1000, 1500, 100),
-  t_end = seq(2000, 3000, 100)
-)
-tic()
-sa_accs <- sa_acc_params |>
-  # partition(cluster) |>
-  mutate(icc = pmap(list(t_start, t_end), sa_sim)) |>
-  # collect() |>
-  unnest(col = icc)
-toc()
-
-save(file = "cached_intermediates/3_accs_sa.Rds", sa_accs)
-```
-Visualize.
-
-```{r}
-load(file = "cached_intermediates/3_accs_sa.Rds")
-
-ggplot(sa_accs, aes(col = p_val)) +
-  geom_vline(xintercept = 0, linetype = "dashed") +
-  geom_hline(yintercept = 0.05, lty = 3) +
-  geom_segment(aes(x = t_start, xend = t_end, y = p_val, yend = p_val)) +
-  # geom_segment(aes(x=t_start,xend=t_start,y=mean_icc-0.005,yend=mean_icc+0.005))+
-  # geom_segment(aes(x=t_end,xend=t_end,y=mean_icc-0.005,yend=mean_icc+0.005))+
-  scale_color_viridis(name = "Mean ICC", direction = -1) +
-  scale_y_log10() +
-  theme(legend.position = "none") +
-  ylab("Log p-value on key test") +
-  xlab("Analysis Window (in ms)")
-```
-
-Conclusion: if you cherry pick the window that has the biggest difference, you will get the lowest p-value. We should have known that before the simulation. 
-
-So really the question is when this window is, A PRIORI. Because of course the issue is that this analysis has a horrible false positive problem. Hence permutation-based analyses. 
+trends vary and we can't really tell!
 
 
 # Validity via MB-CDI
@@ -417,45 +303,20 @@ cdi_corrs <- cdi_params |>
   unnest(col = icc)
 toc()
 
-save(file = here("cached_intermediates", "3_cdi_corrs.Rds"), cdi_corrs)
+saveRDS(cdi_corrs, here("cached_intermediates", "3_cdi_corrs.Rds"))
 ```
 
 ```{r}
-load(file = here("cached_intermediates", "3_cdi_corrs.Rds"))
+cdi_corrs <- readRDS(here("cached_intermediates", "3_cdi_corrs.Rds"))
+
 
 cdi_corrs_long <- cdi_corrs |>
   pivot_longer(names_to = "measure", values_to = "r", starts_with("cor"))
 ```
 
-```{r}
-cdi_corrs_long |>
-  filter(!is.na(r)) |>
-  filter(measure == "cor_prod") |>
-  arrange(desc(r)) |>
-  group_by(dataset_name) |>
-  slice(1)
-```
 
 Visualize!
 
-
-```{r}
-ggplot(
-  filter(cdi_corrs_long, !is.na(r), dataset_name == "adams_marchman_2018"),
-  aes(col = r)
-) +
-  geom_vline(xintercept = 0, linetype = "dashed") +
-  geom_hline(yintercept = 0.05, lty = 3) +
-  geom_segment(aes(x = t_start, xend = t_end, y = r, yend = r)) +
-  # geom_segment(aes(x=t_start,xend=t_start,y=mean_icc-0.005,yend=mean_icc+0.005))+
-  # geom_segment(aes(x=t_end,xend=t_end,y=mean_icc-0.005,yend=mean_icc+0.005))+
-  scale_color_viridis(name = "Mean ICC", direction = -1) +
-  # scale_y_log10() +
-  theme(legend.position = "none") +
-  ylab("Correlation with MB-CDI sumscore") +
-  xlab("Analysis Window (in ms)") +
-  facet_grid(. ~ measure)
-```
 
 ```{r}
 ggplot(
@@ -559,11 +420,12 @@ cdi_corrs_alldata <- cdi_params |>
   unnest(col = icc)
 toc()
 
-save(file = here("cached_intermediates", "3_cdi_corrs_alldata.Rds"), cdi_corrs_alldata)
+
+saveRDS(cdi_corrs_alldata, here("cached_intermediates", "3_cdi_corrs_alldata.Rds"))
 ```
 
 ```{r}
-load(file = here("cached_intermediates", "3_cdi_corrs_alldata.Rds"))
+cdi_corrs_alldata <- readRDS(here("cached_intermediates", "3_cdi_corrs_alldata.Rds"))
 
 ggplot(cdi_corrs_alldata, aes(col = cor_prod)) +
   geom_vline(xintercept = 0, linetype = "dashed") +
@@ -586,227 +448,10 @@ ggplot(cdi_corrs_alldata, aes(col = cor_comp)) +
   xlab("Analysis Window (in ms)") +
   ggtitle("Accuracy/CDI comprehension correlation across all datasets")
 ```
+
 on a per-dataset level, it's noisy, but at least across all the datasets, there's not much signal from comp -- the correlations are all pretty clustered (and correlations aren't high -- is this a bunch of little kids?). But given that even though numerically some short windows are best 500-4000 isn't actually much lower (so presumably within measurement error). 
 
 For production, long window (going to 3000+ seems to be important)
-
-# (to update/revisit) Baseline-corrected accuracy
-
-## ICC approach
-
-```{r}
-icc_bc_window_sim <- function(b_start = -2000, b_end = 0,
-                              t_start = 500, t_end = 4000,
-                              object) {
-  # get trials with some baseline
-  baseline_lengths <- d_aoi |>
-    group_by(dataset_name, trial_id) |>
-    summarise(t_min = min(t_norm))
-
-  # get baseline corrected accuracies for all trials with ANY baseline info
-  df <- d_aoi |>
-    left_join(baseline_lengths) |>
-    filter(t_min < 0) |>
-    group_by(dataset_name, dataset_id, administration_id, target_label, trial_id) |>
-    summarise(
-      window_accuracy = mean(correct[t_norm >= t_start & t_norm <= t_end],
-        na.rm = TRUE
-      ),
-      baseline_accuracy = mean(correct[t_norm >= b_start & t_norm <= b_end],
-        na.rm = TRUE
-      ),
-      bc_accuracy = window_accuracy - baseline_accuracy
-    ) |>
-    filter(!is.na(bc_accuracy))
-
-  # compute ICCs
-  df |>
-    group_by(dataset_name) |>
-    nest() |>
-    mutate(icc = unlist(map(data, ~ get_icc(., "bc_accuracy", object)))) |>
-    select(-data) |>
-    unnest(cols = c())
-}
-```
-
-```{r}
-bc_acc_params <- expand_grid(
-  t_start = seq(500, 1500, 500),
-  t_end = seq(2000, 4000, 500),
-  b_start = seq(-2000, -1000, 500),
-  b_end = seq(-500, 0, 500),
-  object = c("stimulus", "administration")
-)
-
-# multidyplr attempt
-cluster <- new_cluster(14)
-cluster_library(cluster, "tidyverse")
-cluster_library(cluster, "agreement")
-cluster_copy(cluster, "icc_bc_window_sim")
-cluster_copy(cluster, "get_icc")
-cluster_copy(cluster, "d_aoi")
-
-tic()
-bc_accs <- bc_acc_params |>
-  partition(cluster) |>
-  mutate(icc = pmap(list(b_start, b_end, t_start, t_end, object), icc_bc_window_sim)) |>
-  collect() |>
-  unnest(col = icc)
-toc()
-
-save(file = "cached_intermediates/3_bc_accs.Rds", bc_accs)
-```
-
-```{r}
-load(file = "cached_intermediates/3_bc_accs.Rds")
-```
-
-Summary data frame. 
-
-```{r}
-bc_accs_summary <- bc_accs |>
-  group_by(b_start, b_end, t_start, t_end, object) |>
-  summarize(
-    N = n(),
-    mean_icc = mean(icc, na.rm = TRUE)
-  ) |>
-  mutate(
-    window_size = t_end - t_start,
-    bc_window_size = b_end - b_start
-  )
-```
-
-
-```{r}
-ggplot(
-  bc_accs_summary,
-  aes(color = mean_icc)
-) +
-  geom_vline(xintercept = 0, linetype = "dashed") +
-  geom_segment(aes(x = t_start, xend = t_end, y = mean_icc, yend = mean_icc)) +
-  geom_segment(aes(x = t_start, xend = t_start, y = mean_icc - 0.005, yend = mean_icc + 0.005)) +
-  geom_segment(aes(x = t_end, xend = t_end, y = mean_icc - 0.005, yend = mean_icc + 0.005)) +
-  scale_color_viridis(name = "Mean ICC", direction = -1) +
-  theme(legend.position = "none") +
-  ylab("Mean ICC") +
-  xlab("Analysis Window (in ms)") +
-  facet_grid(bc_window_size ~ object)
-```
-These numbers seem low. 
-
-Compare to non-corrected accuracies. 
-
-```{r}
-load(file = "cached_intermediates/3_accs.Rds")
-
-accs_summary <- accs |>
-  group_by(t_start, t_end, object) |>
-  summarize(mean_uncorrected_icc = mean(icc, na.rm = TRUE))
-
-comparison_accs_summary <- left_join(bc_accs_summary, accs_summary)
-```
-
-```{r}
-ggplot(comparison_accs_summary, aes(x = mean_uncorrected_icc, y = mean_icc, col = window_size)) +
-  geom_point() +
-  geom_smooth(method = "lm") +
-  geom_abline(lty = 2) +
-  # xlim(0,.6) + ylim(0,.6) +
-  facet_grid(bc_window_size ~ object)
-```
-Possible interpretation (pace Dan Swingley): baselines are short and noisy. By adding them into the signal, you are diluting what you have. 
-
-Note that we don't have a lot of baseline data here (no more than 2s) so we can't rule out the idea that a longer (4s or so) baseline would be meaningful or useful in a correction analysis. But even with 2s we see substantial reductions in ICC. 
-
-## CDI validity with baseline correction
-
-```{r}
-cdi_bc_sim <- function(t_start = 500, t_end = 4000) {
-  # get trials with some baseline
-  baseline_lengths <- vanilla_cdi_datasets |>
-    group_by(dataset_name, trial_id) |>
-    summarise(t_min = min(t_norm))
-
-  # get baseline corrected accuracies for all trials with ANY baseline info
-  by_subject_accuracies <- vanilla_cdi_datasets |>
-    left_join(baseline_lengths) |>
-    filter(t_min < 0) |>
-    group_by(dataset_name, lab_subject_id, trial_id) |>
-    summarize(
-      window_accuracy = mean(correct[t_norm >= t_start & t_norm <= t_end],
-        na.rm = TRUE
-      ),
-      baseline_accuracy = mean(correct[t_norm >= -2000 & t_norm <= 0],
-        na.rm = TRUE
-      ),
-      bc_accuracy = window_accuracy - baseline_accuracy
-    )
-
-  mean_accuracies <- by_subject_accuracies |>
-    group_by(dataset_name, lab_subject_id) |>
-    summarize(bc_accuracy = mean(bc_accuracy)) |>
-    left_join(cdis)
-
-  mean_accuracies |>
-    group_by(dataset_name) |>
-    summarise(
-      cor_comp = cor.test(bc_accuracy, eng_wg_understood)$estimate,
-      cor_prod = cor.test(bc_accuracy, eng_wg_produced)$estimate
-    )
-}
-```
-
-```{r}
-cdi_params <- expand_grid(
-  t_start = seq(500, 1500, 500),
-  t_end = seq(2000, 4000, 500)
-)
-tic()
-cdi_bc_corrs <- cdi_params |>
-  mutate(icc = pmap(list(t_start, t_end), cdi_bc_sim)) |>
-  unnest(col = icc)
-toc()
-
-cdi_bc_corrs <- cdi_bc_corrs |>
-  pivot_longer(names_to = "measure", values_to = "r", starts_with("cor"))
-```
-
-Visualize!
-
-
-```{r}
-ggplot(cdi_bc_corrs, aes(col = r)) +
-  geom_vline(xintercept = 0, linetype = "dashed") +
-  geom_hline(yintercept = 0.05, lty = 3) +
-  geom_segment(aes(x = t_start, xend = t_end, y = r, yend = r)) +
-  # geom_segment(aes(x=t_start,xend=t_start,y=mean_icc-0.005,yend=mean_icc+0.005))+
-  # geom_segment(aes(x=t_end,xend=t_end,y=mean_icc-0.005,yend=mean_icc+0.005))+
-  scale_color_viridis(name = "Mean ICC", direction = -1) +
-  # scale_y_log10() +
-  theme(legend.position = "none") +
-  ylab("Correlation with MB-CDI sumscore") +
-  xlab("Analysis Window (in ms)") +
-  facet_grid(dataset_name ~ measure)
-```
-
-Compare to uncorrected. 
-
-```{r}
-cdi_comparison <- left_join(
-  rename(cdi_bc_corrs, r_baseline_corrected = r),
-  rename(cdi_corrs, r_uncorrected = r)
-) |>
-  mutate(window_size = t_end - t_start)
-
-ggplot(cdi_comparison, aes(x = r_uncorrected, y = r_baseline_corrected, col = window_size)) +
-  geom_point() +
-  geom_smooth(method = "lm") +
-  geom_abline(lty = 2) +
-  facet_wrap(~dataset_name)
-```
-
-This is overall surprising. For Swingley & Aslin, baseline correction makes things look way worse. But for Garrison & Bergelson, it seems like baseline correction helps. 
-
 
 # Summary
 
@@ -816,4 +461,104 @@ This is overall surprising. For Swingley & Aslin, baseline correction makes thin
 * For correlations with CDI, it looks like shorter more traditional windows are more correlated (at least for the youngest kids). 
 
 So longer windows apparently index information about the child beyond what's captured by parent report. This could be language-related but not captured by CDIs - for example, late emerging or more fragmentary word knowledge, or it could be something like attention or memory or sticky fixation. Some users might want to get this information, while others might not. 
+
+
+# (Old -- to update) Validity via experimental effect
+
+We're going to use the size and significance of the Swingley & Aslin (2002) mispronunciation effect as our simulation target instead of ICCs. 
+
+This is with younger kids. 
+
+We have to reload data because our working dataframe is only "vanilla" familiar word trials. 
+
+
+```{r}
+library(peekbankr)
+subjects <- get_subjects()
+sa_administrations <- get_administrations(dataset_name = "swingley_aslin_2002")
+sa_trial_types <- get_trial_types(dataset_name = "swingley_aslin_2002")
+sa_trials <- get_trials(dataset_name = "swingley_aslin_2002")
+sa_aoi_timepoints <- get_aoi_timepoints(dataset_name = "swingley_aslin_2002")
+
+sa_data <- sa_aoi_timepoints |>
+  left_join(sa_administrations) |>
+  left_join(sa_trials) |>
+  left_join(sa_trial_types) |>
+  left_join(subjects) |>
+  filter(condition != "filler") |>
+  mutate(condition = if_else(condition == "cp", "Correct", "Mispronounced"))
+```
+visualize the curves:
+
+```{r}
+correct_accuracy <- sa_data |>
+  group_by(t_norm, condition) |>
+  summarise(correct = sum(aoi == "target") /
+    sum(aoi %in% c("target", "distractor")))
+
+ggplot(correct_accuracy, aes(x = t_norm, y = correct, col = condition)) +
+  geom_point() +
+  geom_smooth() +
+  geom_hline(yintercept = .5, lty = 2, col = "black")
+```
+
+
+```{r }
+sa_sim <- function(t_start = -500, t_end = 4000) {
+  by_subject_accuracies <- sa_data |>
+    filter(t_norm >= t_start, t_norm <= t_end) |>
+    group_by(condition, t_norm, administration_id) |>
+    summarize(correct = sum(aoi == "target") /
+      sum(aoi %in% c("target", "distractor")))
+
+  mean_accuracies <- by_subject_accuracies |>
+    group_by(administration_id, condition) |>
+    summarize(mean_correct = mean(correct)) |>
+    group_by(administration_id) |>
+    summarise(diff = mean_correct[condition == "Correct"] -
+      mean_correct[condition == "Mispronounced"])
+
+  tibble(
+    acc_diff = mean(mean_accuracies$diff),
+    p_val = t.test(mean_accuracies$diff)$p.value
+  )
+}
+```
+
+```{r}
+sa_acc_params <- expand_grid(
+  t_start = seq(-1000, 1500, 100),
+  t_end = seq(2000, 3000, 100)
+)
+tic()
+sa_accs <- sa_acc_params |>
+  # partition(cluster) |>
+  mutate(icc = pmap(list(t_start, t_end), sa_sim)) |>
+  # collect() |>
+  unnest(col = icc)
+toc()
+
+save(file = "cached_intermediates/3_accs_sa.Rds", sa_accs)
+```
+Visualize.
+
+```{r}
+load(file = "cached_intermediates/3_accs_sa.Rds")
+
+ggplot(sa_accs, aes(col = p_val)) +
+  geom_vline(xintercept = 0, linetype = "dashed") +
+  geom_hline(yintercept = 0.05, lty = 3) +
+  geom_segment(aes(x = t_start, xend = t_end, y = p_val, yend = p_val)) +
+  # geom_segment(aes(x=t_start,xend=t_start,y=mean_icc-0.005,yend=mean_icc+0.005))+
+  # geom_segment(aes(x=t_end,xend=t_end,y=mean_icc-0.005,yend=mean_icc+0.005))+
+  scale_color_viridis(name = "Mean ICC", direction = -1) +
+  scale_y_log10() +
+  theme(legend.position = "none") +
+  ylab("Log p-value on key test") +
+  xlab("Analysis Window (in ms)")
+```
+
+Conclusion: if you cherry pick the window that has the biggest difference, you will get the lowest p-value. We should have known that before the simulation. 
+
+So really the question is when this window is, A PRIORI. Because of course the issue is that this analysis has a horrible false positive problem. Hence permutation-based analyses. 
 

@@ -20,6 +20,18 @@ d_aoi <- readRDS(here("cached_intermediates", "1_d_aoi.Rds"))
 source("helper/rt_helper.R")
 ```
 
+```{r}
+foo <- readRDS(here("cluster/rts.rds")) |>
+  filter(shift_type == "D-T") |>
+  filter(dataset_name == "adams_marchman_2018") |>
+  group_by(dataset_name, time_0, window, time_end, during, frac) |>
+  nest()
+
+test <- foo$data[[1]]
+
+test |> select(administration_id, trial_id, target_label)
+```
+
 ## Prep
 looking at
 * the 3 options for RT = the first time you leave, the last time you leave before landing, when you land

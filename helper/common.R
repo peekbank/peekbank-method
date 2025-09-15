@@ -32,7 +32,7 @@ get_icc <- function(x, column = "accuracy", object = "stimulus") {
       unit = "average",
       object = target_label,
       rater = administration_id,
-      trial = trial_id,
+      trial = repetition,
       score = {{ column }},
       bootstrap = 0
     )
@@ -43,7 +43,7 @@ get_icc <- function(x, column = "accuracy", object = "stimulus") {
       unit = "average",
       object = administration_id,
       rater = target_label,
-      trial = trial_id,
+      trial = repetition,
       score = {{ column }},
       bootstrap = 0
     )
