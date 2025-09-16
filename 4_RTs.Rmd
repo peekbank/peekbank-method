@@ -20,23 +20,13 @@ d_aoi <- readRDS(here("cached_intermediates", "1_d_aoi.Rds"))
 source("helper/rt_helper.R")
 ```
 
-```{r}
-foo <- readRDS(here("cluster/rts.rds")) |>
-  filter(shift_type == "D-T") |>
-  filter(dataset_name == "adams_marchman_2018") |>
-  group_by(dataset_name, time_0, window, time_end, during, frac) |>
-  nest()
-
-test <- foo$data[[1]]
-
-test |> select(administration_id, trial_id, target_label)
-```
 
 ## Prep
 looking at
 * the 3 options for RT = the first time you leave, the last time you leave before landing, when you land
 * raw v log RT
 * the option to trim for max shift length of 600ms either calculated from first leaving or final leaving
+
 
 ```{r}
 rle_data <- d_aoi %>%
@@ -50,82 +40,56 @@ rle_data <- d_aoi %>%
     values = rle(aoi)$values
   )
 
-
-grid_options_3 <- expand_grid(window = c(0), time_0 = c(F, T), time_end = F, during = T, frac = 0) |>
-  bind_rows(expand_grid(window = c(200, 300, 400, 500), time_0 = T, time_end = T, during = T, frac = 1)) |>
+grid_options <- expand_grid(
+  window = c(200, 250, 300, 350, 375, 400, 425, 450, 500, 600, 700, 800, 900, 1000),
+  time_0 = c(F, T), time_end = c(F, T), during = T, frac = c(0, .5, .75)
+) |>
   bind_rows(expand_grid(
-    window = c(250, 350, 450, 600, 700, 800, 900, 1000),
-    time_0 = T, time_end = T, during = T, frac = 0
+    window = c(0),
+    time_0 = c(F, T), time_end = c(F), during = T, frac = c(0)
+  )) |>
+  bind_rows(expand_grid(
+    window = c(200, 250, 300, 350, 375, 400, 425, 450, 500, 600, 700, 800, 900, 1000),
+    time_0 = c(T), time_end = c(T), during = T, frac = c(1)
   ))
 
-
-grid_options_1 <- expand_grid(window = c(400, 500), time_0 = c(T, F), time_end = c(T, F), during = T, frac = c(0, .5, .75))
-
-grid_options_2 <- expand_grid(window = c(200, 300), time_0 = c(T, F), time_end = c(T, F), during = T, frac = c(0, .5, .75))
-
-tic()
-rts_1 <- rle_data %>%
+rts <- rle_data %>%
   group_by(administration_id, trial_id, trial_order) %>%
   nest() |>
-  cross_join(grid_options_1) |>
+  cross_join(grid_options) |>
   mutate(rts = pmap(
     list(data, time_0, window, time_end, during, frac),
-    \(d, t0, w, te, dur, fr)
-    get_rt(d,
-      t_0 = t0, window_length = w,
-      t_end = te, window_mostly_region = dur, mostly_fraction = fr
-    )
+    \(d, t0, w, te, dur, fr){
+      print(window)
+      get_rt(d,
+        t_0 = t0, window_length = w,
+        t_end = te, window_mostly_region = dur, mostly_fraction = fr
+      )
+    }
   )) |>
   select(-data) |>
-  unnest(cols = c(rts))
-toc()
+  unnest(cols = c(rts)) |>
+  left_join(d_aoi %>%
+    select(administration_id, dataset_name, subject_id, trial_id, trial_order, target_label) %>%
+    distinct())
 
-saveRDS(rts_1, here("cached_intermediates", "4_rt_1.rds"))
-
-tic()
-rts_2 <- rle_data %>%
-  group_by(administration_id, trial_id, trial_order) %>%
-  nest() |>
-  cross_join(grid_options_2) |>
-  mutate(rts = pmap(
-    list(data, time_0, window, time_end, during, frac),
-    \(d, t0, w, te, dur, fr)
-    get_rt(d,
-      t_0 = t0, window_length = w,
-      t_end = te, window_mostly_region = dur, mostly_fraction = fr
-    )
-  )) |>
-  select(-data) |>
-  unnest(cols = c(rts))
-toc()
-
-saveRDS(rts_2, here("cached_intermediates", "4_rt_2.rds"))
-
-tic()
-rts_3 <- rle_data %>%
-  group_by(administration_id, trial_id, trial_order) %>%
-  nest() |>
-  cross_join(grid_options_3) |>
-  mutate(rts = pmap(
-    list(data, time_0, window, time_end, during, frac),
-    \(d, t0, w, te, dur, fr)
-    get_rt(d,
-      t_0 = t0, window_length = w,
-      t_end = te, window_mostly_region = dur, mostly_fraction = fr
-    )
-  )) |>
-  select(-data) |>
-  unnest(cols = c(rts))
-toc()
-
-saveRDS(rts_3, here("cached_intermediates", "4_rt_3.rds"))
+saveRDS(rts, here("cached_intermediates", "4_rts.rds"))
 ```
 
 ```{r}
-d_rt_1 <- readRDS(here("cached_intermediates", "4_rt_1.rds"))
+library(multidplyr)
 
+cluster <- new_cluster(8)
+cluster_library(cluster, "dplyr")
+cluster_library(cluster, "stringr")
+cluster_library(cluster, "purrr")
+cluster_library(cluster, "tidyr")
+cluster_library(cluster, "agreement")
+cluster_copy(cluster, "get_icc")
 
-d_rt_dt_1 <- d_rt_1 |>
+rts <- readRDS(here("cached_intermediates", "4_rts.rds"))
+
+d_rt_dt <- rts |>
   filter(shift_type == "D-T") |>
   mutate(
     land_rt = rt,
@@ -133,11 +97,11 @@ d_rt_dt_1 <- d_rt_1 |>
     # last_launch_rt = last_shift_rt
   ) |>
   mutate(
-    # across(c("land_rt", "first_launch_rt", "last_launch_rt"), log, .names = "log_{.col}"),
+    across(c("land_rt", "first_launch_rt"), log, .names = "log_{.col}"),
     across(
       c(
         "land_rt", "first_launch_rt",
-        # "log_land_rt", "log_first_launch_rt",
+        "log_land_rt", "log_first_launch_rt",
       ),
       ~ ifelse(shift_length <= 600, .x, NA),
       .names = "trim_first_{.col}"
@@ -145,37 +109,22 @@ d_rt_dt_1 <- d_rt_1 |>
     across(
       c(
         "land_rt", # "last_launch_rt",
-        # "log_land_rt", "log_last_launch_rt"
+        "log_land_rt", # "log_last_launch_rt"
       ),
       ~ ifelse(last_shift_length <= 600, .x, NA),
       .names = "trim_last_{.col}"
     )
   ) |>
   select(-rt, -shift_start_rt, -last_shift_rt) |>
-  left_join(d_aoi %>%
-    select(administration_id, dataset_name, subject_id, trial_id, trial_order, target_label) %>%
-    distinct())
-
-# just because I keep having crashing issues with icc
-saveRDS(d_rt_dt_1, here("cached_intermediates", "4_rt_dt_1.Rds"))
-```
-
-```{r}
-d_rt_dt_1 <- readRDS(here("cached_intermediates", "4_rt_dt_1.Rds"))
+  group_by(dataset_name, time_0, window, time_end, during, frac, administration_id, target_label) |>
+  mutate(repetition = row_number())
 
 
-# cluster <- new_cluster(4)
-# cluster_library(cluster, "tidyverse")
-# cluster_library(cluster, "agreement")
-# cluster_copy(cluster, "get_icc")
-tic()
-rt_iccs_1 <- d_rt_dt_1 |>
+rt_iccs <- d_rt_dt |>
   group_by(dataset_name, time_0, window, time_end, during, frac) |>
   nest() |>
-  filter(dataset_name != "adams_marchman_2018") |> # in case this is the reason it keeps crashing?
-  # partition(cluster) |>
+  partition(cluster) |>
   mutate(icc_admin = map(data, \(d) {
-    print(dataset_name)
     rt_names <- colnames(d)[str_ends(colnames(d), "rt")]
     n_total <- map_dbl(rt_names, \(rt_col) {
       d |>
@@ -194,366 +143,12 @@ rt_iccs_1 <- d_rt_dt_1 |>
     })
     tibble(measure = rt_names, icc = icc_values, n_total = n_total, n_admin = n_admin)
   })) |>
-  select(-data) |>
-  #   collect() |>
-  unnest(icc_admin)
-toc()
-
-saveRDS(rt_iccs_1, here("cached_intermediates", "4_rt_iccs_1.rds"))
-
-# try again at adams_marchman
-
-tic()
-rt_iccs_1_am <- d_rt_dt_1 |>
-  group_by(dataset_name, time_0, window, time_end, during, frac) |>
-  nest() |>
-  filter(dataset_name == "adams_marchman_2018") |> # try again
-  mutate(icc_admin = map(data, \(d) {
-    print(dataset_name)
-    rt_names <- colnames(d)[str_ends(colnames(d), "rt")]
-    n_total <- map_dbl(rt_names, \(rt_col) {
-      d |>
-        filter(!is.na(d[rt_col])) |>
-        nrow()
-    })
-    n_admin <- map_dbl(rt_names, \(rt_col) {
-      d |>
-        filter(!is.na(d[rt_col])) |>
-        select(administration_id) |>
-        unique() |>
-        nrow()
-    })
-    icc_values <- map_dbl(rt_names, \(rt_col) {
-      get_icc(d |> filter(!is.na(d[rt_col])), column = rt_col, object = "administration")
-    })
-    tibble(measure = rt_names, icc = icc_values, n_total = n_total, n_admin = n_admin)
-  })) |>
+  collect() |>
   select(-data) |>
   unnest(icc_admin)
-toc()
 
-saveRDS(rt_iccs_1_am, here("cached_intermediates", "4_rt_iccs_1_am.rds"))
+saveRDS(rt_iccs, here("cached_intermediates", "rt_iccs.rds"))
 ```
-
-```{r}
-d_rt_2 <- readRDS(here("cached_intermediates", "4_rt_2.rds"))
-
-
-d_rt_dt_2 <- d_rt_2 |>
-  filter(shift_type == "D-T") |>
-  mutate(
-    land_rt = rt,
-    first_launch_rt = shift_start_rt,
-    # last_launch_rt = last_shift_rt
-  ) |>
-  mutate(
-    # across(c("land_rt", "first_launch_rt", "last_launch_rt"), log, .names = "log_{.col}"),
-    across(
-      c(
-        "land_rt", "first_launch_rt",
-        # "log_land_rt", "log_first_launch_rt",
-      ),
-      ~ ifelse(shift_length <= 600, .x, NA),
-      .names = "trim_first_{.col}"
-    ),
-    across(
-      c(
-        "land_rt", # "last_launch_rt",
-        # "log_land_rt", "log_last_launch_rt"
-      ),
-      ~ ifelse(last_shift_length <= 600, .x, NA),
-      .names = "trim_last_{.col}"
-    )
-  ) |>
-  select(-rt, -shift_start_rt, -last_shift_rt) |>
-  left_join(d_aoi %>%
-    select(administration_id, dataset_name, subject_id, trial_id, trial_order, target_label) %>%
-    distinct())
-
-# just because I keep having crashing issues with icc
-saveRDS(d_rt_dt_2, here("cached_intermediates", "4_rt_dt_2.Rds"))
-```
-
-```{r}
-d_rt_dt_2 <- readRDS(here("cached_intermediates", "4_rt_dt_2.Rds"))
-
-
-tic()
-rt_iccs_2 <- d_rt_dt_2 |>
-  group_by(dataset_name, time_0, window, time_end, during, frac) |>
-  nest() |>
-  filter(dataset_name != "adams_marchman_2018") |> # in case this is the reason it keeps crashing?
-  # partition(cluster) |>
-  mutate(icc_admin = map(data, \(d) {
-    print(dataset_name)
-    rt_names <- colnames(d)[str_ends(colnames(d), "rt")]
-    n_total <- map_dbl(rt_names, \(rt_col) {
-      d |>
-        filter(!is.na(d[rt_col])) |>
-        nrow()
-    })
-    n_admin <- map_dbl(rt_names, \(rt_col) {
-      d |>
-        filter(!is.na(d[rt_col])) |>
-        select(administration_id) |>
-        unique() |>
-        nrow()
-    })
-    icc_values <- map_dbl(rt_names, \(rt_col) {
-      get_icc(d |> filter(!is.na(d[rt_col])), column = rt_col, object = "administration")
-    })
-    tibble(measure = rt_names, icc = icc_values, n_total = n_total, n_admin = n_admin)
-  })) |>
-  select(-data) |>
-  #   collect() |>
-  unnest(icc_admin)
-toc()
-
-saveRDS(rt_iccs_2, here("cached_intermediates", "4_rt_iccs_2.rds"))
-
-# try again at adams_marchman
-
-tic()
-rt_iccs_2_am <- d_rt_dt_2 |>
-  group_by(dataset_name, time_0, window, time_end, during, frac) |>
-  nest() |>
-  filter(dataset_name == "adams_marchman_2018") |> # try again
-  mutate(icc_admin = map(data, \(d) {
-    print(dataset_name)
-    rt_names <- colnames(d)[str_ends(colnames(d), "rt")]
-    n_total <- map_dbl(rt_names, \(rt_col) {
-      d |>
-        filter(!is.na(d[rt_col])) |>
-        nrow()
-    })
-    n_admin <- map_dbl(rt_names, \(rt_col) {
-      d |>
-        filter(!is.na(d[rt_col])) |>
-        select(administration_id) |>
-        unique() |>
-        nrow()
-    })
-    icc_values <- map_dbl(rt_names, \(rt_col) {
-      get_icc(d |> filter(!is.na(d[rt_col])), column = rt_col, object = "administration")
-    })
-    tibble(measure = rt_names, icc = icc_values, n_total = n_total, n_admin = n_admin)
-  })) |>
-  select(-data) |>
-  unnest(icc_admin)
-toc()
-
-saveRDS(rt_iccs_2_am, here("cached_intermediates", "4_rt_iccs_2_am.rds"))
-```
-```{r}
-d_rt_3 <- readRDS(here("cached_intermediates", "4_rt_3.rds"))
-
-
-d_rt_dt_3 <- d_rt_3 |>
-  filter(shift_type == "D-T") |>
-  mutate(
-    land_rt = rt,
-    first_launch_rt = shift_start_rt,
-    # last_launch_rt = last_shift_rt
-  ) |>
-  mutate(
-    # across(c("land_rt", "first_launch_rt", "last_launch_rt"), log, .names = "log_{.col}"),
-    across(
-      c(
-        "land_rt", "first_launch_rt",
-        # "log_land_rt", "log_first_launch_rt",
-      ),
-      ~ ifelse(shift_length <= 600, .x, NA),
-      .names = "trim_first_{.col}"
-    ),
-    across(
-      c(
-        "land_rt", # "last_launch_rt",
-        # "log_land_rt", "log_last_launch_rt"
-      ),
-      ~ ifelse(last_shift_length <= 600, .x, NA),
-      .names = "trim_last_{.col}"
-    )
-  ) |>
-  select(-rt, -shift_start_rt, -last_shift_rt) |>
-  left_join(d_aoi %>%
-    select(administration_id, dataset_name, subject_id, trial_id, trial_order, target_label) %>%
-    distinct())
-
-# just because I keep having crashing issues with icc
-saveRDS(d_rt_dt_3, here("cached_intermediates", "4_rt_dt_3.Rds"))
-```
-```{r}
-d_rt_dt_3 <- readRDS(here("cached_intermediates", "4_rt_dt_3.Rds"))
-
-
-tic()
-rt_iccs_3 <- d_rt_dt_3 |>
-  group_by(dataset_name, time_0, window, time_end, during, frac) |>
-  nest() |>
-  filter(dataset_name != "adams_marchman_2018") |> # in case this is the reason it keeps crashing?
-  # partition(cluster) |>
-  mutate(icc_admin = map(data, \(d) {
-    print(dataset_name)
-    rt_names <- colnames(d)[str_ends(colnames(d), "rt")]
-    n_total <- map_dbl(rt_names, \(rt_col) {
-      d |>
-        filter(!is.na(d[rt_col])) |>
-        nrow()
-    })
-    n_admin <- map_dbl(rt_names, \(rt_col) {
-      d |>
-        filter(!is.na(d[rt_col])) |>
-        select(administration_id) |>
-        unique() |>
-        nrow()
-    })
-    icc_values <- map_dbl(rt_names, \(rt_col) {
-      get_icc(d |> filter(!is.na(d[rt_col])), column = rt_col, object = "administration")
-    })
-    tibble(measure = rt_names, icc = icc_values, n_total = n_total, n_admin = n_admin)
-  })) |>
-  select(-data) |>
-  #   collect() |>
-  unnest(icc_admin)
-toc()
-
-saveRDS(rt_iccs_3, here("cached_intermediates", "4_rt_iccs_3.rds"))
-
-# try again at adams_marchman
-
-# too much crashing, it's just too big
-tic()
-# rt_iccs_3_am <- d_rt_dt_3 |>
-#   group_by(dataset_name, time_0, window, time_end, during, frac) |>
-#   filter(window>0) |> #otherwise it definitely crashes
-#   nest() |>
-#   filter(dataset_name == "adams_marchman_2018")  # try again
-#   mutate(icc_admin = map(data, \(d) {
-#     print(dataset_name)
-#     rt_names <- colnames(d)[str_ends(colnames(d), "rt")]
-#     n_total <- map_dbl(rt_names, \(rt_col) {
-#       d |>
-#         filter(!is.na(d[rt_col])) |>
-#         nrow()
-#     })
-#     n_admin <- map_dbl(rt_names, \(rt_col) {
-#       d |>
-#         filter(!is.na(d[rt_col])) |>
-#         select(administration_id) |>
-#         unique() |>
-#         nrow()
-#     })
-#     icc_values <- map_dbl(rt_names, \(rt_col) {
-#       get_icc(d |> filter(!is.na(d[rt_col])), column = rt_col, object = "administration")
-#     })
-#     tibble(measure = rt_names, icc = icc_values, n_total = n_total, n_admin = n_admin)
-#   })) |>
-#   select(-data) |>
-#   unnest(icc_admin)
-# toc()
-#
-# saveRDS(rt_iccs_3_am, here("cached_intermediates", "4_rt_iccs_3_am.rds"))
-```
-
-### combine
-
-```{r}
-icc_combined <- readRDS(here("cached_intermediates", "4_rt_iccs_3.rds")) |>
-  bind_rows(readRDS(here("cached_intermediates", "4_rt_iccs_2.rds"))) |>
-  bind_rows(readRDS(here("cached_intermediates", "4_rt_iccs_1.rds"))) |>
-  bind_rows(readRDS(here("cached_intermediates", "4_rt_iccs_1_am.rds"))) |>
-  bind_rows(readRDS(here("cached_intermediates", "4_rt_iccs_2_am.rds")))
-
-# note that what was in 3 was a wider range of lengths and stuff and that kept crashing on AM because of the number of datapoints
-
-saveRDS(icc_combined, here("cached_intermediates", "4_rt_iccs.rds"))
-```
-
-### logged follow up
-
-```{r}
-d_rt_dt <- readRDS(here("cached_intermediates", "4_rt_dt_3.Rds")) |>
-  bind_rows(readRDS(here("cached_intermediates", "4_rt_dt_2.Rds"))) |>
-  bind_rows(readRDS(here("cached_intermediates", "4_rt_dt_1.Rds")))
-
-
-rt_dt_trad <- d_rt_dt |> filter(window == 400, frac == 1)
-
-rt_dt_new <- d_rt_dt |> filter(window == 400, frac == 0, time_0 == T, time_end == T)
-
-rt_dt_for_log <- rt_dt_trad |>
-  bind_rows(rt_dt_new) |>
-  mutate(across(c("land_rt", "first_launch_rt", "trim_first_land_rt", "trim_first_first_launch_rt"), \(rt) ifelse(is.na(rt), NA, log(rt)), .names = "log_{.col}"))
-```
-
-```{r}
-tic()
-rt_iccs_4 <- rt_dt_for_log |>
-  group_by(dataset_name, time_0, window, time_end, during, frac) |>
-  nest() |>
-  filter(dataset_name != "adams_marchman_2018") |> # again with the crashing
-  mutate(icc_admin = map(data, \(d) {
-    print(dataset_name)
-    rt_names <- colnames(d)[str_ends(colnames(d), "rt")]
-    n_total <- map_dbl(rt_names, \(rt_col) {
-      d |>
-        filter(!is.na(d[rt_col])) |>
-        nrow()
-    })
-    n_admin <- map_dbl(rt_names, \(rt_col) {
-      d |>
-        filter(!is.na(d[rt_col])) |>
-        select(administration_id) |>
-        unique() |>
-        nrow()
-    })
-    icc_values <- map_dbl(rt_names, \(rt_col) {
-      get_icc(d |> filter(!is.na(d[rt_col])), column = rt_col, object = "administration")
-    })
-    tibble(measure = rt_names, icc = icc_values, n_total = n_total, n_admin = n_admin)
-  })) |>
-  select(-data) |>
-  unnest(icc_admin)
-toc()
-
-saveRDS(rt_iccs_4, here("cached_intermediates", "4_rt_iccs_log.rds"))
-
-tic()
-rt_iccs_4_am <- rt_dt_for_log |>
-  group_by(dataset_name, time_0, window, time_end, during, frac) |>
-  nest() |>
-  filter(dataset_name == "adams_marchman_2018") |>
-  mutate(icc_admin = map(data, \(d) {
-    print(dataset_name)
-    rt_names <- colnames(d)[str_ends(colnames(d), "rt")]
-    n_total <- map_dbl(rt_names, \(rt_col) {
-      d |>
-        filter(!is.na(d[rt_col])) |>
-        nrow()
-    })
-    n_admin <- map_dbl(rt_names, \(rt_col) {
-      d |>
-        filter(!is.na(d[rt_col])) |>
-        select(administration_id) |>
-        unique() |>
-        nrow()
-    })
-    icc_values <- map_dbl(rt_names, \(rt_col) {
-      get_icc(d |> filter(!is.na(d[rt_col])), column = rt_col, object = "administration")
-    })
-    tibble(measure = rt_names, icc = icc_values, n_total = n_total, n_admin = n_admin)
-  })) |>
-  select(-data) |>
-  unnest(icc_admin)
-toc()
-
-saveRDS(rt_iccs_4_am, here("cached_intermediates", "4_rt_iccs_log_am.rds"))
-
-readRDS(here("cached_intermediates", "4_rt_iccs_log.rds")) |>
-  bind_rows(rt_iccs_4_am) |>
-  saveRDS(here("cached_intermediates", "4_rt_iccs_log.rds"))
-```
-
 
 # Measure 3: Reaction time
 
@@ -572,7 +167,7 @@ outcome measures:
 ## how often does it matter?
 
 ```{r}
-d_rt <- readRDS(here("cached_intermediates", "4_rt_3.rds")) |> filter(window == 0, time_0 == T)
+d_rt <- readRDS(here("cached_intermediates", "4_rts.rds")) |> filter(window == 0, time_0 == T)
 ```
  
  here we're looking at D-T transitions, where the child was on D at time 0
@@ -840,7 +435,7 @@ rt_iccs_summ |>
   head(20) |>
   knitr::kable()
 ```
-
+so, we have a lot of combos to look at. 
 ```{r}
 rt_iccs_summ |> ggplot(aes(x = str_c(logged, "_", type), y = mean_icc, group = interaction(type, logged, trimming))) +
   geom_point(aes(col = trimming), position = position_dodge(width = .4)) +
@@ -854,7 +449,19 @@ rt_iccs_summ |> ggplot(aes(x = str_c(logged, "_", type), y = mean_icc, group = i
 
 ```{r}
 rt_iccs_summ |>
-  filter(window %in% c(0, 200, 300, 400, 500)) |>
+  ggplot(aes(x = window, y = mean_icc)) +
+  geom_point(aes(col = window), position = position_dodge(width = .4)) +
+  stat_summary(position = position_dodge(width = .4)) +
+  coord_flip() +
+  geom_hline(yintercept = .65) +
+  scale_color_viridis()
+```
+we tried a lot of different window options, some of which we thought were likely to be bad, but here we can see that the "good" options are in the 250-500 range, so we'll focus there. 
+
+
+```{r}
+rt_iccs_summ |>
+  filter(window >= 250, window <= 500) |>
   ggplot(aes(x = str_c("window_end", time_end), y = mean_icc, group = interaction(time_0, time_end, window))) +
   geom_point(aes(col = window), position = position_dodge(width = .4)) +
   stat_summary(position = position_dodge(width = .4)) +
@@ -863,8 +470,9 @@ rt_iccs_summ |>
   geom_hline(yintercept = .65) +
   scale_color_viridis()
 ```
-so, here we see that 400 is best option (at least of these coarse options) and generally having both window start and end be true is best (I think?)
+generally having both window start and end be true is best (I think?).
 
+looking specifically at 400, what about fraction 
 ```{r}
 rt_iccs_summ |>
   filter(window %in% c(400)) |>
@@ -879,18 +487,21 @@ looking within the 400 window, looks like both start and end being true is impor
 
 ```{r}
 rt_iccs_summ |>
-  filter(time_0, time_end) |>
+  filter(time_0, time_end, frac %in% c(0, 1)) |>
+  filter(window >= 200, window <= 600) |>
   ggplot(aes(x = window, y = mean_icc, group = interaction(time_0, time_end, window))) +
   geom_point(aes(col = window), position = position_dodge(width = .4)) +
   stat_summary(position = position_dodge(width = .4)) +
   geom_hline(yintercept = .65) +
+  facet_wrap(~frac) +
   scale_color_viridis()
 ```
-so, looks like 400 is best, but really up to 500 is okay-ish. 
+so somewhere in the 375 to 500 looks best, probably doesn't matter whether you're on the whole time as long as you're on start and end. 
 
 ```{r}
 rt_iccs_summ |>
-  filter(window == 400) |>
+  filter(time_0, time_end, frac %in% c(0, 1)) |>
+  filter(window >= 375, window <= 500) |>
   ggplot(aes(x = str_c(logged, "_", type), y = mean_icc, group = interaction(type, logged, trimming))) +
   geom_point(aes(col = trimming), position = position_dodge(width = .4)) +
   stat_summary(position = position_dodge(width = .4)) +
@@ -899,22 +510,13 @@ rt_iccs_summ |>
   scale_color_brewer(type = "qual", palette = 1)
 ```
 looking again, at 400, land + untrimmed seems fine!
-```{r}
-rt_iccs_summ |>
-  filter(window == 400) |>
-  filter(type == "land") |>
-  filter(trimming == "untrimmed") |>
-  ggplot(aes(x = str_c("window_end", time_end), y = mean_icc, group = interaction(time_0, time_end, frac))) +
-  geom_point(aes(col = as.character(frac)), position = position_dodge(width = .4)) +
-  coord_flip() +
-  facet_wrap(~ str_c("time_0", time_0)) +
-  geom_hline(yintercept = .7)
-```
+
 
 ```{r}
 rt_iccs_summ |>
   filter(time_0, time_end) |>
-  filter(frac == 0) |>
+  filter(frac %in% c(0, 1)) |>
+  filter(window >= 375, window <= 500) |>
   filter(type == "land") |>
   filter(trimming == "untrimmed") |>
   ggplot(aes(x = window, y = mean_icc, group = interaction(time_0, time_end, window))) +
@@ -925,85 +527,71 @@ rt_iccs_summ |>
 so, best options seem to be 
 time_0 = T
 time_end = T
-window = 400 (or thereabouts)
+window = sometime in 375-500
 land
-trimmed
+untrimmed is fine 
 don't bother about fraction
 
-remaining question is log v not log!
-so should try
-
-land_trad = frac=1
-launch_trad = frac=1
-window = 400 = T/T/frac=0
-
-```{r}
-rt_iccs_log <- readRDS(here("cached_intermediates", "4_rt_iccs_log.rds"))
-
-rt_iccs_log$dataset_name <- fct_reorder(rt_iccs_log$dataset_name, rt_iccs_log$icc)
-
-rt_iccs_log_coded <- rt_iccs_log |> mutate(
-  type = case_when(
-    str_detect(measure, "first_launch_rt") ~ "first_launch",
-    str_detect(measure, "last_launch_rt") ~ "last_launch",
-    str_detect(measure, "land_rt") ~ "land"
-  ),
-  logged = case_when(
-    str_detect(measure, "log") ~ "log",
-    T ~ "raw"
-  ),
-  trimming = case_when(
-    str_detect(measure, "trim_first") ~ "trim_first",
-    str_detect(measure, "trim_last") ~ "trim_last",
-    T ~ "untrimmed"
-  )
-)
 
 
-rt_iccs_log_coded |> View()
-```
 
 
 ```{r}
-rt_iccs_log_summ <- rt_iccs_log_coded |>
-  group_by(type, logged, trimming, window, time_0, time_end, during, frac) |>
-  summarize(mean_icc = mean(icc, na.rm = T), datapoints = sum(n_total))
+comparison <- rt_iccs_coded |>
+  filter(time_0 == T, time_end == T) |>
+  filter(frac %in% c(0, 1)) |>
+  filter(window >= 350, window <= 500) |>
+  filter(trimming %in% c("trim_first", "untrimmed")) |>
+  mutate(approach = case_when(
+    type == "land" & trimming == "untrimmed" & frac == "0" ~ "generous",
+    type == "land" & trimming == "untrimmed" & frac == "1" ~ "trad_land",
+    type == "first_launch" & trimming == "trim_first" & frac == "1" ~ "trad_launch"
+  )) |>
+  filter(!is.na(approach))
 
-rt_iccs_log_summ |>
-  arrange(desc(mean_icc)) |>
-  head(20) |>
-  knitr::kable()
-```
-
-```{r}
-rt_iccs_log_summ |> ggplot(aes(x = str_c(logged, "_", type), y = mean_icc, group = interaction(type, logged, trimming))) +
-  geom_point(aes(col = trimming, shape = str_c("fraction", frac)), position = position_dodge(width = .4)) +
+comparison |>
+  ggplot(aes(x = approach, y = icc)) +
+  geom_point(aes(col = window, shape = logged), position = position_dodge(width = .4)) +
   coord_flip() +
   geom_hline(yintercept = .65) +
-  scale_color_brewer(type = "qual", palette = 1)
-```
-looks like log is slightly better, but doesn't really matter. 
+  scale_color_viridis() +
+  facet_wrap(~dataset_name)
 
-
-```{r}
-rt_iccs_log_coded |> ggplot(aes(x = str_c(logged, "_", type), y = icc, group = interaction(type, logged, trimming))) +
-  geom_point(aes(col = trimming, shape = str_c("fraction", frac)), position = position_dodge(width = .4)) +
+comparison |>
+  filter(window == 375) |>
+  ggplot(aes(x = approach, y = icc)) +
+  geom_point(aes(col = window, shape = logged), position = position_dodge(width = .4)) +
   coord_flip() +
   geom_hline(yintercept = .65) +
-  scale_color_brewer(type = "qual", palette = 1) +
-  facet_wrap(~dataset_name) +
-  theme(legend.position = "none")
-```
-seems like for most datasets there aren't huge differences, and there aren't datasets where our proposal is awful. log versus raw seems somewhat dataset dependent
+  scale_color_viridis() +
+  facet_wrap(~dataset_name)
 
-## Validity
+comparison |>
+  filter(approach == "generous") |>
+  ggplot(aes(x = window, y = icc)) +
+  geom_point(aes(col = window, shape = logged), position = position_dodge(width = .4)) +
+  coord_flip() +
+  geom_hline(yintercept = .65) +
+  scale_color_viridis()
+```
+I don't know what's up with pomper for the trad_launch. 
+
+Raw v log seems to go both ways, ideally we'd probably want something that works well for both
+
+Window again 375-500 ish seems reasonable, 400 seems like a fine compromise
+
+Mostly, it probably doesn't matter, modulo a few dataset abnormalities 
+
+
+
+## Validity (TO UPDATE)
 
 so we don't have great validity options here because it's less clear what RT should index, but we can check for age effects (very expected, but could index non-linguistic noise) and CDI (not necessarily expected to correlate as much with RT as accuracy)
 
 so we'll go with the 400ms versions of the 3 above x whether they are logged 
 
 ```{r}
-d_rt_dt <- readRDS(here("cached_intermediates", "4_rt_dt_3.Rds")) |>
+d_rt_dt <- readRDS(here("cached_intermediates", "4_rts.Rds")) |>
   bind_rows(readRDS(here("cached_intermediates", "4_rt_dt_2.Rds"))) |>
   bind_rows(readRDS(here("cached_intermediates", "4_rt_dt_1.Rds")))
 

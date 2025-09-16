@@ -52,6 +52,25 @@ get_icc <- function(x, column = "accuracy", object = "stimulus") {
   return(iccs$Inter_ICC)
 }
 
+bootstrap_icc <- function(x, column = "accuracy", bootstrap = 2000) {
+  iccs <- dim_icc(x,
+    model = "2A",
+    type = "consistency",
+    unit = "average",
+    object = administration_id,
+    rater = target_label,
+    trial = repetition,
+    score = {{ column }},
+    bootstrap = bootstrap
+  )
+  return(
+    tibble(
+      est = iccs$Inter_ICC,
+      lower = round(stats::confint(iccs, level = .95), digits = 3)["Inter-Rater ICC", 1],
+      upper = round(stats::confint(iccs, level = .95), digits = 3)["Inter-Rater ICC", 2]
+    )
+  )
+}
 options(dplyr.summarise.inform = FALSE)
 
 

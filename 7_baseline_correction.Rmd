@@ -30,126 +30,163 @@ ggplot(d_aoi, aes(x = t_norm)) +
   facet_wrap(~dataset_name, scales = "free_y") +
   geom_vline(xintercept = 0) +
   geom_vline(xintercept = 400)
+
+baseline_lengths <- d_aoi |>
+  group_by(dataset_name) |>
+  summarise(t_min = min(t_norm))
 ```
 
 let's make a filtered set for datasets that have sub -2000 RTs (long baselines) and start there, since those will be the *most* likely to have useful baseline correction. 
 
 ## ICC
-we will want to repeat this for other datasets later
+
 ```{r}
-d_long_baseline_datasets <- d_aoi |>
-  filter(t_norm == -3000) |>
-  group_by(dataset_name) |>
-  tally()
+icc_bc_window_sim <- function(b_start = -2000, b_end = 0,
+                              t_start = 500, t_end = 4000,
+                              object) {
+  # get trials with some baseline
+  baseline_lengths <- d_aoi |>
+    group_by(dataset_name, trial_id) |>
+    summarise(t_min = min(t_norm))
 
-d_long_baseline <- d_aoi |> inner_join(d_long_baseline_datasets |> select(dataset_name))
+  # get baseline corrected accuracies for all trials with ANY baseline info
+  df <- d_aoi |>
+    left_join(baseline_lengths) |>
+    filter(t_min < 0) |>
+    group_by(dataset_name, dataset_id, administration_id, target_label, trial_id) |>
+    summarise(
+      window_accuracy = mean(correct[t_norm >= t_start & t_norm <= t_end],
+        na.rm = TRUE
+      ),
+      baseline_accuracy = mean(correct[t_norm >= b_start & t_norm <= b_end],
+        na.rm = TRUE
+      ),
+      bc_accuracy = window_accuracy - baseline_accuracy
+    ) |>
+    filter(!is.na(bc_accuracy)) |>
+    group_by(dataset_id, dataset_name, administration_id, target_label) |>
+    mutate(repetition = row_number())
 
-acc <- d_long_baseline |>
-  group_by(
-    trial_id, subject_id, administration_id,
-    target_label, dataset_name
-  ) |>
-  summarise(
-    baseline_0 = mean(correct[t_norm < 0], na.rm = TRUE),
-    baseline_400 = mean(correct[t_norm < 400], na.rm = TRUE),
-    accuracy = mean(correct[t_norm > 400], na.rm = TRUE),
-    bc_0_accuracy = accuracy - baseline_0,
-    bc_400_accuracy = accuracy - baseline_400
-  ) |>
-  filter(!is.na(accuracy), !is.na(bc_0_accuracy), !is.na(bc_400_accuracy))
+  # compute ICCs
+  df |>
+    group_by(dataset_name) |>
+    nest() |>
+    mutate(icc = unlist(map(data, ~ get_icc(., "bc_accuracy", object)))) |>
+    select(-data) |>
+    unnest(cols = c())
+}
 
+bc_acc_params <- expand_grid(
+  t_start = 500,
+  t_end = c(2000, 4000),
+  b_start = seq(-4000, -1000, 500),
+  b_end = seq(-500, 500, 500),
+  object = c("administration")
+)
 
-icc <- acc |>
-  group_by(dataset_name) |>
-  nest() |>
-  mutate(
-    bc_0_acc = map(data, \(d) get_icc(d, column = "bc_0_accuracy", object = "administration")),
-    bc_400_acc = map(data, \(d) get_icc(d, column = "bc_400_accuracy", object = "administration")),
-    acc = map(data, \(d) get_icc(d, column = "accuracy", object = "administration"))
-  ) |>
-  unnest(bc_400_acc) |>
-  unnest(bc_0_acc) |>
-  unnest(acc) |>
-  select(-data) |>
-  pivot_longer(c("bc_400_acc", "bc_0_acc", "acc"), names_to = "type", values_to = "icc")
+library(multidplyr)
+cluster <- new_cluster(16)
+cluster_library(cluster, "dplyr")
+cluster_library(cluster, "tidyr")
+cluster_library(cluster, "purrr")
+cluster_library(cluster, "agreement")
+cluster_copy(cluster, "get_icc")
+cluster_copy(cluster, "d_aoi")
+cluster_copy(cluster, "icc_bc_window_sim")
 
-ggplot(icc, aes(x = dataset_name, y = icc, col = type)) +
-  geom_point() +
-  coord_flip()
+bc_accs <- bc_acc_params |>
+  partition(cluster) |>
+  mutate(icc = pmap(list(b_start, b_end, t_start, t_end, object), icc_bc_window_sim)) |>
+  collect() |>
+  unnest(col = icc)
+
+saveRDS(bc_accs, here("cached_intermediates", "bc_accs_icc.rds"))
 ```
-so, on these datasets, we do get higher icc from baseline corrections (on most of the datasets). -it's also unclear if this is *useful* signal or artefact. 
 
-*but* these were specifically selected for long starting windows -- what if we do it to all the datasets?
+### visualize
 
 ```{r}
-acc <- d_aoi |>
-  group_by(
-    trial_id, subject_id, administration_id,
-    target_label, dataset_name
-  ) |>
-  summarise(
-    baseline_0 = mean(correct[t_norm < 0], na.rm = TRUE),
-    baseline_400 = mean(correct[t_norm < 400], na.rm = TRUE),
-    accuracy = mean(correct[t_norm > 400], na.rm = TRUE),
-    bc_0_accuracy = accuracy - baseline_0,
-    bc_400_accuracy = accuracy - baseline_400
+bc_accs <- readRDS(here("cached_intermediates", "7_bc_accs_icc.rds")) |>
+  bind_rows(readRDS(here("cached_intermediates", "3_accs.Rds"))) |>
+  filter(t_start %in% c(400, 500), t_end %in% c(2000, 4000)) |>
+  mutate(
+    b_start = ifelse(is.na(b_start), 0, b_start),
+    b_end = ifelse(is.na(b_end), 0, b_end)
   )
-
-icc <- acc |>
-  group_by(dataset_name) |>
-  nest() |>
-  filter(!dataset_name %in% c("adams_marchman_2018", "fernald_marchman_2012")) |> # don't crash, repeat on cluster later
-  mutate(
-    bc_0_acc = map(data, \(d) get_icc(d |> filter(!is.na("bc_0_accuracy")), column = "bc_0_accuracy", object = "administration")),
-    bc_400_acc = map(data, \(d) get_icc(d |> filter(!is.na("bc_400_accuracy")), column = "bc_400_accuracy", object = "administration")),
-    acc = map(data, \(d) get_icc(d |> filter(!is.na("accuracy")), column = "accuracy", object = "administration"))
-  ) |>
-  unnest(bc_400_acc) |>
-  unnest(bc_0_acc) |>
-  unnest(acc) |>
-  select(-data) |>
-  pivot_longer(c("bc_400_acc", "bc_0_acc", "acc"), names_to = "type", values_to = "icc")
-
-ggplot(icc, aes(x = type, y = icc, col = type)) +
-  geom_point() +
-  coord_flip() +
-  stat_summary()
-
-ggplot(icc, aes(x = dataset_name, y = icc, col = type)) +
-  geom_jitter(width = .3) +
-  coord_flip()
 ```
-so, looks like the benefits of baseline correction would only apply to datasets with a lot of baseline. 
 
 ```{r}
-baseline_amount <- d_aoi |>
-  filter(t_norm <= 0, !is.na(correct)) |>
-  group_by(dataset_name) |>
-  summarize(mean_pre = mean(t_norm, na.rm = T))
+bc_accs_summary <- bc_accs |>
+  group_by(t_start, t_end, b_start, b_end) |>
+  mutate(mean_icc = mean(icc, na.rm = T))
 
-icc |>
-  left_join(baseline_amount) |>
-  ggplot(aes(x = mean_pre, y = icc, col = type)) +
-  geom_point() +
-  geom_smooth(method = "lm")
+ggplot(bc_accs_summary, aes(x = b_start, y = b_end, fill = mean_icc)) +
+  geom_tile(color = "white") +
+  scale_fill_viridis(name = "Mean ICC", option = "inferno") +
+  xlab("Window Start Time (in ms)") +
+  ylab("Window End Time (in ms)") +
+  facet_wrap(~t_end)
 ```
-dataset reliability from other things potentially confounds with how long they chose to window, so we could also look at diffs. 
+overall, icc from not doing baseline is >> on icc than window from doing baseline. (note that we have start of 400 versus start of 500 which we are assuming doesn't matter much)
 
 ```{r}
-icc |>
-  left_join(baseline_amount) |>
-  pivot_wider(names_from = "type", values_from = "icc") |>
-  mutate(
-    benefit_pre_0 = bc_0_acc - acc,
-    benefit_pre_400 = bc_400_acc - acc
-  ) |>
-  pivot_longer(c("benefit_pre_0", "benefit_pre_400"), names_to = "type", values_to = "diff_icc") |>
-  ggplot(aes(x = mean_pre, y = diff_icc, col = type)) +
-  geom_point() +
-  geom_smooth(method = "lm") +
-  geom_hline(yintercept = 0)
+bc_accs |>
+  filter(t_end == 4000) |>
+  ggplot(aes(x = b_start, y = b_end, fill = icc)) +
+  geom_tile(color = "white") +
+  scale_fill_viridis(name = "Mean ICC", option = "inferno") +
+  scale_x_continuous(breaks = c(-1000, -500, 0, 500, 1000, 1500)) +
+  xlab("Window Start Time (in ms)") +
+  ylab("Window End Time (in ms)") +
+  facet_wrap(~dataset_name)
 ```
-so, basically, if you have a long enough pre-window, such that the mean pre-0 value is -1500ish (so pre-window of 3000+), then baseline correcting might get you *slightly* higher reliability. 
+```{r}
+bc_accs |>
+  group_by(dataset_name) |>
+  arrange(desc(icc)) |>
+  slice(1)
+```
+
+so, there exist datasets where a baseline correction (numerically) improves icc (again with this weird 400/500 thing), but they vary based on what the best correction window is.
+
+let's look of the datasets where it's 
+```{r}
+bc_accs_summary <- bc_accs |>
+  inner_join(baseline_lengths |> filter(t_min <= -1000)) |>
+  group_by(t_start, t_end, b_start, b_end) |>
+  mutate(mean_icc = mean(icc, na.rm = T))
+ggplot(bc_accs_summary, aes(x = b_start, y = b_end, fill = mean_icc)) +
+  geom_tile(color = "white") +
+  scale_fill_viridis(name = "Mean ICC", option = "inferno") +
+  scale_x_continuous(breaks = c(-1000, -500, 0, 500, 1000, 1500)) +
+  xlab("Window Start Time (in ms)") +
+  ylab("Window End Time (in ms)") +
+  facet_wrap(~t_end)
+
+bc_accs_summary <- bc_accs |>
+  inner_join(baseline_lengths |> filter(t_min <= -2000)) |>
+  group_by(t_start, t_end, b_start, b_end) |>
+  mutate(mean_icc = mean(icc, na.rm = T))
+ggplot(bc_accs_summary, aes(x = b_start, y = b_end, fill = mean_icc)) +
+  geom_tile(color = "white") +
+  scale_fill_viridis(name = "Mean ICC", option = "inferno") +
+  scale_x_continuous(breaks = c(-1000, -500, 0, 500, 1000, 1500)) +
+  xlab("Window Start Time (in ms)") +
+  ylab("Window End Time (in ms)") +
+  facet_wrap(~t_end)
+
+bc_accs_summary <- bc_accs |>
+  inner_join(baseline_lengths |> filter(t_min <= -3000)) |>
+  group_by(t_start, t_end, b_start, b_end) |>
+  mutate(mean_icc = mean(icc, na.rm = T))
+ggplot(bc_accs_summary, aes(x = b_start, y = b_end, fill = mean_icc)) +
+  geom_tile(color = "white") +
+  scale_fill_viridis(name = "Mean ICC", option = "inferno") +
+  xlab("Window Start Time (in ms)") +
+  ylab("Window End Time (in ms)") +
+  facet_wrap(~t_end)
+```
+so, looks like for the datasets with data before -3000 (5 datasets), then you get higher icc for baselining, but you want your baseline windows to start at -3000 or -4000 and go to -500 or 0.  
 
 ## CDI
 
