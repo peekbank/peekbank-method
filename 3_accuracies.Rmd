@@ -292,214 +292,33 @@ accs_finegrain |> ggplot(aes(x = t_start, y = icc)) +
 ```
 trends vary and we can't really tell!
 
-
-# Validity via MB-CDI
-
-We have MB-CDI WS data for a number of datasets. 
-
-
-```{r}
-cdi_data <- readRDS(here("cached_intermediates", "1_cdi_subjects.Rds"))
-```
-
-Now let's get our sim function. 
-
-```{r}
-cdi_sim <- function(t_start = -500, t_end = 4000) {
-  # first average by trial then by subject
-  by_trial_accuracies <- d_aoi |>
-    filter(t_norm >= t_start, t_norm <= t_end) |>
-    group_by(dataset_name, subject_id, administration_id, trial_id) |>
-    summarize(correct = mean(correct, na.rm = TRUE))
-
-  by_subject_accuracies <- by_trial_accuracies |>
-    group_by(dataset_name, subject_id, administration_id) |>
-    summarize(mean_correct = mean(correct, na.rm = TRUE)) |>
-    left_join(cdi_data) |>
-    filter(!(is.na(prod) & is.na(comp)) & !is.na(mean_correct))
-
-  by_subject_accuracies |>
-    group_by(dataset_name) |>
-    summarise(
-      cor_comp = ifelse(sum(!is.na(comp)) > 0, cor.test(mean_correct, comp)$estimate, NA),
-      cor_prod = ifelse(sum(!is.na(prod)) > 0, cor.test(mean_correct, prod)$estimate, NA),
-      n_comp = sum(!is.na(comp)),
-      n_prod = sum(!is.na(prod)),
-      n_total = sum(!is.na(mean_correct))
-    )
-}
-```
-
-```{r}
-cdi_params <- expand_grid(
-  t_start = seq(-1000, 1500, 250),
-  t_end = seq(2000, 4000, 250)
-)
-
-cluster_copy(cluster, "cdi_sim")
-cluster_copy(cluster, "cdi_data")
-
-tic()
-cdi_corrs <- cdi_params |>
-  partition(cluster) |>
-  mutate(icc = pmap(list(t_start, t_end), cdi_sim)) |>
-  collect() |>
-  unnest(col = icc)
-toc()
-
-saveRDS(cdi_corrs, here("cached_intermediates", "3_cdi_corrs.Rds"))
-```
-
-```{r}
-cdi_corrs <- readRDS(here("cached_intermediates", "3_cdi_corrs.Rds"))
-
-
-cdi_corrs_long <- cdi_corrs |>
-  pivot_longer(names_to = "measure", values_to = "r", starts_with("cor"))
-```
-
-
-Visualize!
-
-
-```{r}
-ggplot(
-  filter(cdi_corrs_long, measure == "cor_prod", n_prod > 50),
-  aes(col = r)
-) +
-  geom_vline(xintercept = 0, linetype = "dashed") +
-  geom_hline(yintercept = 0.05, lty = 3) +
-  geom_segment(aes(x = t_start, xend = t_end, y = r, yend = r)) +
-  scale_color_viridis(name = "Mean ICC", direction = -1) +
-  theme(legend.position = "none") +
-  ylab("Correlation with MB-CDI sumscore") +
-  xlab("Analysis Window (in ms)") +
-  facet_wrap(~dataset_name) +
-  ggtitle("Correlation with CDI production, n > 50")
-```
-```{r}
-ggplot(
-  filter(cdi_corrs_long, measure == "cor_comp", n_prod > 50),
-  aes(col = r)
-) +
-  geom_vline(xintercept = 0, linetype = "dashed") +
-  geom_hline(yintercept = 0.05, lty = 3) +
-  geom_segment(aes(x = t_start, xend = t_end, y = r, yend = r)) +
-  scale_color_viridis(name = "Mean ICC", direction = -1) +
-  theme(legend.position = "none") +
-  ylab("Correlation with MB-CDI sumscore") +
-  xlab("Analysis Window (in ms)") +
-  facet_wrap(~dataset_name) +
-  ggtitle("Correlation with CDI comprehension, n > 50")
-```
-```{r}
-ms_corr <- cdi_corrs_long |>
-  filter(measure == "cor_prod", n_prod > 50) |>
-  group_by(t_start, t_end) |>
-  summarise(r = mean(r, na.rm = TRUE))
-
-ggplot(ms_corr, aes(col = r)) +
-  geom_vline(xintercept = 0, linetype = "dashed") +
-  geom_segment(aes(x = t_start, xend = t_end, y = r, yend = r)) +
-  scale_color_viridis(name = "Mean ICC", direction = -1) +
-  theme(legend.position = "none") +
-  ylab("Correlation with MB-CDI sumscore") +
-  xlab("Analysis Window (in ms)") +
-  ggtitle("Correlation with CDI production, n > 50")
-```
-
-is something weird about comprehension?
-
-```{r}
-ms_corr_comp <- cdi_corrs_long |>
-  filter(measure == "cor_comp", n_comp > 50) |>
-  group_by(t_start, t_end) |>
-  summarise(r = mean(r, na.rm = TRUE))
-
-ggplot(ms_corr_comp, aes(col = r)) +
-  geom_vline(xintercept = 0, linetype = "dashed") +
-  geom_segment(aes(x = t_start, xend = t_end, y = r, yend = r)) +
-  scale_color_viridis(name = "Mean ICC", direction = -1) +
-  theme(legend.position = "none") +
-  ylab("Correlation with MB-CDI sumscore") +
-  xlab("Analysis Window (in ms)") +
-  ggtitle("Correlation with CDI comprehension, n > 50")
-```
-
-## Across datasets
-
-```{r}
-cdi_sim_alldata <- function(t_start = -500, t_end = 4000) {
-  # first average by trial then by subject
-  by_trial_accuracies <- d_aoi |>
-    filter(t_norm >= t_start, t_norm <= t_end) |>
-    group_by(dataset_name, subject_id, administration_id, trial_id) |>
-    summarize(correct = mean(correct, na.rm = TRUE))
-
-  by_subject_accuracies <- by_trial_accuracies |>
-    group_by(dataset_name, subject_id, administration_id) |>
-    summarize(mean_correct = mean(correct, na.rm = TRUE)) |>
-    left_join(cdi_data) |>
-    filter(!(is.na(prod) & is.na(comp)) & !is.na(mean_correct))
-
-  by_subject_accuracies |>
-    ungroup() |>
-    summarise(
-      cor_comp = ifelse(sum(!is.na(comp)) > 0, cor.test(mean_correct, comp)$estimate, NA),
-      cor_prod = ifelse(sum(!is.na(prod)) > 0, cor.test(mean_correct, prod)$estimate, NA),
-      n_comp = sum(!is.na(comp)),
-      n_prod = sum(!is.na(prod)),
-      n_total = sum(!is.na(mean_correct))
-    )
-}
-
-cluster_copy(cluster, "cdi_sim_alldata")
-cluster_copy(cluster, "cdi_data")
-
-tic()
-cdi_corrs_alldata <- cdi_params |>
-  partition(cluster) |>
-  mutate(icc = pmap(list(t_start, t_end), cdi_sim_alldata)) |>
-  collect() |>
-  unnest(col = icc)
-toc()
-
-
-saveRDS(cdi_corrs_alldata, here("cached_intermediates", "3_cdi_corrs_alldata.Rds"))
-```
-
-```{r}
-cdi_corrs_alldata <- readRDS(here("cached_intermediates", "3_cdi_corrs_alldata.Rds"))
-
-ggplot(cdi_corrs_alldata, aes(col = cor_prod)) +
-  geom_vline(xintercept = 0, linetype = "dashed") +
-  geom_segment(aes(x = t_start, xend = t_end, y = cor_prod, yend = cor_prod)) +
-  scale_color_viridis(name = "Mean ICC", direction = -1) +
-  theme(legend.position = "none") +
-  ylab("Correlation with MB-CDI sumscore") +
-  xlab("Analysis Window (in ms)") +
-  ggtitle("Accuracy/CDI production correlation across all datasets")
-```
-
-
-```{r}
-ggplot(cdi_corrs_alldata, aes(col = cor_comp)) +
-  geom_vline(xintercept = 0, linetype = "dashed") +
-  geom_segment(aes(x = t_start, xend = t_end, y = cor_prod, yend = cor_prod)) +
-  scale_color_viridis(name = "Mean ICC", direction = -1) +
-  theme(legend.position = "none") +
-  ylab("Correlation with MB-CDI sumscore") +
-  xlab("Analysis Window (in ms)") +
-  ggtitle("Accuracy/CDI comprehension correlation across all datasets")
-```
-
-on a per-dataset level, it's noisy, but at least across all the datasets, there's not much signal from comp -- the correlations are all pretty clustered (and correlations aren't high -- is this a bunch of little kids?). But given that even though numerically some short windows are best 500-4000 isn't actually much lower (so presumably within measurement error). 
-
-For production, long window (going to 3000+ seems to be important)
-
 # Bootstrap
 
 ```{r}
+icc_window_sim_age_bootstrap <- function(t_start = -500, t_end = 4000, object) {
+  print(paste(t_start, t_end))
+
+  df <- d_aoi |>
+    filter(t_norm > t_start, t_norm < t_end) |>
+    mutate(younger = age < 24) |>
+    group_by(dataset_name, dataset_id, administration_id, target_label, trial_id, younger) |>
+    summarise(
+      accuracy = mean(correct, na.rm = TRUE),
+      prop_data = mean(!is.na(correct))
+    ) |>
+    filter(!is.na(accuracy)) |>
+    group_by(dataset_name, dataset_id, administration_id, target_label, younger) |>
+    mutate(repetition = row_number())
+
+  # compute ICCs
+  df |>
+    group_by(dataset_name, younger) |>
+    nest() |>
+    mutate(icc = map(data, \(d) bootstrap_icc(d, "accuracy", 2000))) |>
+    select(-data) |>
+    unnest(icc)
+}
+
 icc_window_sim_bootstrap <- function(t_start = -500, t_end = 4000, object) {
   print(paste(t_start, t_end))
 
@@ -523,9 +342,8 @@ icc_window_sim_bootstrap <- function(t_start = -500, t_end = 4000, object) {
     unnest(icc)
 }
 
-
 acc_params <- expand_grid(
-  t_start = c(0, 200, 400, 500),
+  t_start = c(0, 100, 200, 300, 400, 500, 600, 700, 800, 900, 1000),
   t_end = c(2000, 4000),
   object = c("administration")
 )
@@ -536,6 +354,7 @@ cluster_library(cluster, "dplyr")
 cluster_library(cluster, "tidyr")
 cluster_library(cluster, "purrr")
 cluster_library(cluster, "agreement")
+cluster_copy(cluster, "icc_window_sim_age_bootstrap")
 cluster_copy(cluster, "icc_window_sim_bootstrap")
 cluster_copy(cluster, "bootstrap_icc")
 cluster_copy(cluster, "d_aoi")
@@ -549,11 +368,23 @@ accs_boot <- acc_params |>
   unnest(col = icc)
 
 
-saveRDS(here("cached_intermediates", "3_acc_icc_boot.rds"))
+saveRDS(accs_boot, here("cached_intermediates", "3_acc_icc_boot.rds"))
+
+accs_boot_age <- acc_params |>
+  partition(cluster) |>
+  # head(1) |>
+  mutate(icc = pmap(list(t_start, t_end, object), \(t_s, t_e, o) icc_window_sim_age_bootstrap(t_s, t_e, o))) |>
+  collect() |>
+  unnest(col = icc)
+
+saveRDS(accs_boot_age, here("cached_intermediates", "3_acc_icc_boot_age.rds"))
+
 ```
 
 ```{r}
 acc_boot <- readRDS(here("cached_intermediates", "3_acc_icc_boot.rds"))
+
+acc_boot_age <- readRDS(here("cached_intermediates", "3_acc_icc_boot_age.rds"))
 ```
 
 ```{r}
@@ -563,6 +394,593 @@ acc_boot |> ggplot(aes(x = t_start, y = est, ymin = lower, ymax = upper, color =
 ```
 
 so we're going to need to figure out what to do here, since this doesn't easily represent the how much which is better and more the "this is very noisy"
+
+trying to combine into a mean across the dataset's individual distributions (assuming normality, which is surely wrong, and not entirely confident of math either)
+
+
+
+
+```{r}
+library(metafor)
+acc_boot_summary <- acc_boot |>
+  filter(!is.na(lower), !is.na(upper)) |>
+  mutate(
+    stdev = (upper - lower) / (1.96 * 2),
+    var = stdev**2
+  ) |>
+  group_by(t_start, t_end) |>
+  nest() |>
+  mutate(icc = map(data, \(d){
+    rma(d$est, d$var) |>
+      summary() |>
+      coef()
+  })) |>
+  select(-data) |>
+  unnest(icc)
+
+
+acc_boot_summary |> ggplot(aes(x = t_start, y = estimate, ymin = ci.lb, ymax = ci.ub, color = as.character(t_end))) +
+  geom_pointrange(position = position_dodge(width = 25))
+
+acc_boot_age_summary <- acc_boot_age |> 
+  filter(!is.na(lower), !is.na(upper)) |>
+  mutate(
+    stdev = (upper - lower) / (1.96 * 2),
+    var = stdev**2
+  ) |>
+  group_by(t_start, t_end, younger) |>
+  nest() |>
+  mutate(icc = map(data, \(d){
+    rma(d$est, d$var) |>
+      summary() |>
+      coef()
+  })) |>
+  select(-data) |>
+  unnest(icc) |> 
+  mutate(younger=ifelse(younger, "<24months", ">=24months"))
+
+acc_boot_age_summary |> ggplot(aes(x = t_start, y = estimate, ymin = ci.lb, ymax = ci.ub, color = as.character(t_end))) +
+  geom_pointrange(position = position_dodge(width = 50))+facet_wrap(~younger)
+
+```
+So, the benefit to longer windows is more pronounced for the older kids, but it's true for both younger and older. 
+ICC wise, best start time is like 600-700, but that may be different for validity. 
+
+
+# Validity via MB-CDI 
+
+```{r}
+source("cl_helper.R")
+
+d_aoi <- readRDS("d_aoi.Rds")
+library(tibble)
+library(multidplyr)
+
+cdi_data <- readRDS("cdi.rds")
+
+
+
+acc_params <- expand_grid(
+  t_start = c(0, 100, 200, 300, 400, 500, 600, 700, 800, 900, 1000),
+  t_end = c(2000, 4000),
+)
+
+
+do_cdi <- function(data, indices) {
+  summ <- data |>
+    slice(indices) |>
+    group_by(administration_id) |>
+    summarize(mean_var = mean(accuracy, na.rm = T)) |>
+    left_join(cdi_data) |>
+    ungroup() |>
+    summarise(
+      cor_comp = ifelse(sum(!is.na(comp) & !is.na(mean_var)) > 2, cor.test(mean_var, comp)$estimate, as.numeric(NA)),
+      cor_prod = ifelse(sum(!is.na(prod) & !is.na(mean_var)) > 2, cor.test(mean_var, prod)$estimate, as.numeric(NA)),
+      cor_age = ifelse(sum(!is.na(age) & !is.na(mean_var)) > 2, cor.test(mean_var, age)$estimate, as.numeric(NA))
+    )
+  cors <- c(summ$cor_comp[1], summ$cor_prod[1], summ$cor_age[1])
+  names(cors) <- c("cor_comp", "cor_prod", "cor_age")
+
+  return(cors)
+}
+
+acc_cdi <- function(t_start = -500, t_end = 4000) {
+  print(paste(t_start, t_end))
+
+  df <- d_aoi |>
+    filter(t_norm > t_start, t_norm < t_end) |>
+    group_by(dataset_name, dataset_id, administration_id, target_label, trial_id) |>
+    summarise(
+      accuracy = mean(correct, na.rm = TRUE),
+      prop_data = mean(!is.na(correct))
+    ) |>
+    group_by(dataset_name, dataset_id, administration_id, target_label) |>
+    filter(!is.na(accuracy))
+
+  # compute ICCs
+  df |>
+    group_by(dataset_name) |>
+    nest() |>
+    mutate(corr = map(data, \(d) {
+      b <- boot::boot(d, do_cdi, 2000)
+      fold_stats <- b$t |> as_tibble()
+      names(fold_stats) <- names(b$t0)
+      fold_stats |>
+        summarize(across(
+          everything(),
+          list(
+            lower = \(c) ifelse(sum(!is.na(c)) > 1, quantile(c, probs = c(.025), na.rm = T), NA),
+            upper = \(c) ifelse(sum(!is.na(c)) > 1, quantile(c, probs = c(.975), na.rm = T), NA)
+          )
+        )) |>
+        bind_cols(b$t0 |> as_tibble_row())
+    })) |>
+    select(-data) |>
+    unnest(corr)
+}
+
+
+cluster <- new_cluster(16)
+cluster_library(cluster, "dplyr")
+cluster_library(cluster, "stringr")
+cluster_library(cluster, "purrr")
+cluster_library(cluster, "tidyr")
+cluster_library(cluster, "stats")
+cluster_library(cluster, "tibble")
+cluster_copy(cluster, "do_cdi")
+cluster_copy(cluster, "d_aoi")
+cluster_copy(cluster, "cdi_data")
+cluster_copy(cluster, "acc_cdi")
+
+accs_boot_cdi <- acc_params |>
+  partition(cluster) |>
+  mutate(cdi = pmap(list(t_start, t_end), \(t_s, t_e) acc_cdi(t_s, t_e))) |>
+  collect() |>
+  unnest(cdi)
+
+saveRDS(accs_boot_cdi, here("cached_intermediates", "3_accs_boot_cdi.rds"))
+
+```
+
+```{r}
+accs_boot_cdi <- readRDS(here("cached_intermediates", "3_accs_boot_cdi.rds"))
+
+library(metafor)
+
+accs_boot_cdi_summ <-  accs_boot_cdi |>
+  mutate(
+    comp_stdev = (cor_comp_upper - cor_comp_lower) / (1.96 * 2),
+    comp_var = comp_stdev**2,
+    prod_stdev = (cor_prod_upper - cor_prod_lower) / (1.96 * 2),
+    prod_var = prod_stdev**2,
+    age_stdev = (cor_age_upper - cor_age_lower) / (1.96 * 2),
+    age_var = age_stdev**2
+  ) |>
+  group_by(t_start, t_end) |>
+  nest() |>
+  mutate(comp= map(data, \(d){
+    rma(d$cor_comp, d$comp_var) |>
+      summary() |>
+      coef()
+  }),
+  prod= map(data, \(d){
+    rma(d$cor_prod, d$prod_var) |>
+      summary() |>
+      coef()
+  }),
+  age= map(data, \(d){
+    rma(d$cor_age, d$age_var) |>
+      summary() |>
+      coef()
+  })) |>
+  select(-data) |>
+  unnest(c(comp, prod, age), names_sep="_")
+```
+
+Correlation with production
+```{r}
+accs_boot_cdi_summ |> ggplot(aes(x = t_start, y = prod_estimate, ymin=prod_ci.lb, ymax=prod_ci.ub, color=as.character(t_end))) +geom_pointrange(position=position_dodge(width=50))+coord_flip()
+
+
+accs_boot_cdi |> filter(!is.na(cor_prod)) |>  ggplot(aes(x = t_start, y = cor_prod, ymin=cor_prod_lower, ymax=cor_prod_upper,  col=as.character(t_end))) +
+  geom_pointrange() +
+  coord_flip() +
+  theme(legend.position = "none") +
+  facet_wrap(~dataset_name)
+```
+not much difference either for short or long window, and definitely not within start times. 
+
+Correlation with comprehension
+```{r}
+accs_boot_cdi_summ |> ggplot(aes(x = t_start, y = comp_estimate, ymin=comp_ci.lb, ymax=comp_ci.ub, color=as.character(t_end))) +geom_pointrange(position=position_dodge(width=50))+coord_flip()
+
+
+accs_boot_cdi |> filter(!is.na(cor_comp)) |>  ggplot(aes(x = t_start, y = cor_comp, ymin=cor_comp_lower, ymax=cor_comp_upper,  col=as.character(t_end))) +
+  geom_pointrange() +
+  coord_flip() +
+  theme(legend.position = "none") +
+  facet_wrap(~dataset_name)
+```
+again, differences are not big!
+
+Correlation with age
+```{r}
+accs_boot_cdi_summ |> ggplot(aes(x = t_start, y = age_estimate, ymin=age_ci.lb, ymax=age_ci.ub, color=as.character(t_end))) +geom_pointrange(position=position_dodge(width=50))+coord_flip()
+
+
+accs_boot_cdi |> filter(!is.na(cor_age)) |>  ggplot(aes(x = t_start, y = cor_age, ymin=cor_age_lower, ymax=cor_age_upper,  col=as.character(t_end))) +
+  geom_pointrange() +
+  coord_flip() +
+  theme(legend.position = "none") +
+  facet_wrap(~dataset_name)
+```
+no differences here either
+
+
+# test - retest on accuracy windowing
+
+Goal is to find out how reliability (test-retest) varies with number of trials, within datasets. (ICC for cross dataset is covered elsewhere) 
+
+what dataset have repeated administrations?
+```{r}
+admins <- d_aoi |>
+  select(dataset_name, subject_id, administration_id, age) |>
+  distinct()
+repeated <- admins |>
+  group_by(dataset_name, subject_id) |>
+  tally() |>
+  filter(n > 1)
+
+repeated_subjects <- admins |> inner_join(repeated)
+```
+
+adams_marchman has 2 admins for each age and up to 5 ages 
+fernald totlot has 1 admin at each of 4 ages
+fmw sometimes has 2 admins at 1 age and 2 ages
+weaver_zettersten has 2 admins at 1 age 
+potter_remix has 2 admins at 1 age 
+
+so, we can say a pair is "close enough" if the ages are within 1 month of each other and then we'll have a bunch of test-retest pairs. 
+
+* for those pairs, for each admin, we want # of trials (administered), trial accuracy, trial RT, # trials with RT
+and then we want the correlation between admin-1 and admin-2 ?
+
+I don't know how much there's item overlap (probably is), so might be able to do something finer grained? 
+
+```{r}
+admins <- d_aoi |>
+  select(dataset_name, subject_id, administration_id, age) |>
+  distinct()
+repeated <- admins |>
+  group_by(dataset_name, subject_id) |>
+  tally() |>
+  filter(n > 1)
+
+repeated_subjects <- admins |> inner_join(repeated)
+# identify pairs
+# hmm, sometimes we have times with 3+ 1 month apart,
+# for now allow all the pairs that result so like 14-15 and 15-16 for the same kid
+
+pairs <- repeated_subjects |>
+  group_by(dataset_name, subject_id) |>
+  mutate(
+    forward_age = lead(age),
+    forward_diff = forward_age - age,
+    test_num = case_when(
+      forward_diff < 1.5 ~ 1,
+    ),
+    mean_age = case_when(
+      test_num == 1 ~ (age + forward_age) / 2,
+    ),
+    second_admin = case_when(
+      test_num == 1 ~ lead(administration_id)
+    )
+  ) |>
+  filter(!is.na(test_num)) |>
+  rename(first_admin = administration_id) |>
+  select(-n, -age) |>
+  left_join(repeated_subjects |> select(-age, -n), by = c("dataset_name", "subject_id", "second_admin" = "administration_id")) |>
+  ungroup() |>
+  mutate(pair_number = row_number()) |>
+  select(-forward_age, -forward_diff, -test_num)
+
+pairs_long <- pairs |> pivot_longer(c("first_admin", "second_admin"), names_to = "session_num", values_to = "administration_id")
+```
+
+
+since one of the things we want to optimize for is test-retest (as a measure of reliability, in addition to ICC, and CDI validity), we can check how window differences affect test-retest.
+
+```{r}
+# to cluster
+
+admins <- d_aoi |>
+  select(dataset_name, subject_id, administration_id, age) |>
+  distinct()
+repeated <- admins |>
+  group_by(dataset_name, subject_id) |>
+  tally() |>
+  filter(n > 1)
+
+repeated_subjects <- admins |> inner_join(repeated)
+# identify pairs
+# hmm, sometimes we have times with 3+ 1 month apart,
+# for now allow all the pairs that result so like 14-15 and 15-16 for the same kid
+
+pairs <- repeated_subjects |>
+  group_by(dataset_name, subject_id) |>
+  mutate(
+    forward_age = lead(age),
+    forward_diff = forward_age - age,
+    test_num = case_when(
+      forward_diff < 1.5 ~ 1,
+    ),
+    mean_age = case_when(
+      test_num == 1 ~ (age + forward_age) / 2,
+    ),
+    second_admin = case_when(
+      test_num == 1 ~ lead(administration_id)
+    )
+  ) |>
+  filter(!is.na(test_num)) |>
+  rename(first_admin = administration_id) |>
+  select(-n, -age) |>
+  left_join(repeated_subjects |> select(-age, -n), by = c("dataset_name", "subject_id", "second_admin" = "administration_id")) |>
+  ungroup() |>
+  mutate(pair_number = row_number()) |>
+  select(-forward_age, -forward_diff, -test_num)
+
+pairs_long <- pairs |> pivot_longer(c("first_admin", "second_admin"), names_to = "session_num", values_to = "administration_id")
+
+pairs_aoi_data <- pairs_long |> left_join(d_aoi)
+
+test_retest_boot <- function(data, indices) {
+  summ <- data |>
+    slice(indices) |>
+    group_by(administration_id, dataset_name, subject_id, pair_number, session_num) |>
+    summarize(mean_var = mean(accuracy, na.rm = T)) |>
+    select(-administration_id) |> 
+    ungroup() |>
+    pivot_wider(names_from=session_num, values_from=mean_var)
+    summarise(cor_test_retest = ifelse(sum(!is.na(first_admin) & !is.na(second_admin)) > 2, cor.test(first_admin, second_admin)$estimate, NA))
+  return(summ$cor_test_retest[1])
+}
+
+
+acc_test_retest <- function(t_start = -500, t_end = 4000) {
+  print(paste(t_start, t_end))
+
+  df <- pairs_aoi_data |>
+    filter(t_norm > t_start, t_norm < t_end) |>
+    group_by(administration_id, dataset_name, subject_id, pair_number, session_num, target_label, trial_id) |>
+    summarise(
+      accuracy = mean(correct, na.rm = TRUE),
+      prop_data = mean(!is.na(correct))
+    )
+
+  # compute ICCs
+  df |>
+    group_by(dataset_name) |>
+    nest() |>
+    mutate(corr = map(data, \(d) {
+      b <- boot::boot(d, test_retest_boot, 2000)
+      fold_stats <- b$t |> as_tibble()
+      names(fold_stats) <- names(b$t0)
+      fold_stats |>
+        summarize(across(
+          everything(),
+          list(
+            lower = \(c) ifelse(sum(!is.na(c)) > 1, quantile(c, probs = c(.025), na.rm = T), NA),
+            upper = \(c) ifelse(sum(!is.na(c)) > 1, quantile(c, probs = c(.975), na.rm = T), NA)
+          )
+        )) |>
+        bind_cols(b$t0 |> as_tibble_row())
+    })) |>
+    select(-data) |>
+    unnest(corr)
+}
+
+acc_params <- expand_grid(
+  t_start = c(0, 100, 200, 300, 400, 500, 600, 700, 800, 900, 1000),
+  t_end = c(2000, 4000),
+  object = c("administration")
+)
+library(multidplyr)
+library(boot)
+cluster <- new_cluster(16)
+cluster_library(cluster, "dplyr")
+cluster_library(cluster, "stringr")
+cluster_library(cluster, "purrr")
+cluster_library(cluster, "tidyr")
+cluster_library(cluster, "stats")
+cluster_library(cluster, "tibble")
+cluster_library(cluster, "boot")
+
+cluster_copy(cluster, "test_retest_boot")
+cluster_copy(cluster, "pairs_aoi_data")
+cluster_copy(cluster, "cdi_data")
+cluster_copy(cluster, "acc_test_retest")
+
+accs_boot_test_retest <- acc_params |>
+  partition(cluster) |>
+  mutate(corr = pmap(list(t_start, t_end), \(t_s, t_e) acc_test_retest(t_s, t_e))) |>
+  collect() |>
+  unnest(corr)
+
+saveRDS(accs_boot_test_retest, "accs_boot_test_retest.rds")
+
+```
+
+
+```{r}
+
+acc_params <- expand_grid(
+  t_start = c(0, 100, 200, 300, 400, 500, 600, 700, 800, 900, 1000),
+  t_end = c(2000, 4000),
+  object = c("administration")
+)
+library(multidplyr)
+# multidyplr attempt
+cluster <- new_cluster(16)
+cluster_library(cluster, "dplyr")
+cluster_library(cluster, "tidyr")
+cluster_library(cluster, "purrr")
+cluster_library(cluster, "agreement")
+cluster_copy(cluster, "icc_window_sim_age_bootstrap")
+cluster_copy(cluster, "icc_window_sim_bootstrap")
+cluster_copy(cluster, "bootstrap_icc")
+cluster_copy(cluster, "d_aoi")
+
+
+accs_boot <- acc_params |>
+  partition(cluster) |>
+  # head(1) |>
+  mutate(icc = pmap(list(t_start, t_end, object), \(t_s, t_e, o) icc_window_sim_bootstrap(t_s, t_e, o))) |>
+  collect() |>
+  unnest(col = icc)
+
+
+saveRDS(accs_boot, here("cached_intermediates", "3_acc_icc_boot.rds"))
+```
+
+```{r}
+params <- expand_grid(window_start = c(0, 200, 400, 600, 800), window_end = c(2000, 2500, 3000, 3500, 4000))
+
+d_aoi_limited <- d_aoi |>
+  inner_join(pairs_long |> select(dataset_name, administration_id, subject_id) |> distinct()) |>
+  filter(t_norm >= 0)
+
+get_acc <- function(dataset_name, window_start, window_end) {
+  d_aoi_limited |>
+    filter(dataset_name == dataset_name) |>
+    filter(t_norm >= window_start, t_norm <= window_end) |>
+    group_by(trial_id, administration_id) |>
+    summarize(mean_correct = mean(correct, na.rm = T)) |>
+    group_by(administration_id) |>
+    summarize(mean_correct = mean(mean_correct, na.rm = T))
+}
+
+t_rt_acc <- pairs_long |>
+  ungroup() |>
+  cross_join(params) |>
+  group_by(dataset_name, window_start, window_end) |>
+  nest() |>
+  mutate(cor = map(data, \(d){
+    d |>
+      left_join(get_acc(dataset_name, window_start, window_end), by = c("administration_id")) |>
+      select(-administration_id) |>
+      pivot_wider(names_from = session_num, values_from = mean_correct) |>
+      summarize(cor = ifelse(sum(!is.na(first_admin) & !is.na(second_admin)) > 2, cor.test(first_admin, second_admin)$estimate, NA))
+  })) |>
+  select(-data) |>
+  unnest(cor)
+```
+
+```{r}
+t_rt_acc |> ggplot(aes(col = cor)) +
+  geom_vline(xintercept = 0, linetype = "dashed") +
+  geom_segment(aes(x = window_start, xend = window_end, y = cor, yend = cor)) +
+  geom_segment(aes(x = window_start, xend = window_start, y = cor - 0.005, yend = cor + 0.005)) +
+  geom_segment(aes(x = window_end, xend = window_end, y = cor - 0.005, yend = cor + 0.005)) +
+  scale_color_viridis(name = "Test-retest", direction = -1) +
+  facet_wrap(~dataset_name)
+
+t_rt_acc |> ggplot(aes(x = window_start, y = window_end, col = cor)) +
+  geom_point() +
+  facet_wrap(~dataset_name) +
+  scale_color_viridis(name = "Test-retest", direction = -1)
+
+t_rt_acc |> ggplot(aes(x = window_start, y = window_end, fill = cor)) +
+  geom_tile(color = "white") +
+  scale_fill_viridis(name = "test-retest", option = "inferno") +
+  xlab("Window Start Time (in ms)") +
+  ylab("Window End Time (in ms)") +
+  facet_wrap(~dataset_name)
+
+t_rt_acc |>
+  group_by(window_end, window_start) |>
+  summarize(cor = mean(cor)) |>
+  ggplot(aes(col = cor)) +
+  geom_vline(xintercept = 0, linetype = "dashed") +
+  geom_segment(aes(x = window_start, xend = window_end, y = cor, yend = cor)) +
+  geom_segment(aes(x = window_start, xend = window_start, y = cor - 0.005, yend = cor + 0.005)) +
+  geom_segment(aes(x = window_end, xend = window_end, y = cor - 0.005, yend = cor + 0.005)) +
+  scale_color_viridis(name = "Test-retest", direction = -1)
+```
+this is not a helpful visualization
+
+what are we learning here? 
+
+is this mostly from kids where we don't have a lot of trials?
+
+```{r}
+params <- expand_grid(window_start = c(0, 200, 400, 600, 800), window_end = c(2000, 2500, 3000, 3500, 4000))
+
+d_aoi_limited <- d_aoi |>
+  inner_join(pairs_long |> select(dataset_name, administration_id, subject_id) |> distinct()) |>
+  filter(t_norm >= 0)
+
+get_acc <- function(dataset_name, window_start, window_end) {
+  d_aoi_limited |>
+    filter(dataset_name == dataset_name) |>
+    filter(t_norm >= window_start, t_norm <= window_end) |>
+    group_by(trial_id, administration_id) |>
+    summarize(mean_correct = mean(correct, na.rm = T)) |>
+    group_by(administration_id) |>
+    summarize(
+      num_trials = sum(!is.na(mean_correct)),
+      mean_correct = mean(mean_correct, na.rm = T),
+    )
+}
+
+t_rt_acc <- pairs_long |>
+  ungroup() |>
+  cross_join(params) |>
+  group_by(dataset_name, window_start, window_end) |>
+  nest() |>
+  mutate(cor = map(data, \(d){
+    print(dataset_name)
+    d_test <- d |>
+      left_join(get_acc(dataset_name, window_start, window_end), by = c("administration_id")) |>
+      select(-administration_id) |>
+      filter(num_trials > 4) |>
+      select(-num_trials)
+    if (nrow(d_test) == 0 | nrow(d_test |> filter(session_num == "first_admin")) == 0 |
+      nrow(d_test |> filter(session_num == "second_admin")) == 0) {
+      NA
+    } else {
+      d_test |>
+        pivot_wider(names_from = session_num, values_from = mean_correct) |>
+        filter(!is.na(first_admin)) |>
+        filter(!is.na(second_admin)) |>
+        summarize(cor = ifelse(sum(!is.na(first_admin) & !is.na(second_admin)) > 2, cor.test(first_admin, second_admin)$estimate, NA))
+    }
+  })) |>
+  select(-data) |>
+  unnest(cor)
+```
+```{r}
+t_rt_acc |>
+  group_by(window_end, window_start) |>
+  summarize(cor = mean(cor)) |>
+  ggplot(aes(col = cor)) +
+  geom_vline(xintercept = 0, linetype = "dashed") +
+  geom_segment(aes(x = window_start, xend = window_end, y = cor, yend = cor)) +
+  geom_segment(aes(x = window_start, xend = window_start, y = cor - 0.005, yend = cor + 0.005)) +
+  geom_segment(aes(x = window_end, xend = window_end, y = cor - 0.005, yend = cor + 0.005)) +
+  scale_color_viridis(name = "Test-retest", direction = -1)
+
+t_rt_acc |> ggplot(aes(x = window_start, y = window_end, fill = cor)) +
+  geom_tile(color = "white") +
+  scale_fill_viridis(name = "test-retest", option = "inferno") +
+  xlab("Window Start Time (in ms)") +
+  ylab("Window End Time (in ms)") +
+  facet_wrap(~dataset_name)
+```
+maybe slightly more reasonable? idk, there's still substantial dataset - to - dataset variation in what's ideal, but there may also be a lot of nuisance factors? 
+
+averaging across datasets, for the kids with 5+ trials at each session, seems like long-ish windows look reasonable? 
+
+
 
 # Summary
 
