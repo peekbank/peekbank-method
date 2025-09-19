@@ -300,11 +300,12 @@ bc_accs_age <- bc_acc_params |>
 saveRDS(bc_accs_age, here("cached_intermediates", "7_bc_accs_icc_boot_age.rds"))
 ```
 
+#### visualize
+
 ```{r, fig.width=10}
 bc_boot <- readRDS(here("cached_intermediates", "7_bc_accs_icc_boot.rds")) 
 no_bc_boot <- readRDS(here("cached_intermediates", "3_acc_icc_boot.rds")) |> filter(t_start == 500, t_end == 4000)
 
-# age ones waiting on cluster
 bc_boot_age <- readRDS(here("cached_intermediates", "7_bc_accs_icc_boot_age.rds"))
 no_bc_boot_age <- readRDS(here("cached_intermediates", "3_acc_icc_boot_age.rds")) |> filter(t_start == 500, t_end == 4000)
 ```
@@ -447,18 +448,7 @@ bc_boot_age_early_summ |> ggplot(aes(x = b_start, color = as.character(b_end), y
 ## CDI
 
 ```{r}
-source("cl_helper.R")
-
-d_aoi <- readRDS("d_aoi.Rds")
-library(tibble)
-library(multidplyr)
-
-cdi_data <- readRDS("cdi.rds")
-
-
-
-
-do_cdi <- function(data, indices) {
+do_cdi_bc_acc <- function(data, indices) {
   summ <- data |>
     slice(indices) |>
     group_by(administration_id) |>
@@ -504,18 +494,36 @@ bc_acc_cdi <- function(b_start, b_end, t_start, t_end) {
     group_by(dataset_name) |>
     nest() |>
     mutate(corr = map(data, \(d) {
-      b <- boot::boot(d, do_cdi, 2000)
-      fold_stats <- b$t |> as_tibble()
-      names(fold_stats) <- names(b$t0)
-      fold_stats |>
-        summarize(across(
-          everything(),
-          list(
-            lower = \(c) ifelse(sum(!is.na(c)) > 1, quantile(c, probs = c(.025), na.rm = T), NA),
-            upper = \(c) ifelse(sum(!is.na(c)) > 1, quantile(c, probs = c(.975), na.rm = T), NA)
-          )
-        )) |>
-        bind_cols(b$t0 |> as_tibble_row())
+      b <- boot::boot(d, do_cdi_bc_acc, 2000)
+      if (is.na(b$t0[1])) {
+        comp_lower <- NA
+        comp_upper <- NA
+      } else {
+        ci_comp <- boot::boot.ci(b, index = 1, type = "basic")
+        comp_lower <- ci_comp$basic[4]
+        comp_upper <- ci_comp$basic[5]
+      }
+      if (is.na(b$t0[2])) {
+        prod_lower <- NA
+        prod_upper <- NA
+      } else {
+        ci_prod <- boot::boot.ci(b, index = 2, type = "basic")
+        prod_lower <- ci_prod$basic[4]
+        prod_upper <- ci_prod$basic[5]
+      }
+      if (is.na(b$t0[3])) {
+        age_lower <- NA
+        age_upper <- NA
+      } else {
+        ci_age <- boot::boot.ci(b, index = 3, type = "basic")
+        age_lower <- ci_age$basic[4]
+        age_upper <- ci_age$basic[5]
+      }
+      tibble(
+        comp_est = b$t0[1], comp_lower = comp_lower, comp_upper = comp_upper,
+        prod_est = b$t0[2], prod_lower = prod_lower, prod_upper = prod_upper,
+        age_est = b$t0[3], age_lower = age_lower, age_upper = age_upper,
+      )
     })) |>
     select(-data) |>
     unnest(corr)
@@ -529,7 +537,7 @@ cluster_library(cluster, "purrr")
 cluster_library(cluster, "tidyr")
 cluster_library(cluster, "stats")
 cluster_library(cluster, "tibble")
-cluster_copy(cluster, "do_cdi")
+cluster_copy(cluster, "do_cdi_bc_acc")
 cluster_copy(cluster, "d_aoi")
 cluster_copy(cluster, "cdi_data")
 cluster_copy(cluster, "bc_acc_cdi")
@@ -547,7 +555,9 @@ bc_accs_boot_cdi <- bc_acc_params |>
   collect() |>
   unnest(cdi)
 
-saveRDS(bc_accs_boot_cdi, here("cached_intermediates", "7_bc_accs_boot_cdi.rds"))
+saveRDS(bc_accs_boot_cdi, "7_bc_accs_boot_cdi.rds")
+
+
 
 ```
 
@@ -566,27 +576,27 @@ library(metafor)
 bc_accs_boot_cdi_summ <-  bc_accs_boot_cdi |>
   left_join(baseline_lengths) |> filter(t_min< 0) |> 
   mutate(
-    comp_stdev = (cor_comp_upper - cor_comp_lower) / (1.96 * 2),
+    comp_stdev = (comp_upper - comp_lower) / (1.96 * 2),
     comp_var = comp_stdev**2,
-    prod_stdev = (cor_prod_upper - cor_prod_lower) / (1.96 * 2),
+    prod_stdev = (prod_upper - prod_lower) / (1.96 * 2),
     prod_var = prod_stdev**2,
-    age_stdev = (cor_age_upper - cor_age_lower) / (1.96 * 2),
+    age_stdev = (age_upper - age_lower) / (1.96 * 2),
     age_var = age_stdev**2
   ) |>
   group_by(t_start, t_end, b_start, b_end) |>
   nest() |>
   mutate(comp= map(data, \(d){
-    rma(d$cor_comp, d$comp_var) |>
+    rma(d$comp_est, d$comp_var) |>
       summary() |>
       coef()
   }),
   prod= map(data, \(d){
-    rma(d$cor_prod, d$prod_var) |>
+    rma(d$prod_est, d$prod_var) |>
       summary() |>
       coef()
   }),
   age= map(data, \(d){
-    rma(d$cor_age, d$age_var) |>
+    rma(d$age_est, d$age_var) |>
       summary() |>
       coef()
   })) |>
@@ -597,27 +607,27 @@ bc_accs_boot_cdi_summ <-  bc_accs_boot_cdi |>
   bc_accs_boot_cdi_summ_early <-  bc_accs_boot_cdi |>
     left_join(baseline_lengths) |> filter(t_min< -3000) |> 
   mutate(
-    comp_stdev = (cor_comp_upper - cor_comp_lower) / (1.96 * 2),
+    comp_stdev = (comp_upper - comp_lower) / (1.96 * 2),
     comp_var = comp_stdev**2,
-    prod_stdev = (cor_prod_upper - cor_prod_lower) / (1.96 * 2),
+    prod_stdev = (prod_upper - prod_lower) / (1.96 * 2),
     prod_var = prod_stdev**2,
-    age_stdev = (cor_age_upper - cor_age_lower) / (1.96 * 2),
+    age_stdev = (age_upper - age_lower) / (1.96 * 2),
     age_var = age_stdev**2
   ) |>
   group_by(t_start, t_end, b_start, b_end) |>
   nest() |>
   mutate(comp= map(data, \(d){
-    rma(d$cor_comp, d$comp_var) |>
+    rma(d$comp_est, d$comp_var) |>
       summary() |>
       coef()
   }),
   prod= map(data, \(d){
-    rma(d$cor_prod, d$prod_var) |>
+    rma(d$prod_est, d$prod_var) |>
       summary() |>
       coef()
   }),
   age= map(data, \(d){
-    rma(d$cor_age, d$age_var) |>
+    rma(d$age_est, d$age_var) |>
       summary() |>
       coef()
   })) |>
@@ -630,12 +640,13 @@ we expect correlations with production to be positive for accuracy data
 bc_accs_boot_cdi_summ |> ggplot(aes(x = b_start, y = prod_estimate, ymin=prod_ci.lb, ymax=prod_ci.ub, color=as.character(b_end))) +geom_pointrange(position=position_dodge(width=.5))+coord_flip()
 
 
-bc_accs_boot_cdi |> left_join(baseline_lengths) |> filter(t_min< 0) |> filter(!is.na(cor_prod)) |>  ggplot(aes(x = b_start, y = cor_prod, ymin=cor_prod_lower, ymax=cor_prod_upper,  col=as.character(b_end))) +
+bc_accs_boot_cdi |> left_join(baseline_lengths) |> filter(t_min< 0) |> filter(!is.na(prod_est)) |>  ggplot(aes(x = b_start, y = prod_est, ymin=prod_lower, ymax=prod_upper,  col=as.character(b_end))) +
   geom_pointrange() +
   geom_hline(yintercept=0)+
   coord_flip() +
   theme(legend.position = "none") +
   facet_wrap(~dataset_name)
+
 
 bc_accs_boot_cdi_summ_early |> ggplot(aes(x = b_start, y = prod_estimate, ymin=prod_ci.lb, ymax=prod_ci.ub, color=as.character(b_end))) +geom_pointrange(position=position_dodge(width=.5))+coord_flip()
 ```
@@ -647,7 +658,7 @@ correlation with comprehension
 bc_accs_boot_cdi_summ |> ggplot(aes(x = b_start, y = comp_estimate, ymin=comp_ci.lb, ymax=comp_ci.ub, color=as.character(b_end))) +geom_pointrange(position=position_dodge(width=.5))+coord_flip()
 
 
-bc_accs_boot_cdi |> left_join(baseline_lengths) |> filter(t_min< 0) |> filter(!is.na(cor_comp)) |>  ggplot(aes(x = b_start, y = cor_comp, ymin=cor_comp_lower, ymax=cor_comp_upper,  col=as.character(b_end))) +
+bc_accs_boot_cdi |> left_join(baseline_lengths) |> filter(t_min< 0) |> filter(!is.na(comp_est)) |>  ggplot(aes(x = b_start, y = comp_est, ymin=comp_lower, ymax=comp_upper,  col=as.character(b_end))) +
   geom_pointrange() +
   geom_hline(yintercept=0)+
   coord_flip() +
@@ -663,7 +674,7 @@ correlation with age
 bc_accs_boot_cdi_summ |> ggplot(aes(x = b_start, y = age_estimate, ymin=age_ci.lb, ymax=age_ci.ub, color=as.character(b_end))) +geom_pointrange(position=position_dodge(width=.5))+coord_flip()
 
 
-bc_accs_boot_cdi |> left_join(baseline_lengths) |> filter(t_min< 0) |> filter(!is.na(cor_age)) |>  ggplot(aes(x = b_start, y = cor_age, ymin=cor_age_lower, ymax=cor_age_upper,  col=as.character(b_end))) +
+bc_accs_boot_cdi |> left_join(baseline_lengths) |> filter(t_min< 0) |> filter(!is.na(age_est)) |>  ggplot(aes(x = b_start, y = age_est, ymin=age_lower, ymax=age_upper,  col=as.character(b_end))) +
   geom_pointrange() +
   geom_hline(yintercept=0)+
   coord_flip() +
@@ -671,6 +682,190 @@ bc_accs_boot_cdi |> left_join(baseline_lengths) |> filter(t_min< 0) |> filter(!i
   facet_wrap(~dataset_name)
 
 bc_accs_boot_cdi_summ_early |> ggplot(aes(x = b_start, y = age_estimate, ymin=age_ci.lb, ymax=age_ci.ub, color=as.character(b_end))) +geom_pointrange(position=position_dodge(width=.5))+coord_flip()
+```
+
+## Test retest
+
+```{r}
+source("cl_helper.R")
+
+d_aoi <- readRDS("d_aoi.Rds")
+library(tibble)
+library(multidplyr)
+
+cdi_data <- readRDS("cdi.rds")
+
+admins <- d_aoi |>
+  select(dataset_name, subject_id, administration_id, age) |>
+  distinct()
+repeated <- admins |>
+  group_by(dataset_name, subject_id) |>
+  tally() |>
+  filter(n > 1)
+
+repeated_subjects <- admins |> inner_join(repeated)
+# identify pairs
+# hmm, sometimes we have times with 3+ 1 month apart,
+# for now allow all the pairs that result so like 14-15 and 15-16 for the same kid
+
+pairs <- repeated_subjects |>
+  group_by(dataset_name, subject_id) |>
+  mutate(
+    forward_age = lead(age),
+    forward_diff = forward_age - age,
+    test_num = case_when(
+      forward_diff < 1.5 ~ 1,
+    ),
+    mean_age = case_when(
+      test_num == 1 ~ (age + forward_age) / 2,
+    ),
+    second_admin = case_when(
+      test_num == 1 ~ lead(administration_id)
+    )
+  ) |>
+  filter(!is.na(test_num)) |>
+  rename(first_admin = administration_id) |>
+  select(-n, -age) |>
+  left_join(repeated_subjects |> select(-age, -n), by = c("dataset_name", "subject_id", "second_admin" = "administration_id")) |>
+  ungroup() |>
+  mutate(pair_number = row_number()) |>
+  select(-forward_age, -forward_diff, -test_num)
+
+pairs_long <- pairs |> pivot_longer(c("first_admin", "second_admin"), names_to = "session_num", values_to = "administration_id")
+
+pairs_aoi_data <- pairs_long |> left_join(d_aoi)
+
+test_retest_boot <- function(data, indices) {
+  summ <- data |>
+    slice(indices) |>
+    group_by(administration_id, subject_id, pair_number, session_num) |>
+    summarize(mean_var = mean(bc_accuracy, na.rm = T), .groups = "drop") |>
+    select(-administration_id) |>
+    pivot_wider(names_from = session_num, values_from = mean_var) |>
+    summarise(cor_test_retest = ifelse(sum(!is.na(first_admin) & !is.na(second_admin)) > 2, cor.test(first_admin, second_admin)$estimate, NA))
+  return(summ$cor_test_retest[1])
+}
+
+
+bc_acc_test_retest <- function(b_start, b_end, t_start, t_end) {
+  print(paste(t_start, t_end))
+
+  baseline_lengths <- pairs_aoi_data |>
+    group_by(dataset_name, trial_id) |>
+    summarise(t_min = min(t_norm))
+
+  df <- pairs_aoi_data |>
+    left_join(baseline_lengths) |>
+    filter(t_min < 0) |>
+    group_by(administration_id, dataset_name, subject_id, pair_number, session_num, target_label, trial_id) |>
+    summarise(
+      window_accuracy = mean(correct[t_norm >= t_start & t_norm <= t_end],
+        na.rm = TRUE
+      ),
+      baseline_accuracy = mean(correct[t_norm >= b_start & t_norm <= b_end],
+        na.rm = TRUE
+      ),
+      bc_accuracy = window_accuracy - baseline_accuracy,
+      .groups = "drop"
+    ) |>
+    filter(!is.na(bc_accuracy))
+
+
+  # compute ICCs
+  df |>
+    group_by(dataset_name) |>
+    nest() |>
+    mutate(corr = map(data, \(d) {
+      b <- boot::boot(d, test_retest_boot, 2000)
+      ci <- boot::boot.ci(b, type = "basic")
+      print(ci)
+      tibble(est = b$t0, lower = ci$basic[4], upper = ci$basic[5])
+    })) |>
+    select(-data) |>
+    unnest(corr)
+}
+
+bc_acc_params <- expand_grid(
+  t_start = 500,
+  t_end = c(4000),
+  b_start = seq(-4000, -1000, 1000),
+  b_end = c(-500, 0),
+)
+library(multidplyr)
+library(boot)
+cluster <- new_cluster(16)
+cluster_library(cluster, "dplyr")
+cluster_library(cluster, "stringr")
+cluster_library(cluster, "purrr")
+cluster_library(cluster, "tidyr")
+cluster_library(cluster, "stats")
+cluster_library(cluster, "tibble")
+cluster_library(cluster, "boot")
+
+cluster_copy(cluster, "test_retest_boot")
+cluster_copy(cluster, "pairs_aoi_data")
+cluster_copy(cluster, "cdi_data")
+cluster_copy(cluster, "bc_acc_test_retest")
+
+bc_accs_boot_test_retest <- bc_acc_params |>
+  partition(cluster) |>
+  mutate(corr = pmap(list(b_start, b_end, t_start, t_end), \(b_s, b_e, t_s, t_e) bc_acc_test_retest(b_s, b_e, t_s, t_e))) |>
+  collect() |>
+  unnest(corr)
+
+saveRDS(bc_accs_boot_test_retest, "bc_accs_boot_test_retest.rds")
+
+```
+
+```{r}
+no_bc_accs_boot_test_retest <- readRDS(here("cached_intermediates", "3_accs_boot_test_retest.rds")) |> filter(t_start==500, t_end==4000)
+
+bc_accs_boot_test_retest <- readRDS(here("cached_intermediates", "7_bc_accs_boot_test_retest.rds")) |> bind_rows(no_bc_accs_boot_test_retest) |> 
+  mutate(b_start=ifelse(is.na(b_start), "none", as.character(b_start)))
+
+library(metafor)
+
+  baseline_lengths <- d_aoi |>
+    group_by(dataset_name) |>
+    summarise(t_min = min(t_norm))
+
+bc_accs_boot_test_retest_summ <-  bc_accs_boot_test_retest |>
+    left_join(baseline_lengths) |> filter(t_min< 0) |> 
+  mutate(
+    stdev = (upper - lower) / (1.96 * 2),
+    var = stdev**2,
+  ) |>
+  group_by(b_start, b_end) |>
+  nest() |>
+  mutate(corr= map(data, \(d){
+    rma(d$est, d$var) |>
+      summary() |>
+      coef()
+  })) |> 
+  unnest(corr)
+  
+
+bc_accs_boot_test_retest_summ_early <-  bc_accs_boot_test_retest |>
+    left_join(baseline_lengths) |> filter(t_min< -3000) |> 
+  mutate(
+    stdev = (upper - lower) / (1.96 * 2),
+    var = stdev**2,
+  ) |>
+  group_by(b_start, b_end) |>
+  nest() |>
+  mutate(corr= map(data, \(d){
+    rma(d$est, d$var) |>
+      summary() |>
+      coef()
+  })) |> 
+  unnest(corr)
+  
+bc_accs_boot_test_retest |> ggplot(aes(x=b_start, y=est, ymin=lower, ymax=upper, color=as.character(b_end)))+geom_pointrange(position = position_dodge(width=.5))+facet_wrap(~dataset_name)
+
+bc_accs_boot_test_retest_summ |> ggplot(aes(x=b_start, y=estimate, ymin=ci.lb, ymax=ci.ub, color=as.character(b_end)))+geom_pointrange(position = position_dodge(width=.5))
+
+bc_accs_boot_test_retest_summ_early |> ggplot(aes(x=b_start, y=estimate, ymin=ci.lb, ymax=ci.ub, color=as.character(b_end)))+geom_pointrange(position = position_dodge(width=.5))
+
 ```
 
 

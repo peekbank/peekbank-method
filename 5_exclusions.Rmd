@@ -146,21 +146,6 @@ d_sim <- d_aoi |>
   ) |>
   filter(!is.na(accuracy))
 
-# d_sim <- d_aoi |>
-#   group_by(
-#     dataset_name, trial_id, dataset_id, subject_id, administration_id,
-#     target_label
-#   ) |>
-#   summarise(
-#     total_target_prop = mean(correct, na.rm = TRUE),
-#     prop_data = mean(!is.na(correct)),
-#     accuracy = mean(correct[t_norm >= 400 & t_norm < 4000],
-#       na.rm = TRUE
-#     ),
-#     pre_looking = mean(correct[t_norm < 400], na.rm = TRUE)
-#   ) |>
-#   filter(!is.na(accuracy)) |>
-#   filter(dataset_name %in% c("adams_marchman_2018"))
 ```
 
 Main ICC simulation function. 
@@ -196,7 +181,7 @@ Set parameters and simulate.
 ```{r}
 excl1_params <- expand_grid(
   zoners_included = c("none", "no pre", "all"),
-  exclude_less_than = seq(0, 1, .2)
+  exclude_less_than = seq(0, 1, .1)
 )
 
 # multidyplr
