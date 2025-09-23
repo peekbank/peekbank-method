@@ -21,7 +21,7 @@ source("helper/rt_helper.R")
 ```
 
 
-## Prep
+# Prep
 looking at
 * the 3 options for RT = the first time you leave, the last time you leave before landing, when you land
 * raw v log RT
@@ -164,7 +164,7 @@ outcome measures:
 * reliability = ICC
 * data loss = how many datapoints are kept
 
-## how often does it matter?
+# how often does it matter?
 
 ```{r}
 d_rt <- readRDS(here("cached_intermediates", "4_rts.rds")) |> filter(window == 0, time_0 == T)
@@ -583,7 +583,7 @@ Window again 375-500 ish seems reasonable, 400 seems like a fine compromise
 Mostly, it probably doesn't matter, modulo a few dataset abnormalities 
 
 
-### bootstrapping
+# bootstrapping
 
 ```{r, eval=F}
 library(multidplyr)
@@ -788,7 +788,7 @@ ggplot(data_retained, aes(y=pct_retained, x=reorder(dataset_name, pct_retained))
 
 
 
-### age split half 
+# age split half 
 
 ```{r}
 source("cl_helper.R")
@@ -895,6 +895,7 @@ rt_age_boot <- readRDS(here("cached_intermediates", "4_rt_iccs_age_boot.rds")) |
   filter(!is.na(approach)) |> 
   mutate(younger=ifelse(younger, "<24months", ">=24months"))
 
+library(metafor)
 rt_age_boot_summ <- rt_age_boot |>
   filter(!is.na(lower), !is.na(upper)) |>
   mutate(
@@ -938,7 +939,7 @@ rt_age_boot |>
 ```
 
 
-## Validity
+# CDI trial level (deprecated)
 
 ### set up CDI bootstrapping
 
@@ -1155,7 +1156,8 @@ bootstrap_cdi |>filter(window==400) |> filter(!is.na(age_est)) |>  ggplot(aes(x 
   facet_wrap(~dataset_name)
 ```
 
-# Test-retest
+# Test-retest (trial level, deprecated)
+
 
 ```{r}
 source("cl_helper.R")
@@ -1341,16 +1343,477 @@ rt_boot_test_retest |> filter(approach=="trad_launch", logged=="raw") |> ggplot(
 rt_boot_test_retest_summ |> ggplot(aes(x=str_c(approach, "_", logged), y=estimate, ymin=ci.lb, ymax=ci.ub, color=as.character(window)))+geom_pointrange(position = position_dodge(width=.5))+coord_flip()+scale_color_viridis(discrete=T)
 
 ```
+# CDI kid level 
+
+```{r}
+source("cl_helper.R")
+
+d_aoi <- readRDS("d_aoi.Rds")
+
+cdi_data <- readRDS("cdi.rds")
+
+do_cdi <- function(data, indices) {
+  summ <- data |>
+    slice(indices) |>
+    left_join(cdi_data) |>
+    ungroup() |>
+    summarise(
+      cor_comp = ifelse(sum(!is.na(comp) & !is.na(mean_var)) > 2, cor.test(mean_var, comp)$estimate, as.numeric(NA)),
+      cor_prod = ifelse(sum(!is.na(prod) & !is.na(mean_var)) > 2, cor.test(mean_var, prod)$estimate, as.numeric(NA)),
+      cor_age = ifelse(sum(!is.na(age) & !is.na(mean_var)) > 2, cor.test(mean_var, age)$estimate, as.numeric(NA))
+    )
+  cors <- c(summ$cor_comp[1], summ$cor_prod[1], summ$cor_age[1])
+  names(cors) <- c("cor_comp", "cor_prod", "cor_age")
+
+  return(cors)
+}
+
+boot_cdi <- function(data) {
+  data |>
+    group_by(dataset_name) |>
+    nest() |>
+    mutate(corr = map(data, \(d) {
+      b <- boot::boot(d, do_cdi, 2000)
+      if (is.na(b$t0[1])) {
+        comp_lower <- NA
+        comp_upper <- NA
+      } else {
+        ci_comp <- boot::boot.ci(b, index = 1, type = "basic")
+        comp_lower <- ci_comp$basic[4]
+        comp_upper <- ci_comp$basic[5]
+      }
+      if (is.na(b$t0[2])) {
+        prod_lower <- NA
+        prod_upper <- NA
+      } else {
+        ci_prod <- boot::boot.ci(b, index = 2, type = "basic")
+        prod_lower <- ci_prod$basic[4]
+        prod_upper <- ci_prod$basic[5]
+      }
+      if (is.na(b$t0[3])) {
+        age_lower <- NA
+        age_upper <- NA
+      } else {
+        ci_age <- boot::boot.ci(b, index = 3, type = "basic")
+        age_lower <- ci_age$basic[4]
+        age_upper <- ci_age$basic[5]
+      }
+      tibble(
+        comp_est = b$t0[1], comp_lower = comp_lower, comp_upper = comp_upper,
+        prod_est = b$t0[2], prod_lower = prod_lower, prod_upper = prod_upper,
+        age_est = b$t0[3], age_lower = age_lower, age_upper = age_upper,
+      )
+    })) |>
+    select(-data) |>
+    unnest(corr)
+}
 
 
-## Summary
+cluster <- new_cluster(16)
+cluster_library(cluster, "dplyr")
+cluster_library(cluster, "stringr")
+cluster_library(cluster, "purrr")
+cluster_library(cluster, "tidyr")
+cluster_library(cluster, "stats")
+cluster_library(cluster, "tibble")
+cluster_copy(cluster, "do_cdi")
+cluster_copy(cluster, "d_aoi")
+cluster_copy(cluster, "cdi_data")
+cluster_copy(cluster, "boot_cdi")
+cluster_copy(cluster, "acc_cdi")
+cluster_copy(cluster, "bc_acc_cdi")
+
+
+
+rts <- readRDS("rts.rds")
+
+
+d_rt_dt <- rts |>
+  filter(window %in% c(200, 350, 375, 400, 425, 450, 500)) |>
+  filter(frac %in% c(0, 1)) |>
+  filter(time_0 == T, time_end == T) |>
+  filter(shift_type == "D-T") |>
+  mutate(
+    land_rt = rt,
+    first_launch_rt = shift_start_rt,
+    # last_launch_rt = last_shift_rt
+  ) |>
+  mutate(
+    across(c("land_rt", "first_launch_rt"), log, .names = "log_{.col}"),
+    across(
+      c(
+        "first_launch_rt",
+        "log_first_launch_rt",
+      ),
+      ~ ifelse(shift_length <= 600, .x, NA),
+      .names = "trim_first_{.col}"
+    ),
+  ) |>
+  select(-rt, -shift_start_rt, -last_shift_rt) |>
+  group_by(dataset_name, time_0, window, time_end, during, frac, administration_id, target_label)
+
+d_rt_dt_long <- d_rt_dt |>
+  pivot_longer(ends_with("rt"), names_to = "measure", values_to = "rt") |>
+  mutate(
+    type = case_when(
+      str_detect(measure, "first_launch_rt") ~ "first_launch",
+      str_detect(measure, "last_launch_rt") ~ "last_launch",
+      str_detect(measure, "land_rt") ~ "land"
+    ),
+    logged = case_when(
+      str_detect(measure, "log") ~ "log",
+      T ~ "raw"
+    ),
+    trimming = case_when(
+      str_detect(measure, "trim_first") ~ "trim_first",
+      T ~ "untrimmed"
+    )
+  ) |>
+  mutate(approach = case_when(
+    type == "land" & trimming == "untrimmed" & frac == "0" ~ "generous",
+    type == "land" & trimming == "untrimmed" & frac == "1" ~ "trad_land",
+    type == "first_launch" & trimming == "trim_first" & frac == "1" ~ "trad_launch"
+  )) |>
+  filter(!is.na(approach))
+
+
+rt_cdi <- function(w, a, l) {
+  d_rt_dt_long |>
+    filter(window == w, approach == a, logged == l) |>
+    group_by(dataset_name, administration_id) |>
+    summarize(mean_var = mean(rt, na.rm = T)) |>
+    boot_cdi()
+}
+
+cluster_copy(cluster, "rt_cdi")
+cluster_copy(cluster, "d_rt_dt_long")
+
+rt_params <- expand_grid(
+  approach = c("generous", "trad_launch", "trad_land"),
+  window = c(200, 350, 375, 400, 425, 450, 500),
+  logged = c("log", "raw")
+)
+
+
+rt_bootstrap_cdi <- rt_params |>
+  partition(cluster) |>
+  mutate(cdi = pmap(list(window, approach, logged), \(w, a, l) {
+    rt_cdi(w, a, l)
+  })) |>
+  collect() |>
+  unnest(cdi)
+
+saveRDS(rt_bootstrap_cdi, here("cached_intermediates", "4_rt_kid_cdi.rds"))
+
+```
+
+```{r}
+rt_kid_cdi <- readRDS(here("cached_intermediates", "4_rt_kid_cdi.rds"))
+
+library(metafor)
+
+rt_kid_cdi_summ <-  rt_kid_cdi |>
+  mutate(
+    comp_stdev = (comp_upper - comp_lower) / (1.96 * 2),
+    comp_var = comp_stdev**2,
+    prod_stdev = (prod_upper - prod_lower) / (1.96 * 2),
+    prod_var = prod_stdev**2,
+    age_stdev = (age_upper - age_lower) / (1.96 * 2),
+    age_var = age_stdev**2
+  ) |>
+  group_by(approach, window, logged) |>
+  nest() |>
+  mutate(comp= map(data, \(d){
+    rma(d$comp_est, d$comp_var) |>
+      summary() |>
+      coef()
+  }),
+  prod= map(data, \(d){
+    rma(d$prod_est, d$prod_var) |>
+      summary() |>
+      coef()
+  }),
+  age= map(data, \(d){
+    rma(d$age_est, d$age_var) |>
+      summary() |>
+      coef()
+  })) |>
+  select(-data) |>
+  unnest(c(comp, prod, age), names_sep="_")
+
+```
+```{r}
+rt_kid_cdi_summ |> ggplot(aes(x = str_c(approach, "_", logged), y = prod_estimate, ymin=prod_ci.lb, ymax=prod_ci.ub, color=as.character(window))) +geom_pointrange(position=position_dodge(width=.5))+
+  scale_color_viridis(discrete=T)+
+  coord_flip()
+
+
+rt_kid_cdi |>filter(window==400) |> filter(!is.na(prod_est)) |>  ggplot(aes(x = str_c(approach, "_", logged), y = prod_est, ymin=prod_lower, ymax=prod_upper,  col=approach)) +
+  geom_pointrange() +
+  coord_flip() +
+  theme(legend.position = "none") +
+  facet_wrap(~dataset_name)
+```
+
+
+```{r}
+rt_kid_cdi_summ |> ggplot(aes(x = str_c(approach, "_", logged), y = comp_estimate, ymin=comp_ci.lb, ymax=comp_ci.ub, color=as.character(window))) +geom_pointrange(position=position_dodge(width=.5))+
+  scale_color_viridis(discrete=T)+
+  coord_flip()
+
+
+rt_kid_cdi |>filter(window==400) |> filter(!is.na(comp_est)) |>  ggplot(aes(x = str_c(approach, "_", logged), y = comp_est, ymin=comp_lower, ymax=comp_upper,  col=approach)) +
+  geom_pointrange() +
+  coord_flip() +
+  theme(legend.position = "none") +
+  facet_wrap(~dataset_name)
+```
+
+```{r}
+rt_kid_cdi_summ |> ggplot(aes(x = str_c(approach, "_", logged), y = age_estimate, ymin=age_ci.lb, ymax=age_ci.ub, color=as.character(window))) +geom_pointrange(position=position_dodge(width=.5))+
+  scale_color_viridis(discrete=T)+
+  coord_flip()
+
+
+rt_kid_cdi |>filter(window==400) |> filter(!is.na(age_est)) |>  ggplot(aes(x = str_c(approach, "_", logged), y = age_est, ymin=age_lower, ymax=age_upper,  col=approach)) +
+  geom_pointrange() +
+  coord_flip() +
+  theme(legend.position = "none") +
+  facet_wrap(~dataset_name)
+```
+
+# Test-retest kid level
+
+```{r}
+source("cl_helper.R")
+
+d_aoi <- readRDS("d_aoi.Rds")
+library(tibble)
+library(multidplyr)
+
+admins <- d_aoi |>
+  select(dataset_name, subject_id, administration_id, age) |>
+  distinct()
+repeated <- admins |>
+  group_by(dataset_name, subject_id) |>
+  tally() |>
+  filter(n > 1)
+
+repeated_subjects <- admins |> inner_join(repeated)
+
+pairs <- repeated_subjects |>
+  group_by(dataset_name, subject_id) |>
+  mutate(
+    forward_age = lead(age),
+    forward_diff = forward_age - age,
+    test_num = case_when(
+      forward_diff < 1.5 ~ 1,
+    ),
+    mean_age = case_when(
+      test_num == 1 ~ (age + forward_age) / 2,
+    ),
+    second_admin = case_when(
+      test_num == 1 ~ lead(administration_id)
+    )
+  ) |>
+  filter(!is.na(test_num)) |>
+  rename(first_admin = administration_id) |>
+  select(-n, -age) |>
+  left_join(repeated_subjects |> select(-age, -n), by = c("dataset_name", "subject_id", "second_admin" = "administration_id")) |>
+  ungroup() |>
+  mutate(pair_number = row_number()) |>
+  select(-forward_age, -forward_diff, -test_num)
+
+pairs_long <- pairs |> pivot_longer(c("first_admin", "second_admin"), names_to = "session_num", values_to = "administration_id")
+
+pairs_aoi_data <- pairs_long |> left_join(d_aoi)
+
+
+test_retest_corr <- function(data, indices) {
+  summ <- data |>
+    slice(indices) |>
+    summarise(cor_test_retest = ifelse(sum(!is.na(first_admin) & !is.na(second_admin)) > 2, cor.test(first_admin, second_admin)$estimate, NA))
+  return(summ$cor_test_retest[1])
+}
+
+boot_test_retest <- function(data) {
+  data |>
+    select(-administration_id) |>
+    pivot_wider(names_from = session_num, values_from = mean_var) |>
+    group_by(dataset_name) |>
+    nest() |>
+    # head(1) |>
+    mutate(corr = map(data, \(d) {
+      b <- boot::boot(d, test_retest_corr, 2000)
+      ci <- boot::boot.ci(b, type = "basic")
+      print(ci)
+      tibble(est = b$t0, lower = ci$basic[4], upper = ci$basic[5])
+    })) |>
+    select(-data) |>
+    unnest(corr)
+}
+
+
+rt_data <- readRDS("rts.rds")
+
+d_rt_dt <- rt_data |>
+  filter(window %in% c(200, 350, 375, 400, 425, 450, 500)) |>
+  filter(frac %in% c(0, 1)) |>
+  filter(time_0 == T, time_end == T) |>
+  filter(shift_type == "D-T") |>
+  mutate(
+    land_rt = rt,
+    first_launch_rt = shift_start_rt,
+    # last_launch_rt = last_shift_rt
+  ) |>
+  mutate(
+    across(c("land_rt", "first_launch_rt"), log, .names = "log_{.col}"),
+    across(
+      c(
+        "first_launch_rt",
+        "log_first_launch_rt",
+      ),
+      ~ ifelse(shift_length <= 600, .x, NA),
+      .names = "trim_first_{.col}"
+    ),
+  ) |>
+  select(-rt, -shift_start_rt, -last_shift_rt) |>
+  group_by(dataset_name, time_0, window, time_end, during, frac, administration_id, target_label)
+
+d_rt_dt_long <- d_rt_dt |>
+  pivot_longer(ends_with("rt"), names_to = "measure", values_to = "rt") |>
+  mutate(
+    type = case_when(
+      str_detect(measure, "first_launch_rt") ~ "first_launch",
+      str_detect(measure, "last_launch_rt") ~ "last_launch",
+      str_detect(measure, "land_rt") ~ "land"
+    ),
+    logged = case_when(
+      str_detect(measure, "log") ~ "log",
+      T ~ "raw"
+    ),
+    trimming = case_when(
+      str_detect(measure, "trim_first") ~ "trim_first",
+      T ~ "untrimmed"
+    )
+  ) |>
+  mutate(approach = case_when(
+    type == "land" & trimming == "untrimmed" & frac == "0" ~ "generous",
+    type == "land" & trimming == "untrimmed" & frac == "1" ~ "trad_land",
+    type == "first_launch" & trimming == "trim_first" & frac == "1" ~ "trad_launch"
+  )) |>
+  filter(!is.na(approach))
+
+rt_pairs <- pairs_long |>
+  left_join(d_rt_dt_long |> ungroup() |> select(administration_id, rt, approach, window, logged, dataset_name) |>
+    select(administration_id, rt, approach, window, logged, dataset_name))
+
+rt_test_retest <- function(w, a, l) {
+  rt_pairs |>
+    filter(window == w, approach == a, logged == l) |>
+    group_by(dataset_name, administration_id, subject_id, pair_number, session_num) |>
+    summarize(mean_var = mean(rt, na.rm = T), .groups = "drop") |>
+    boot_test_retest()
+}
+
+cluster_copy(cluster, "rt_test_retest")
+cluster_copy(cluster, "rt_pairs")
+
+rt_params <- expand_grid(
+  approach = c("generous", "trad_launch", "trad_land"),
+  window = c(200, 350, 375, 400, 425, 450, 500),
+  logged = c("log", "raw")
+)
+
+rt_bootstrap_test_retest <- rt_params |>
+  partition(cluster) |>
+  mutate(cdi = pmap(list(window, approach, logged), \(w, a, l) {
+    rt_test_retest(w, a, l)
+  })) |>
+  collect() |>
+  unnest(cdi)
+
+saveRDS(rt_bootstrap_test_retest, here("cached_intermediates", "4_rt_kid_test_retest.rds"))
+
+```
+
+```{r}
+rt_kid_test_retest <- readRDS(here("cached_intermediates", "4_rt_kid_test_retest.rds")) 
+
+library(metafor)
+rt_kid_test_retest_summ <-  rt_kid_test_retest |>
+  mutate(
+    stdev = (upper - lower) / (1.96 * 2),
+    var = stdev**2,
+  ) |>
+  group_by(approach, window, logged) |>
+  nest() |>
+  mutate(corr= map(data, \(d){
+    rma(d$est, d$var) |>
+      summary() |>
+      coef()
+  })) |> 
+  unnest(corr)
+  
+rt_kid_test_retest |> filter(window==400) |> ggplot(aes(x=str_c(approach, "_", logged), y=est, ymin=lower, ymax=upper, color=as.character(approach)))+geom_pointrange(position = position_dodge(width=.5))+facet_wrap(~dataset_name)+coord_flip()
+
+rt_kid_test_retest |> filter(approach=="trad_launch", logged=="raw") |> ggplot(aes(x=window, y=est, ymin=lower, ymax=upper, color=as.character(window)))+geom_pointrange()+facet_wrap(~dataset_name)+coord_flip()+scale_color_viridis(discrete=T)
+
+rt_kid_test_retest_summ |> ggplot(aes(x=str_c(approach, "_", logged), y=estimate, ymin=ci.lb, ymax=ci.ub, color=as.character(window)))+geom_pointrange(position = position_dodge(width=.5))+coord_flip()+scale_color_viridis(discrete=T)
+
+```
+
+# Summary
 
 for further purposes are doing (raw) RT on a window=400, on distractor (target) at 0 and 400, not on the other one during those 400 ms, no other requirements
 
 ```{r}
-canonical_rt <- readRDS(here("cached_intermediates", "4_rt.rds")) |>
-  filter(window == 400, frac == 0, time_0 == T, time_end == T) |>
-  left_join(d_aoi %>%
+canonical_rt <- readRDS(here("cached_intermediates", "4_rts.rds"))  |>
+  filter(window %in% c(400)) |>
+  filter(frac %in% c(0, 1)) |>
+  filter(time_0 == T, time_end == T) |>
+  filter(shift_type == "D-T") |>
+  mutate(
+    land_rt = rt,
+    first_launch_rt = shift_start_rt,
+    # last_launch_rt = last_shift_rt
+  ) |>
+  mutate(
+    across(c("land_rt", "first_launch_rt"), log, .names = "log_{.col}"),
+    across(
+      c(
+        "first_launch_rt",
+        "log_first_launch_rt",
+      ),
+      ~ ifelse(shift_length <= 600, .x, NA),
+      .names = "trim_first_{.col}"
+    ),
+  ) |>
+  select(-rt, -shift_start_rt, -last_shift_rt) |>
+  group_by(dataset_name, time_0, window, time_end, during, frac, administration_id, target_label) |> 
+  pivot_longer(ends_with("rt"), names_to = "measure", values_to = "rt") |>
+  mutate(
+    type = case_when(
+      str_detect(measure, "first_launch_rt") ~ "first_launch",
+      str_detect(measure, "last_launch_rt") ~ "last_launch",
+      str_detect(measure, "land_rt") ~ "land"
+    ),
+    logged = case_when(
+      str_detect(measure, "log") ~ "log",
+      T ~ "raw"
+    ),
+    trimming = case_when(
+      str_detect(measure, "trim_first") ~ "trim_first",
+      T ~ "untrimmed"
+    )
+  ) |>
+  mutate(approach = case_when(
+    type == "land" & trimming == "untrimmed" & frac == "0" ~ "generous",
+    type == "land" & trimming == "untrimmed" & frac == "1" ~ "trad_land",
+    type == "first_launch" & trimming == "trim_first" & frac == "1" ~ "trad_launch"
+  )) |>
+  filter(!is.na(approach)) |> 
+  left_join(d_aoi%>%
     select(administration_id, dataset_name, subject_id, trial_id, trial_order, target_label) %>%
     distinct())
 

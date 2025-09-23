@@ -105,7 +105,7 @@ Looking at targets.
 ggplot(d_bykid_summary, aes(x = total_prop_target_looking)) +
   geom_histogram()
 ```
-# Accuracy exclusions 
+# Accuracy exclusions -- trial wise 
 
 What are things we could exclude on?
 
@@ -124,11 +124,12 @@ Let's find out if any of these increase reliability.
 
 Our approach: we are going to compute ICCs with different subsamples of the data and see what happens to ICC.
 
-### Trial-wise simulation
 
 First stimulation is going to exclude only trial-wise and set a long, constant window across exclusions. 
 
 Note, we can't even compute ICCs here if we don't have *any* data, so we'll have to clip our our NaNs. 
+
+## ICC reliability
 
 ```{r}
 d_sim <- d_aoi |>
@@ -164,7 +165,8 @@ icc_trial_exclusion_sim <- function(zoners_included = "none",
   }
 
   # compute ICCs
-  df |>
+  df |> group_by(administration_id, dataset_name, target_label) |> 
+    mutate(repetition=row_number()) |> 
     group_by(dataset_name) |>
     nest() |>
     mutate(icc = unlist(map(data, \(d) {
@@ -195,33 +197,14 @@ excl1 <- excl1_params |>
   unnest(col = icc)
 toc()
 
-tic()
-excl1_am <- excl1_params |>
-  mutate(icc = pmap(
-    list(zoners_included, exclude_less_than, object = "administration"),
-    icc_trial_exclusion_sim
-  )) |>
-  unnest(col = icc)
-toc()
+saveRDS(excl1, here("cached_intermediates/5_acc_trial_exclusions.rds"))
 
-save(file = "cached_intermediates/5_exclusions_1_am.Rds", excl1_am)
-
-save(file = "cached_intermediates/5_exclusions_1.Rds", excl1)
-
-load(file = "cached_intermediates/5_exclusions_1.Rds")
-
-load(file = "cached_intermediates/5_exclusions_1_fm.Rds")
-
-excl1 |>
-  bind_rows(excl1_fm) |>
-  saveRDS(here("cached_intermediates/5_exclusions_1.rds"))
 ```
 
 Plot resulting ICCs.
 
 ```{r}
-# note that this doesn't have AM because that kept crashing even running icc on 1 row :(
-excl1 <- readRDS(here("cached_intermediates/5_exclusions_1.rds"))
+excl1 <- readRDS(here("cached_intermediates/5_acc_trial_exclusions.rds"))
 ggplot(
   excl1,
   aes(
@@ -237,6 +220,23 @@ ggplot(
   geom_smooth(aes(group = zoners_included), method = "lm") +
   ylab("ICC") +
   xlab("Include trials with more than")
+
+ggplot(
+  excl1,
+  aes(
+    x = exclude_less_than, y = icc,
+    group = interaction(dataset_name, zoners_included),
+    col = zoners_included
+  )
+) +
+  #geom_jitter(alpha = .3, width = .03) +
+  #geom_line(alpha = .3) +
+  #stat_summary(aes(group = zoners_included), alpha = 1) +
+  stat_summary(aes(group = zoners_included), alpha = 1, geom = "line") +
+  #geom_smooth(aes(group = zoners_included), method = "lm") +
+  ylab("ICC") +
+  xlab("Include trials with more than")+
+  facet_wrap(~dataset_name)
 ```
 Let's start breaking this down by dataset and looking at the amount of data that is actually being excluded...
 
@@ -315,7 +315,7 @@ ggplot(
 ) +
   geom_point() +
   scale_size_area(max_size = 3) +
-  # facet_wrap(~zoners_included) +
+   facet_wrap(~zoners_included) +
   geom_smooth(aes(group = zoners_included), method = "lm") +
   ylab("ICC") +
   xlab("Prop trials retained")
@@ -392,286 +392,48 @@ I think my overall takehome is that these exclusions are not really worth doing,
 
 <!-- * check on CDI validity for swingley-aslin - also this paradigm may require checking both alternatives because you actually need to see both to figure out the right answer in a mispronunciation paradigm.  -->
 
+so, if we're not doing anything with zoners, what about amount of data/trial?
+
+
+```{r}
+ggplot(
+  excl1 |> filter(zoners_included=="all"),
+  aes(
+    x = prop_trials_retained, y = icc,
+  )
+) +
+  geom_point(aes(col = as.factor(exclude_less_than)))+
+  scale_size_area(max_size = 3) +
+  geom_smooth(method = "lm") +
+  ylab("ICC") +
+  xlab("Prop trials retained")
+
+ggplot(
+  excl1 |> filter(zoners_included=="all"),
+  aes(
+    x = exclude_less_than, y = icc,
+  )
+) +
+  geom_point(aes(col = as.factor(exclude_less_than)))+
+  scale_size_area(max_size = 3) +
+  stat_summary()+
+  geom_smooth(method = "lm") +
+  ylab("ICC") +
+  xlab("Prop trials retained")
+```
+
+
 Summary: exclusions don't seem to do much, especially assuming you aren't willing to throw out 90% of the data. 
 
-## Kid-wise simulation
+Most kids are looking at the T/D most of the time. 
 
-OK, let's revisit the subject-wise exclusion issue. 
+## CDI
 
-subject-wise, we could exclude by:
-* prop of trials with any data
-* prop of "useable trials" (passed the trial-wise exclusions)
-* side bias across trials - looking at one side more across trials even if not zoning
-* zoning across many trials (kid-zoning) 
-
-Given that we are not that excited about zoner exclusions previously (or really any trial-level exclusions honestly), let's just look at:
-
-* prop of useable trials
-* cross-trial side bias (+ kid zoning)
-
-That is manageable. 
-
-```{r}
-t_start <- 400
-t_end <- 4000
-
-# function to abstract logic of right-looking
-prop_right_looks <- function(c, ts) {
-  mean((ts == "right" & c == TRUE) |
-    (ts == "left" & c == FALSE), na.rm = TRUE)
-}
-
-
-d_kid_sim <- d_aoi |>
-  group_by(
-    dataset_name, trial_id, dataset_id, subject_id, administration_id,
-    target_label, target_side
-  ) |>
-  summarise(
-    total_target_prop = mean(correct, na.rm = TRUE),
-    prop_data = mean(!is.na(correct)),
-    accuracy = mean(correct[t_norm >= t_start & t_norm < t_end],
-      na.rm = TRUE
-    ),
-    pre_looking = mean(correct[t_norm < t_start], na.rm = TRUE),
-    prop_right = prop_right_looks(
-      correct[t_norm >= t_start & t_norm < t_end],
-      target_side[t_norm >= t_start & t_norm < t_end]
-    )
-  ) |>
-  filter(!is.na(accuracy))
-```
-
-Let's assume that each task has a constant number of trials per.
-
-Side bias is giving us trouble, so let's check on it and make sure it is reasonable.
-
-```{r}
-ggplot(d_kid_sim, aes(x = prop_right)) +
-  geom_histogram() +
-  facet_wrap(~dataset_name, scales = "free_y")
-```
-This graph confirms side bias in general. Let's look by kid, are there actually any kids that have extensive side bias. 
-
-```{r}
-d_kid_sim |>
-  group_by(dataset_name, administration_id) |>
-  summarise(prop_right = mean(prop_right, na.rm = TRUE)) |>
-  ggplot(aes(x = prop_right, fill = prop_right > .9 | prop_right < .1)) +
-  geom_histogram() +
-  facet_wrap(~dataset_name, scales = "free_y")
-```
-OK, so we've confirmed that there are almost no kids that have this. How many actually?
-
-```{r}
-d_kid_sim |>
-  group_by(dataset_name, administration_id) |>
-  summarise(
-    prop_right = mean(prop_right, na.rm = TRUE),
-    n = n()
-  ) |>
-  mutate(side_bias = prop_right > .9 | prop_right < .1) |>
-  group_by(dataset_name, side_bias) |>
-  summarise(
-    n_kids = n(),
-    n_trials = mean(n)
-  ) |>
-  arrange(side_bias)
-```
-
-Main simulation code. 
-
-```{r}
-dataset_sizes <- d_kid_sim |>
-  group_by(dataset_name) |>
-  count()
-
-
-
-## main function
-icc_kid_exclusion_sim <- function(prop_useable = .5,
-                                  side_bias = .9,
-                                  object = "administration") {
-  kid_props <- d_kid_sim |>
-    group_by(dataset_name, administration_id) |>
-    mutate(
-      n = length(administration_id),
-      prop_right = prop_right
-    ) |>
-    group_by(dataset_name) |>
-    mutate(
-      prop_trials = n / max(n),
-      prop_right = mean(prop_right, na.rm = TRUE)
-    ) |>
-    filter(
-      prop_trials >= prop_useable,
-      # looking right less than upper cutoff and more than lower cutoff
-      prop_right < side_bias & prop_right > (1 - side_bias)
-    )
-
-  df <- d_kid_sim |>
-    right_join(kid_props)
-
-  df_data_retained <- left_join(
-    dataset_sizes,
-    df |>
-      group_by(dataset_name) |>
-      count() |>
-      rename(n_filtered = n)
-  ) |>
-    mutate(prop_data_retained = n_filtered / n) |>
-    select(dataset_name, prop_data_retained)
-
-  # compute ICCs
-  df |>
-    group_by(dataset_name) |>
-    nest() |>
-    mutate(icc = unlist(map(data, ~ get_icc(., "accuracy", object)))) |>
-    select(-data) |>
-    unnest(cols = c()) |>
-    left_join(df_data_retained)
-}
-```
-
-Set parameters and simulate.
-
-```{r}
-excl_kid_params <- expand_grid(
-  prop_useable = seq(0, 1, .1),
-  side_bias = seq(.9, 1.05, .05),
-  object = c("administration")
-)
-
-# multidyplr
-
-
-tic()
-excl_kid <- excl_kid_params |>
-  mutate(icc = pmap(
-    list(prop_useable, side_bias, object),
-    icc_kid_exclusion_sim
-  )) |>
-  unnest(col = icc)
-toc()
-
-save(file = "cached_intermediates/5_exclusions2.Rds", excl_kid)
-```
-
-Let's see what happens!
-
-First, look at exclusion by proportion of trials contributed. Note, bias==1.05 means don't exclude anyone (hacky numerical way of doing this). 
-
-note that we excluded AM and FM because I haven't figured out the ICC performance issues, add back in once I do
-
-if we don't filter on side-bias, but only on (otherwise) prop useable
-```{r}
-load("cached_intermediates/5_exclusions2.Rds")
-
-ggplot(
-  filter(excl_kid, side_bias == 1.05),
-  aes(
-    x = prop_useable, y = icc,
-    col = dataset_name,
-    group = dataset_name
-  )
-) +
-  geom_point(alpha = .3) +
-  geom_line(alpha = .3) +
-  ggrepel::geom_label_repel(
-    data = filter(
-      excl_kid, prop_useable == 1,
-      side_bias == 1.05
-    ),
-    aes(label = dataset_name), size = 1.5
-  ) +
-  geom_smooth(aes(group = 1)) +
-  scale_color_discrete(guide = FALSE) +
-  ylab("ICC") +
-  xlab("Kid-level exclusion cutoff")
-```
-
-Total data loss:
-
-```{r}
-ggplot(
-  filter(excl_kid, side_bias == 1.05),
-  aes(
-    x = prop_useable, y = prop_data_retained,
-    col = dataset_name,
-    group = dataset_name
-  )
-) +
-  geom_point(alpha = .3) +
-  geom_line(alpha = .3) +
-  ggrepel::geom_label_repel(
-    data = filter(
-      excl_kid, prop_useable == 1,
-      side_bias == 1.05
-    ),
-    aes(label = dataset_name), size = 1.5
-  ) +
-  geom_smooth(aes(group = 1)) +
-  scale_color_discrete(guide = "none") +
-  facet_grid(. ~ object) +
-  ylab("Total data retained") +
-  xlab("Kid-level exclusion cutoff")
-```
-So this is just losing you data without improving ICC
-
-Now look at side bias (separate from any proportion exclusions). 
-
-```{r}
-ggplot(
-  filter(excl_kid, prop_useable == 0),
-  aes(
-    x = side_bias, y = icc,
-    col = dataset_name
-  )
-) +
-  geom_point(alpha = .3, width = .03) +
-  geom_line(alpha = .3) +
-  # ggrepel::geom_label_repel(data = filter(excl_kid, prop_useable == 1,
-  #                                         side_bias == 1.05),
-  #                           aes(label = dataset_name), size = 1.5) +
-  # geom_smooth(aes(group = 1)) +
-  # scale_color_discrete(guide = FALSE) +
-  ylab("ICC") +
-  xlab("Kid-level side bias exclusion cutoff")
-```
-
-Total data loss:
-
-```{r}
-ggplot(
-  filter(excl_kid, prop_useable == 0),
-  aes(
-    x = side_bias, y = prop_data_retained,
-    col = dataset_name
-  )
-) +
-  geom_point(alpha = .3) +
-  geom_line(alpha = .3) +
-  # ggrepel::geom_label_repel(data = filter(excl_kid, prop_useable == 1,
-  #                                         side_bias == 1.05),
-  #                           aes(label = dataset_name), size = 1.5) +
-  # geom_smooth(aes(group = 1)) +
-  # scale_color_discrete(guide = FALSE) +
-  facet_grid(. ~ object) +
-  ylab("proportion data retained") +
-  xlab("Kid-level exclusion cutoff")
-```
-Having looked into side bias, the reason this is not doing anything is because there are VERY few kids with true side bias (maybe two kids with more than 3-5 trials in current data), and most of them have very little data. 
-
-Conclusion of this simulation is that it doesn't help administration-level ICC to remove kids with fewer trials, and it's actively bad for estimating item effects. 
-
-
-## Validity consequences
 
 ```{r}
 cdi_data <- readRDS(here("cached_intermediates", "1_cdi_subjects.Rds"))
 ```
 
-### Trial-level
 do trial-level exclusions affect correlations with cdi? 
 ```{r}
 d_sim <- d_aoi |>
@@ -704,7 +466,7 @@ cdi_trial_exclusion_sim <- function(zoners_included = "none",
   # compute ICCs
   df |>
     group_by(dataset_name, subject_id, administration_id) |>
-    summarize(mean_correct = mean(total_target_prop, na.rm = TRUE)) |>
+    summarize(mean_correct = mean(accuracy, na.rm = TRUE)) |>
     left_join(cdi_data) |>
     filter(!(is.na(prod) & is.na(comp)) & !is.na(mean_correct)) |>
     group_by(dataset_name) |>
@@ -722,7 +484,7 @@ cdi_trial_exclusion_sim <- function(zoners_included = "none",
 ```{r}
 excl1_params <- expand_grid(
   zoners_included = c("none", "no pre", "all"),
-  exclude_less_than = seq(0, 1, .2)
+  exclude_less_than = seq(0, 1, .1)
 )
 
 # multidyplr
@@ -789,7 +551,449 @@ ggplot(
 ```
 This seems to support the "don't bother with trial-level exclusions" pov
 
-## Kid-level
+## Test-retest
+
+```{r}
+
+admins <- d_aoi |>
+  select(dataset_name, subject_id, administration_id, age) |>
+  distinct()
+repeated <- admins |>
+  group_by(dataset_name, subject_id) |>
+  tally() |>
+  filter(n > 1)
+
+repeated_subjects <- admins |> inner_join(repeated)
+
+pairs <- repeated_subjects |>
+  group_by(dataset_name, subject_id) |>
+  mutate(
+    forward_age = lead(age),
+    forward_diff = forward_age - age,
+    test_num = case_when(
+      forward_diff < 1.5 ~ 1,
+    ),
+    mean_age = case_when(
+      test_num == 1 ~ (age + forward_age) / 2,
+    ),
+    second_admin = case_when(
+      test_num == 1 ~ lead(administration_id)
+    )
+  ) |>
+  filter(!is.na(test_num)) |>
+  rename(first_admin = administration_id) |>
+  select(-n, -age) |>
+  left_join(repeated_subjects |> select(-age, -n), by = c("dataset_name", "subject_id", "second_admin" = "administration_id")) |>
+  ungroup() |>
+  mutate(pair_number = row_number()) |>
+  select(-forward_age, -forward_diff, -test_num)
+
+pairs_long <- pairs |> pivot_longer(c("first_admin", "second_admin"), names_to = "session_num", values_to = "administration_id")
+
+pairs_aoi_data <- pairs_long |> left_join(d_aoi)
+
+
+```
+
+```{r}
+d_sim_pairs <- pairs_aoi_data |>
+  group_by(
+    dataset_name, trial_id, dataset_id, subject_id, administration_id,
+    target_label,
+    pair_number, session_num
+  ) |>
+  summarise(
+    total_target_prop = mean(correct, na.rm = TRUE),
+    prop_data = mean(!is.na(correct)),
+    accuracy = mean(correct[t_norm >= 400 & t_norm < 4000],
+      na.rm = TRUE
+    ),
+    pre_looking = mean(correct[t_norm < 400], na.rm = TRUE)
+  ) |>
+  filter(!is.na(accuracy))
+
+test_retest_trial_exclusion_sim <- function(zoners_included = "none",
+                                    exclude_less_than) {
+  df <- d_sim_pairs |>
+    filter(prop_data > exclude_less_than)
+
+  # drop zoners
+  if (zoners_included == "none") {
+    df <- filter(df, total_target_prop > 0, total_target_prop < 1)
+  } else if (zoners_included == "no pre") {
+    df <- filter(df, pre_looking > 0, pre_looking < 1)
+  }
+
+  # compute ICCs
+  summ <- df |>
+    group_by(dataset_name, subject_id, administration_id, pair_number, session_num) |>
+    summarize(mean_var = mean(accuracy, na.rm = TRUE)) |>
+    ungroup() |> 
+    select(-administration_id) |> 
+    pivot_wider(names_from = session_num, values_from = mean_var) |>
+    group_by(dataset_name) 
+  
+  if(nrow(summ)==0){return(NA)}
+
+  summ %>%
+   summarise(cor_test_retest = ifelse( "first_admin" %in% names(.) & "second_admin" %in% names(.) &
+    sum(!is.na(first_admin) & !is.na(second_admin)) > 2, cor.test(first_admin, second_admin)$estimate, NA))
+    
+}
+```
+
+```{r}
+excl1_params <- expand_grid(
+  zoners_included = c("none", "no pre", "all"),
+  exclude_less_than = seq(0, 1, .1)
+)
+
+# multidyplr
+
+tic()
+excl1_test_retest <- excl1_params |> 
+  mutate(corr = pmap(
+    list(zoners_included, exclude_less_than),
+    test_retest_trial_exclusion_sim
+  )) |>
+  unnest(corr) |> 
+  filter(dataset_name!="NA")
+toc()
+```
+
+
+```{r}
+excl1_test_retest |> ggplot(aes(x=exclude_less_than, y=cor_test_retest, col=zoners_included))+geom_line()+facet_wrap(~dataset_name)+geom_hline(yintercept=0)
+```
+
+# Accuracy exclusions Kid-wise simulation
+
+OK, let's revisit the subject-wise exclusion issue. 
+
+subject-wise, we could exclude by:
+* prop of trials with any data
+* prop of "useable trials" (passed the trial-wise exclusions)
+* side bias across trials - looking at one side more across trials even if not zoning
+* zoning across many trials (kid-zoning) 
+
+Given that we are not that excited about zoner exclusions previously (or really any trial-level exclusions honestly), let's just look at:
+
+* prop of useable trials
+* cross-trial side bias (+ kid zoning)
+
+That is manageable. 
+
+## ICC reliability
+
+```{r}
+t_start <- 400
+t_end <- 4000
+
+# function to abstract logic of right-looking
+prop_right_looks <- function(c, ts) {
+  mean((ts == "right" & c == TRUE) |
+    (ts == "left" & c == FALSE), na.rm = TRUE)
+}
+
+
+d_kid_sim <- d_aoi |>
+  group_by(
+    dataset_name, trial_id, dataset_id, subject_id, administration_id,
+    target_label, target_side
+  ) |>
+  summarise(
+    total_target_prop = mean(correct, na.rm = TRUE),
+    prop_data = mean(!is.na(correct)),
+    accuracy = mean(correct[t_norm >= t_start & t_norm < t_end],
+      na.rm = TRUE
+    ),
+    pre_looking = mean(correct[t_norm < t_start], na.rm = TRUE),
+    prop_right = prop_right_looks(
+      correct[t_norm >= t_start & t_norm < t_end],
+      target_side[t_norm >= t_start & t_norm < t_end]
+    )
+  ) |>
+  filter(!is.na(accuracy))
+```
+
+Let's assume that each task has a constant number of trials per.
+
+Side bias is giving us trouble, so let's check on it and make sure it is reasonable.
+
+```{r}
+ggplot(d_kid_sim, aes(x = prop_right)) +
+  geom_histogram() +
+  facet_wrap(~dataset_name, scales = "free_y")
+```
+This graph confirms side bias in general. Let's look by kid, are there actually any kids that have extensive side bias. 
+
+```{r}
+d_kid_sim |>
+  group_by(dataset_name, administration_id) |>
+  summarise(prop_right = mean(prop_right, na.rm = TRUE)) |>
+  ggplot(aes(x = prop_right, fill = prop_right > .9 | prop_right < .1)) +
+  geom_histogram() +
+  facet_wrap(~dataset_name, scales = "free_y")
+```
+OK, so we've confirmed that there are almost no kids that have this. How many actually?
+
+```{r}
+side_bias <- d_kid_sim |>
+  group_by(dataset_name, administration_id) |>
+  summarise(
+    prop_right = mean(prop_right, na.rm = TRUE),
+    n = n()
+  ) |>
+  mutate(side_bias = prop_right > .9 | prop_right < .1) |>
+  group_by(dataset_name, side_bias) |>
+  summarise(
+    n_kids = n(),
+    n_trials = mean(n),
+    n_total_trials=sum(n)
+  ) |> 
+  arrange(side_bias) 
+
+side_bias |> 
+  filter(side_bias)
+
+side_bias |> group_by(side_bias) |> summarize(n_kids=sum(n_kids), n_trials=sum(n_total_trials))
+```
+about 1% of kids who account for half a percent of trials show side bias at >.9. 
+
+Main simulation code. 
+
+Note that this assumes the "full" set of trials is whatever the max trials for that dataset was, which may not be true if a dataset contained longitudinal data with different numbers at trials at different time points! 
+
+```{r}
+dataset_sizes <- d_kid_sim |>
+  group_by(dataset_name) |>
+  count()
+
+
+
+## main function
+icc_kid_exclusion_sim <- function(prop_useable = .5,
+                                  side_bias = .9,
+                                  object = "administration") {
+  
+  kid_props <- d_kid_sim |>
+    group_by(dataset_name, administration_id) |>
+    mutate(
+      n = length(administration_id),
+      prop_right = mean(prop_right, na.rm = TRUE)
+    ) |>
+    group_by(dataset_name) |>
+    mutate(
+      prop_trials = n / max(n),
+    ) |> 
+    filter(
+      prop_trials >= prop_useable,
+      # looking right less than upper cutoff and more than lower cutoff
+      prop_right < side_bias & prop_right > (1 - side_bias)
+    )
+
+  df <- d_kid_sim |>
+    right_join(kid_props)
+
+  df_data_retained <- left_join(
+    dataset_sizes,
+    df |>
+      group_by(dataset_name) |>
+      count() |>
+      rename(n_filtered = n)
+  ) |>
+    mutate(prop_data_retained = n_filtered / n) |>
+    select(dataset_name, prop_data_retained)
+
+  # compute ICCs
+  df |> group_by(administration_id, target_label, dataset_name) |> 
+    mutate(repetition=row_number()) |> 
+    group_by(dataset_name) |>
+    nest() |>
+    mutate(icc = unlist(map(data, ~ get_icc(., "accuracy", object)))) |>
+    select(-data) |>
+    unnest(cols = c()) |>
+    left_join(df_data_retained)
+}
+```
+
+Set parameters and simulate.
+
+```{r}
+excl_kid_params <- expand_grid(
+  prop_useable = seq(0, 1, .1),
+  side_bias = seq(.9, 1.05, .05),
+  object = c("administration")
+)
+
+# multidyplr
+
+
+tic()
+excl_kid <- excl_kid_params |>
+  mutate(icc = pmap(
+    list(prop_useable, side_bias, object),
+    icc_kid_exclusion_sim
+  )) |>
+  unnest(col = icc)
+toc()
+
+saveRDS(excl_kid, here("cached_intermediates/5_acc_kid_exclusions.rds"))
+```
+
+Let's see what happens!
+
+First, look at exclusion by proportion of trials contributed. Note, bias==1.05 means don't exclude anyone (hacky numerical way of doing this). 
+
+
+if we don't filter on side-bias, but only on (otherwise) prop useable
+```{r}
+
+excl_kid <- readRDS(here("cached_intermediates", "5_acc_kid_exclusions.rds"))
+ggplot(
+  filter(excl_kid, side_bias == 1.05),
+  aes(
+    x = prop_useable, y = icc,
+    col = dataset_name,
+    group = dataset_name
+  )
+) +
+  geom_point(alpha = .3) +
+  geom_line(alpha = .3) +
+  ggrepel::geom_label_repel(
+    data = filter(
+      excl_kid, prop_useable == 1,
+      side_bias == 1.05
+    ),
+    aes(label = dataset_name), size = 1.5
+  ) +
+  geom_smooth(aes(group = 1)) +
+  scale_color_discrete(guide = FALSE) +
+  ylab("ICC") +
+  xlab("Kid-level exclusion cutoff")
+
+ggplot(
+  filter(excl_kid, side_bias == 1.05),
+  aes(
+    x = prop_useable, y = icc,
+    col = dataset_name,
+    group = dataset_name
+  )
+) +
+  geom_point(alpha = .3) +
+  geom_line(alpha = .3) +
+  geom_smooth(aes(group = 1)) +
+  scale_color_discrete(guide = FALSE) +
+  facet_wrap(~dataset_name)+
+  ylab("ICC") +
+  xlab("Kid-level exclusion cutoff")
+```
+
+Total data loss:
+
+```{r}
+ggplot(
+  filter(excl_kid, side_bias == 1.05),
+  aes(
+    x = prop_useable, y = prop_data_retained,
+    col = dataset_name,
+    group = dataset_name
+  )
+) +
+  geom_point(alpha = .3) +
+  geom_line(alpha = .3) +
+  ggrepel::geom_label_repel(
+    data = filter(
+      excl_kid, prop_useable == 1,
+      side_bias == 1.05
+    ),
+    aes(label = dataset_name), size = 1.5
+  ) +
+  geom_smooth(aes(group = 1)) +
+  scale_color_discrete(guide = "none") +
+  facet_grid(. ~ object) +
+  ylab("Total data retained") +
+  xlab("Kid-level exclusion cutoff")
+```
+So this is just losing you data without improving ICC
+
+```{r}
+ggplot(
+  filter(excl_kid, side_bias == 1.05),
+  aes(
+    x = prop_data_retained, y = icc,
+    col = dataset_name,
+    group = dataset_name
+  )
+) +
+  geom_point(alpha = .3) +
+  geom_line(alpha = .3) +
+  ggrepel::geom_label_repel(
+    data = filter(
+      excl_kid, prop_useable == 1,
+      side_bias == 1.05
+    ),
+    aes(label = dataset_name), size = 1.5
+  ) +
+  geom_smooth(aes(group = 1)) +
+  scale_color_discrete(guide = "none") +
+  facet_grid(. ~ object) +
+  ylab("ICC") +
+  xlab("Data retained")
+```
+
+Now look at side bias (separate from any proportion exclusions). 
+
+```{r}
+ggplot(
+  filter(excl_kid, prop_useable == 0),
+  aes(
+    x = side_bias, y = icc,
+    col = dataset_name
+  )
+) +
+  geom_point(alpha = .3, width = .03) +
+  geom_line(alpha = .3) +
+  # ggrepel::geom_label_repel(data = filter(excl_kid, prop_useable == 1,
+  #                                         side_bias == 1.05),
+  #                           aes(label = dataset_name), size = 1.5) +
+  # geom_smooth(aes(group = 1)) +
+  # scale_color_discrete(guide = FALSE) +
+  ylab("ICC") +
+  xlab("Kid-level side bias exclusion cutoff")
+```
+
+Total data loss:
+
+```{r}
+ggplot(
+  filter(excl_kid, prop_useable == 0),
+  aes(
+    x = side_bias, y = prop_data_retained,
+    col = dataset_name
+  )
+) +
+  geom_point(alpha = .3) +
+  geom_line(alpha = .3) +
+  # ggrepel::geom_label_repel(data = filter(excl_kid, prop_useable == 1,
+  #                                         side_bias == 1.05),
+  #                           aes(label = dataset_name), size = 1.5) +
+  # geom_smooth(aes(group = 1)) +
+  # scale_color_discrete(guide = FALSE) +
+  facet_grid(. ~ object) +
+  ylab("proportion data retained") +
+  xlab("Kid-level exclusion cutoff")
+```
+Having looked into side bias, the reason this is not doing anything is because there are VERY few kids with true side bias (maybe two kids with more than 3-5 trials in current data), and most of them have very little data. 
+
+Conclusion of this simulation is that it doesn't help administration-level ICC to remove kids with fewer trials. 
+
+
+## CDI
+
+```{r}
+cdi_data <- readRDS(here("cached_intermediates", "1_cdi_subjects.Rds"))
+```
 
 ```{r}
 t_start <- 400
@@ -833,12 +1037,11 @@ cdi_kid_exclusion_sim <- function(prop_useable = .5,
     group_by(dataset_name, administration_id) |>
     mutate(
       n = length(administration_id),
-      prop_right = prop_right
+      prop_right = mean(prop_right, na.rm = TRUE)
     ) |>
     group_by(dataset_name) |>
     mutate(
       prop_trials = n / max(n),
-      prop_right = mean(prop_right, na.rm = TRUE)
     ) |>
     filter(
       prop_trials >= prop_useable,
@@ -861,7 +1064,7 @@ cdi_kid_exclusion_sim <- function(prop_useable = .5,
 
   df |>
     group_by(dataset_name, subject_id, administration_id) |>
-    summarize(mean_correct = mean(total_target_prop, na.rm = TRUE)) |>
+    summarize(mean_correct = mean(accuracy, na.rm = TRUE)) |>
     left_join(cdi_data) |>
     filter(!(is.na(prod) & is.na(comp)) & !is.na(mean_correct)) |>
     group_by(dataset_name) |> # View()
@@ -900,7 +1103,6 @@ excl_kid_cdi <- excl_kid_params |>
 toc()
 ```
 
-as we may recall, side bias doesn't actually happen enough to anything, so cut it for simplicity
 
 ```{r}
 ggplot(
@@ -938,9 +1140,461 @@ ggplot(
 ```
 any apparent increases at the end are driven by having thrown out so many kids/datasets
 
+```{r}
+ggplot(
+  excl_kid_cdi |> filter(prop_useable == 0),
+  aes(
+    x = side_bias, y = cor_prod,
+  )
+) +
+  geom_point(alpha = .3) +
+  geom_line(aes(color = dataset_name, group = dataset_name)) +
+  stat_summary() +
+  xlab("Include kids with more than")
+
+ggplot(
+  excl_kid_cdi |> filter(prop_useable==0),
+  aes(
+    x = side_bias, y = cor_comp,
+  )
+) +
+  geom_point(alpha = .3) +
+  geom_line(aes(color = dataset_name, group = dataset_name)) +
+  stat_summary() +
+  xlab("Include kids with more than")
+
+ggplot(
+  excl_kid_cdi |> filter(prop_useable==0),
+  aes(
+    x = side_bias, y = cor_age,
+  )
+) +
+  geom_point(alpha = .3) +
+  geom_line(aes(color = dataset_name, group = dataset_name)) +
+  stat_summary() +
+  xlab("Include kids with more than")
+```
+
 so, seems like for per-kid reliability, on accuracy, just keep everything
 
-# Reaction time exclusions
+## Test-retest 
+
+note that this part is especially fraught because different trial counts may have occurred at different times, so we don't really know how many trials there should/could have been!
+
+see also later analysis on the role of number of trials on reliability 
+
+```{r}
+
+admins <- d_aoi |>
+  select(dataset_name, subject_id, administration_id, age) |>
+  distinct()
+repeated <- admins |>
+  group_by(dataset_name, subject_id) |>
+  tally() |>
+  filter(n > 1)
+
+repeated_subjects <- admins |> inner_join(repeated)
+
+pairs <- repeated_subjects |>
+  group_by(dataset_name, subject_id) |>
+  mutate(
+    forward_age = lead(age),
+    forward_diff = forward_age - age,
+    test_num = case_when(
+      forward_diff < 1.5 ~ 1,
+    ),
+    mean_age = case_when(
+      test_num == 1 ~ (age + forward_age) / 2,
+    ),
+    second_admin = case_when(
+      test_num == 1 ~ lead(administration_id)
+    )
+  ) |>
+  filter(!is.na(test_num)) |>
+  rename(first_admin = administration_id) |>
+  select(-n, -age) |>
+  left_join(repeated_subjects |> select(-age, -n), by = c("dataset_name", "subject_id", "second_admin" = "administration_id")) |>
+  ungroup() |>
+  mutate(pair_number = row_number()) |>
+  select(-forward_age, -forward_diff, -test_num)
+
+pairs_long <- pairs |> pivot_longer(c("first_admin", "second_admin"), names_to = "session_num", values_to = "administration_id")
+
+pairs_aoi_data <- pairs_long |> left_join(d_aoi)
+
+
+```
+
+```{r}
+d_sim_pairs <- pairs_aoi_data |>
+  group_by(
+    dataset_name, trial_id, dataset_id, subject_id, administration_id,
+    target_label,
+    pair_number, session_num
+  ) |>
+  summarise(
+    total_target_prop = mean(correct, na.rm = TRUE),
+    prop_data = mean(!is.na(correct)),
+    accuracy = mean(correct[t_norm >= 400 & t_norm < 4000],
+      na.rm = TRUE
+    ),
+    pre_looking = mean(correct[t_norm < 400], na.rm = TRUE)
+  ) |>
+  filter(!is.na(accuracy))
+
+t_start <- 400
+t_end <- 4000
+
+# function to abstract logic of right-looking
+prop_right_looks <- function(c, ts) {
+  mean((ts == "right" & c == TRUE) |
+    (ts == "left" & c == FALSE), na.rm = TRUE)
+}
+
+
+d_kid_sim_pairs <- pairs_aoi_data |>
+  group_by(
+    dataset_name, trial_id, dataset_id, subject_id, administration_id,
+    target_label, target_side,
+    pair_number, session_num
+  ) |>
+  summarise(
+    total_target_prop = mean(correct, na.rm = TRUE),
+    prop_data = mean(!is.na(correct)),
+    accuracy = mean(correct[t_norm >= t_start & t_norm < t_end],
+      na.rm = TRUE
+    ),
+    pre_looking = mean(correct[t_norm < t_start], na.rm = TRUE),
+    prop_right = prop_right_looks(
+      correct[t_norm >= t_start & t_norm < t_end],
+      target_side[t_norm >= t_start & t_norm < t_end]
+    )
+  ) |>
+  filter(!is.na(accuracy))
+
+
+dataset_sizes <- d_kid_sim |>
+  group_by(dataset_name) |>
+  count()
+
+test_retest_kid_exclusion_sim <- function(prop_useable = .5,
+                                  side_bias = .9) {
+  print(str_c("prop_useable ", prop_useable, " side_bias ", side_bias))
+  kid_props <- d_kid_sim_pairs |>
+    group_by(dataset_name, administration_id, session_num, pair_number) |>
+    mutate(
+      n = length(administration_id),
+      prop_right = mean(prop_right, na.rm = TRUE)
+    ) |>
+    group_by(dataset_name) |>
+    mutate(
+      prop_trials = n / max(n),
+    ) |>
+    filter(
+      prop_trials >= prop_useable,
+      # looking right less than upper cutoff and more than lower cutoff
+      prop_right < side_bias & prop_right > (1 - side_bias)
+    )
+
+  df <- d_kid_sim_pairs |>
+    right_join(kid_props)
+
+  df_data_retained <- left_join(
+    dataset_sizes,
+    df |>
+      group_by(dataset_name) |>
+      count() |>
+      rename(n_filtered = n)
+  ) |>
+    mutate(prop_data_retained = n_filtered / n) |>
+    select(dataset_name, prop_data_retained)
+
+  summ <- df |>
+    group_by(dataset_name, subject_id, administration_id, pair_number, session_num) |>
+    summarize(mean_var = mean(accuracy, na.rm = TRUE)) |>
+    ungroup() |> 
+    select(-administration_id) |> 
+    pivot_wider(names_from = session_num, values_from = mean_var) |>
+    group_by(dataset_name) 
+  
+  if(nrow(summ)==0){return(NA)}
+
+  summ %>%
+   summarise(cor_test_retest = ifelse( "first_admin" %in% names(.) & "second_admin" %in% names(.) &
+    sum(!is.na(first_admin) & !is.na(second_admin)) > 2, cor.test(first_admin, second_admin)$estimate, NA)) |> left_join(df_data_retained)
+}
+```
+
+Set parameters and simulate.
+
+```{r}
+excl_kid_params <- expand_grid(
+  prop_useable = seq(0, 1, .1),
+  side_bias = seq(.9, 1.05, .05),
+)
+
+# multidyplr
+
+
+tic()
+excl_kid_test_retest <- excl_kid_params |>
+  mutate(corr = pmap(
+    list(prop_useable, side_bias),
+    test_retest_kid_exclusion_sim
+  )) |>
+  unnest(corr)
+toc()
+```
+
+
+```{r}
+
+excl_kid_test_retest |> ggplot(aes(x=prop_useable, y=cor_test_retest, col=as.character(side_bias)))+geom_line()+facet_wrap(~dataset_name)+geom_hline(yintercept=0)
+
+
+excl_kid_test_retest |> filter(side_bias==1.05) |>  ggplot(aes(x=prop_useable, y=cor_test_retest))+geom_line(aes(col=dataset_name))+geom_hline(yintercept=0)+geom_smooth()
+
+
+```
+
+
+# kid-level accuracy different approach
+
+rather than doing it as fraction of a (sorta dubious) max, what if we tried to establish a minimal number of trials?
+
+## ICC
+
+```{r}
+t_start <- 400
+t_end <- 4000
+
+d_kid_sim <- d_aoi |>
+  group_by(
+    dataset_name, trial_id, dataset_id, subject_id, administration_id,
+    target_label, target_side
+  ) |>
+  summarise(
+    accuracy = mean(correct[t_norm >= t_start & t_norm < t_end],
+      na.rm = TRUE
+    )) |>
+  filter(!is.na(accuracy))
+
+cutoffs <- tibble(min_trials = c(1, 2, 3, 4, 5, 6, 8, 10, 12, 15, 20))
+
+acc_icc <- d_kid_sim |>
+  group_by(administration_id, dataset_name) |>
+  mutate(count = n()) |>
+  ungroup() |>
+  cross_join(cutoffs) |>
+  filter(count >= min_trials) |>
+  ungroup() |>
+  select(dataset_name, min_trials, accuracy, target_label, administration_id) |>
+  group_by(dataset_name, min_trials, target_label, administration_id) |> 
+  mutate(repetition=row_number()) |> 
+  group_by(dataset_name, min_trials) |>
+  nest() |>
+  mutate(
+    icc_values = map(data, \(d) {
+      print(dataset_name)
+      get_icc(d, column = "accuracy", object = "administration")
+    }),
+    kids = map(data, \(d) d |>
+      select(administration_id) |>
+      unique() |>
+      nrow())
+  ) |>
+  select(-data) |>
+  unnest(icc_values) |>
+  unnest(kids)
+
+```
+
+```{r}
+ggplot(acc_icc, aes(x = min_trials, y = icc_values)) +
+  scale_color_viridis() +
+  # geom_line(aes(group = dataset_name)) +
+  geom_point(aes(col = log(kids))) +
+  stat_summary()
+
+ggplot(acc_icc, aes(x = min_trials, y = icc_values)) +
+  scale_color_viridis() +
+  # geom_line(aes(group = dataset_name)) +
+  geom_point(aes(col = log(kids))) +
+  facet_wrap(~dataset_name)
+```
+
+
+## CDI
+
+```{r}
+cdi_data <- readRDS(here("cached_intermediates", "1_cdi_subjects.Rds"))
+```
+
+```{r}
+cutoffs <- tibble(min_trials = c(1, 2, 3, 4, 5, 6, 8, 10, 12, 14, 20))
+
+acc_cdi <- d_kid_sim |>
+  group_by(administration_id, dataset_name) |>
+  mutate(count = n()) |>
+  ungroup() |>
+  cross_join(cutoffs) |>
+  filter(count >= min_trials) |>
+  group_by(administration_id, dataset_name, min_trials, subject_id) |>
+  summarize(mean_val = mean(accuracy)) |> # could do log in future, but doing raw here
+  select(dataset_name, min_trials, mean_val, administration_id, subject_id) |>
+  left_join(cdi_data) |>
+  group_by(dataset_name, min_trials) |>
+  summarise(
+    cor_comp = ifelse(sum(!is.na(comp) & !is.na(mean_val)) > 2, cor.test(mean_val, comp)$estimate, NA),
+    cor_prod = ifelse(sum(!is.na(prod) & !is.na(mean_val)) > 2, cor.test(mean_val, prod)$estimate, NA),
+    cor_age = ifelse(sum(!is.na(prod) & !is.na(mean_val)) > 2, cor.test(mean_val, age)$estimate, NA),
+    n_comp = sum(!is.na(comp)),
+    n_prod = sum(!is.na(prod)),
+    n_total = sum(!is.na(mean_val)),
+    kids = sum(unique(administration_id))
+  )
+```
+
+```{r}
+ggplot(acc_cdi, aes(x = min_trials, y = cor_prod)) +
+  scale_color_viridis() +
+  geom_hline(yintercept = 0) +
+  # geom_line(aes(group = dataset_name)) +
+  geom_point(aes(col = log(kids))) +
+  stat_summary()
+
+ggplot(acc_cdi, aes(x = min_trials, y = cor_prod)) +
+  scale_color_viridis() +
+  geom_hline(yintercept = 0) +
+  # geom_line(aes(group = dataset_name)) +
+  geom_point(aes(col = log(kids))) +
+  facet_wrap(~dataset_name)
+```
+
+```{r}
+ggplot(acc_cdi, aes(x = min_trials, y = cor_comp)) +
+  scale_color_viridis() +
+  geom_hline(yintercept = 0) +
+  # geom_line(aes(group = dataset_name)) +
+  geom_point(aes(col = log(kids))) +
+  stat_summary()
+
+ggplot(acc_cdi, aes(x = min_trials, y = cor_comp)) +
+  scale_color_viridis() +
+  geom_hline(yintercept = 0) +
+  # geom_line(aes(group = dataset_name)) +
+  geom_point(aes(col = log(kids))) +
+  facet_wrap(~dataset_name)
+```
+
+```{r}
+ggplot(acc_cdi, aes(x = min_trials, y = cor_age)) +
+  scale_color_viridis() +
+  geom_hline(yintercept = 0) +
+  # geom_line(aes(group = dataset_name)) +
+  geom_point(aes(col = log(kids))) +
+  stat_summary()
+
+ggplot(acc_cdi, aes(x = min_trials, y = cor_age)) +
+  scale_color_viridis() +
+  geom_hline(yintercept = 0) +
+  # geom_line(aes(group = dataset_name)) +
+  geom_point(aes(col = log(kids))) +
+  facet_wrap(~dataset_name)
+```
+## Test-retest
+
+
+
+```{r}
+
+admins <- d_aoi |>
+  select(dataset_name, subject_id, administration_id, age) |>
+  distinct()
+repeated <- admins |>
+  group_by(dataset_name, subject_id) |>
+  tally() |>
+  filter(n > 1)
+
+repeated_subjects <- admins |> inner_join(repeated)
+
+pairs <- repeated_subjects |>
+  group_by(dataset_name, subject_id) |>
+  mutate(
+    forward_age = lead(age),
+    forward_diff = forward_age - age,
+    test_num = case_when(
+      forward_diff < 1.5 ~ 1,
+    ),
+    mean_age = case_when(
+      test_num == 1 ~ (age + forward_age) / 2,
+    ),
+    second_admin = case_when(
+      test_num == 1 ~ lead(administration_id)
+    )
+  ) |>
+  filter(!is.na(test_num)) |>
+  rename(first_admin = administration_id) |>
+  select(-n, -age) |>
+  left_join(repeated_subjects |> select(-age, -n), by = c("dataset_name", "subject_id", "second_admin" = "administration_id")) |>
+  ungroup() |>
+  mutate(pair_number = row_number()) |>
+  select(-forward_age, -forward_diff, -test_num)
+
+pairs_long <- pairs |> pivot_longer(c("first_admin", "second_admin"), names_to = "session_num", values_to = "administration_id")
+
+pairs_aoi_data <- pairs_long |> left_join(d_aoi)
+
+
+```
+
+```{r}
+d_sim_pairs <- pairs_aoi_data |>
+  group_by(
+    dataset_name, trial_id, dataset_id, subject_id, administration_id,
+    target_label,
+    pair_number, session_num
+  ) |>
+  summarise(
+    accuracy = mean(correct[t_norm >= 400 & t_norm < 4000],
+      na.rm = TRUE
+    )) |>
+  filter(!is.na(accuracy))
+
+cutoffs <- tibble(min_trials = c(1, 2, 3, 4, 5, 6, 8, 10, 12, 14, 20))
+
+acc_test_retest <- d_sim_pairs |>
+  group_by(administration_id, dataset_name, pair_number, session_num) |>
+  mutate(count = n()) |>
+  ungroup() |>
+  cross_join(cutoffs) |>
+  filter(count >= min_trials) |>
+  group_by(administration_id, dataset_name, min_trials, subject_id, pair_number, session_num) |>
+  summarize(mean_var = mean(accuracy)) |> 
+    ungroup() |> 
+    select(-administration_id) |> 
+    pivot_wider(names_from = session_num, values_from = mean_var) |>
+    group_by(dataset_name, min_trials) %>%
+   summarise(cor_test_retest = ifelse( "first_admin" %in% names(.) & "second_admin" %in% names(.) &
+    sum(!is.na(first_admin) & !is.na(second_admin)) > 2, cor.test(first_admin, second_admin)$estimate, NA)) 
+```
+
+```{r}
+ggplot(acc_test_retest, aes(x = min_trials, y = cor_test_retest)) +
+  geom_hline(yintercept = 0) +
+  # geom_line(aes(group = dataset_name)) +
+  geom_point(aes(col=dataset_name)) +
+  stat_summary()
+
+ggplot(acc_test_retest, aes(x = min_trials, y = cor_test_retest)) +
+  scale_color_viridis() +
+  geom_hline(yintercept = 0) +
+  # geom_line(aes(group = dataset_name)) +
+  geom_point() +
+  facet_wrap(~dataset_name)
+```
+
+# Reaction time exclusions (kid-wise)
 
 For reaction time, we don't care about as many things because if there *is* a reaction time, that already means that they looked at both T and D, limiting issues with zoning. 
 
@@ -949,18 +1603,16 @@ So, I'm not sure there are actually trial-wise exclusions to think about beyond 
 In terms of subject-wise, the question is probably about how many trials they need to have to be useful because if they only have 1-2 trials, we're not getting a very accurate sense of their RT. 
 
 
+may want to do this for other RT metrics?
 
-
-## Kid-wise simulation
-
-
+## ICC
 
 ```{r}
-rt_data <- readRDS(here("cached_intermediates", "4_rt_canonical.rds")) |> filter(shift_type == "D-T")
+rt_data <- readRDS(here("cached_intermediates", "4_rt_canonical.rds"))
 ```
 
 ```{r}
-rt_data |>
+rt_data |> filter(approach=="trad_launch", logged=="raw") |> 
   group_by(administration_id, dataset_name) |>
   tally() |>
   ggplot(aes(x = n, fill = dataset_name)) +
@@ -968,7 +1620,7 @@ rt_data |>
   facet_wrap(~dataset_name, scales = "free_y") +
   theme(legend.position = "none")
 
-rt_data |>
+rt_data |>filter(approach=="trad_launch", logged=="raw") |> 
   group_by(administration_id, dataset_name) |>
   tally() |>
   ggplot(aes(x = n, fill = dataset_name)) +
@@ -981,16 +1633,17 @@ so, the scale seems to be in the 0-20 trials per admin (that have valid RTs, whi
 cutoffs <- tibble(min_trials = c(1, 2, 3, 4, 5, 6, 8, 10, 12, 14))
 
 rt_icc <- rt_data |>
-  group_by(administration_id, dataset_name) |>
+  group_by(administration_id, dataset_name, approach, logged) |>
   mutate(count = n()) |>
   ungroup() |>
   cross_join(cutoffs) |>
   filter(count >= min_trials) |>
   ungroup() |>
-  select(dataset_name, min_trials, rt, target_label, administration_id, trial_id) |>
-  group_by(dataset_name, min_trials) |>
+  select(dataset_name, min_trials, rt, target_label, administration_id, approach, logged) |>
+  group_by(dataset_name, min_trials, target_label, administration_id, approach, logged) |> 
+  mutate(repetition=row_number()) |> 
+  group_by(dataset_name, min_trials, approach, logged) |>
   nest() |>
-  filter(dataset_name != "adams_marchman_2018") |> # avoid crashing
   mutate(
     icc_values = map(data, \(d) {
       print(dataset_name)
@@ -1005,18 +1658,24 @@ rt_icc <- rt_data |>
   unnest(icc_values) |>
   unnest(kids)
 
-saveRDS(rt_icc, here("cached_intermediates", "5_exclusions_kid_rt_icc.rds"))
+saveRDS(rt_icc, here("cached_intermediates", "5_kid_rt_exclusions.rds"))
 ```
 
 ```{r}
-rt_icc <- readRDS(here("cached_intermediates", "5_exclusions_kid_rt_icc.rds"))
+rt_icc <- readRDS(here("cached_intermediates", "5_kid_rt_exclusions.rds"))
 ggplot(rt_icc, aes(x = min_trials, y = icc_values)) +
   scale_color_viridis() +
   # geom_line(aes(group = dataset_name)) +
   geom_point(aes(col = log(kids))) +
-  stat_summary()
+  stat_summary() + facet_wrap(approach~logged)
 
-ggplot(rt_icc, aes(x = min_trials, y = icc_values)) +
+
+ggplot(rt_icc, aes(x = min_trials, y = icc_values, col=str_c(approach, "_", logged))) +
+  # geom_line(aes(group = dataset_name)) +
+  #geom_point() +
+  stat_summary(position=position_dodge(width=.5), geom="line")
+
+ggplot(rt_icc |> filter(approach=="trad_land", logged=="raw"), aes(x = min_trials, y = icc_values)) +
   scale_color_viridis() +
   # geom_line(aes(group = dataset_name)) +
   geom_point(aes(col = log(kids))) +
@@ -1033,16 +1692,16 @@ cdi_data <- readRDS(here("cached_intermediates", "1_cdi_subjects.Rds"))
 cutoffs <- tibble(min_trials = c(1, 2, 3, 4, 5, 6, 8, 10, 12, 14))
 
 rt_cdi <- rt_data |>
-  group_by(administration_id, dataset_name) |>
+  group_by(administration_id, dataset_name, approach, logged) |>
   mutate(count = n()) |>
   ungroup() |>
   cross_join(cutoffs) |>
   filter(count >= min_trials) |>
-  group_by(administration_id, dataset_name, min_trials, subject_id) |>
-  summarize(mean_rt = mean(rt)) |> # could do log in future, but doing raw here
-  select(dataset_name, min_trials, mean_rt, administration_id, subject_id) |>
+  group_by(administration_id, dataset_name, min_trials, subject_id, approach, logged) |>
+  summarize(mean_rt = mean(rt)) |>
+  select(dataset_name, min_trials, mean_rt, administration_id, subject_id, approach, logged) |>
   left_join(cdi_data) |>
-  group_by(dataset_name, min_trials) |>
+  group_by(dataset_name, min_trials, approach, logged) |>
   summarise(
     cor_comp = ifelse(sum(!is.na(comp) & !is.na(mean_rt)) > 2, cor.test(mean_rt, comp)$estimate, NA),
     cor_prod = ifelse(sum(!is.na(prod) & !is.na(mean_rt)) > 2, cor.test(mean_rt, prod)$estimate, NA),
@@ -1053,15 +1712,15 @@ rt_cdi <- rt_data |>
     kids = sum(unique(administration_id))
   )
 ```
+
 ```{r}
-ggplot(rt_cdi, aes(x = min_trials, y = cor_prod)) +
-  scale_color_viridis() +
+ggplot(rt_cdi, aes(x = min_trials, y = cor_prod, col=str_c(approach, "_", logged))) +
   geom_hline(yintercept = 0) +
   # geom_line(aes(group = dataset_name)) +
-  geom_point(aes(col = log(kids))) +
-  stat_summary()
+  #geom_point() +
+  stat_summary(geom="line")
 
-ggplot(rt_cdi, aes(x = min_trials, y = cor_prod)) +
+ggplot(rt_cdi |> filter(approach=="trad_land", logged=="raw"), aes(x = min_trials, y = cor_prod)) +
   scale_color_viridis() +
   geom_hline(yintercept = 0) +
   # geom_line(aes(group = dataset_name)) +
@@ -1071,29 +1730,29 @@ ggplot(rt_cdi, aes(x = min_trials, y = cor_prod)) +
 something weird in that adams marchman shows that for kids where more trials are valid, the more words they know, the slower their RT? that seems weird. 
 
 ```{r}
-ggplot(rt_cdi, aes(x = min_trials, y = cor_comp)) +
-  scale_color_viridis() +
+ggplot(rt_cdi, aes(x = min_trials, y = cor_comp, col=str_c(approach, "_", logged))) +
   geom_hline(yintercept = 0) +
   # geom_line(aes(group = dataset_name)) +
-  geom_point(aes(col = log(kids))) +
-  stat_summary()
+  #geom_point(aes(col = log(kids))) +
+  stat_summary(geom="line")
 
-ggplot(rt_cdi, aes(x = min_trials, y = cor_comp)) +
+ggplot(rt_cdi|> filter(approach=="trad_land", logged=="raw"), aes(x = min_trials, y = cor_comp)) +
   scale_color_viridis() +
   geom_hline(yintercept = 0) +
   # geom_line(aes(group = dataset_name)) +
   geom_point(aes(col = log(kids))) +
   facet_wrap(~dataset_name)
 ```
+
 ```{r}
-ggplot(rt_cdi, aes(x = min_trials, y = cor_age)) +
-  scale_color_viridis() +
+ggplot(rt_cdi, aes(x = min_trials, y = cor_age, col=str_c(approach, "_", logged))) +
+ # scale_color_viridis() +
   geom_hline(yintercept = 0) +
   # geom_line(aes(group = dataset_name)) +
-  geom_point(aes(col = log(kids))) +
-  stat_summary()
+  #geom_point(aes(col = log(kids))) +
+  stat_summary(geom="line")
 
-ggplot(rt_cdi, aes(x = min_trials, y = cor_age)) +
+ggplot(rt_cdi|> filter(approach=="trad_land", logged=="raw"), aes(x = min_trials, y = cor_age)) +
   scale_color_viridis() +
   geom_hline(yintercept = 0) +
   # geom_line(aes(group = dataset_name)) +
@@ -1102,3 +1761,85 @@ ggplot(rt_cdi, aes(x = min_trials, y = cor_age)) +
 ```
 
 I don't think we're seeing cross-dataset reasons for doing exclusions on number of trials/kid. 
+## Test-retest
+
+
+
+```{r}
+
+admins <- d_aoi |>
+  select(dataset_name, subject_id, administration_id, age) |>
+  distinct()
+repeated <- admins |>
+  group_by(dataset_name, subject_id) |>
+  tally() |>
+  filter(n > 1)
+
+repeated_subjects <- admins |> inner_join(repeated)
+
+pairs <- repeated_subjects |>
+  group_by(dataset_name, subject_id) |>
+  mutate(
+    forward_age = lead(age),
+    forward_diff = forward_age - age,
+    test_num = case_when(
+      forward_diff < 1.5 ~ 1,
+    ),
+    mean_age = case_when(
+      test_num == 1 ~ (age + forward_age) / 2,
+    ),
+    second_admin = case_when(
+      test_num == 1 ~ lead(administration_id)
+    )
+  ) |>
+  filter(!is.na(test_num)) |>
+  rename(first_admin = administration_id) |>
+  select(-n, -age) |>
+  left_join(repeated_subjects |> select(-age, -n), by = c("dataset_name", "subject_id", "second_admin" = "administration_id")) |>
+  ungroup() |>
+  mutate(pair_number = row_number()) |>
+  select(-forward_age, -forward_diff, -test_num)
+
+pairs_long <- pairs |> pivot_longer(c("first_admin", "second_admin"), names_to = "session_num", values_to = "administration_id")
+
+pairs_rt_data <- pairs_long |> left_join(rt_data)
+
+
+```
+
+```{r}
+
+
+cutoffs <- tibble(min_trials = c(1, 2, 3, 4, 5, 6, 8, 10, 12, 14))
+
+rt_test_retest <- pairs_rt_data |>
+  group_by(administration_id, dataset_name, pair_number, session_num, approach, logged) |>
+  mutate(count = n()) |>
+  ungroup() |>
+  cross_join(cutoffs) |>
+  filter(count >= min_trials) |>
+  group_by(administration_id, dataset_name, min_trials, subject_id, pair_number, session_num, approach, logged) |>
+  summarize(mean_var = mean(rt)) |> 
+    ungroup() |> 
+    select(-administration_id) |> 
+    pivot_wider(names_from = session_num, values_from = mean_var) |>
+    group_by(dataset_name, min_trials, approach, logged) %>%
+   summarise(cor_test_retest = ifelse( "first_admin" %in% names(.) & "second_admin" %in% names(.) &
+    sum(!is.na(first_admin) & !is.na(second_admin)) > 2, cor.test(first_admin, second_admin)$estimate, NA)) 
+```
+
+```{r}
+ggplot(rt_test_retest, aes(x = min_trials, y = cor_test_retest, col=str_c(approach, "_", logged))) +
+  geom_hline(yintercept = 0) +
+  # geom_line(aes(group = dataset_name)) +
+  #geom_point(aes(col=dataset_name)) +
+  stat_summary(geom="line")
+
+ggplot(rt_test_retest |> filter(approach=="trad_land", logged=="raw"), aes(x = min_trials, y = cor_test_retest)) +
+  scale_color_viridis() +
+  geom_hline(yintercept = 0) +
+  # geom_line(aes(group = dataset_name)) +
+  geom_point() +
+  facet_wrap(~dataset_name)
+```
+
