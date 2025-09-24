@@ -183,6 +183,18 @@ d_aoi <- d_aoi |>
 saveRDS(d_aoi, file = here("cached_intermediates","1_d_aoi.Rds"))
 ```
 
+## Distractor label version
+
+For the stimulus repetition anlaysis, we want just just distractor label, but also distractor id  which wasn't in the d_aoi
+
+```{r}
+distractor_id <- aoi_data_joined |> select(trial_id, distractor_id, distractor_label) |> distinct()
+
+d_aoi_distractor_id <- readRDS(here("cached_intermediates","1_d_aoi.Rds")) |> left_join(distractor_id)
+
+saveRDS(d_aoi_distractor_id, here("cached_intermediates", "1_d_aoi_distractor.rds"))
+```
+
 ## CDI data
 
 Add instrument length and a CDI percent column.

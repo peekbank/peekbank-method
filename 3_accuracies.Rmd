@@ -2,17 +2,79 @@
 title: "Accuracies"
 author: "Mike Frank"
 date: "2022-1-19 updated 2025-04-16"
-output: html_document
+output: 
+  html_document:
+    toc: true
 ---
 
-```{r}
+# (Preamble) Overview of approach
+
+The goal of the peekbank-methods project is to give recommendations about the design and analysis of LWL studies. To do so, we need some criteria for what is a better outcome. Here, we take a "data-driven" approach to look at how different potential data-processing and (using simulation) study design factors affect reliability and validity. 
+
+We use "vanilla" (real word target, real word distractor, plain carrier phrase) trials from peekbank to explore how different look at different possible data-processing and methodological choices affect 3 outcomes measures. 
+
+* one outcome is ICC (intra-class correlation) which is a variance partition metric that is a generalization of correlation. This measures (within a dataset) how much different items (target labels) are consistent with each other in "rating" the subjects (kid-administrations). We think that LWL measures like accuracy and RT are getting at some kid-level properties of language processing speed (and receptive vocabulary). All else equal, we want to process the data (and design studies) in a way that maximizes the ability to get at this language knowledge. 
+
+(note: there are a *ton* of different ICC measures, that very in what assumptions they make and what sources of variance they compare.)
+
+TODO more on ICC & the formula for the one we are using!
+
+* in addition to being reliable, we also want valid metrics. We don't want to just be measuring any kid-level-property, we want to be measuring something about kid *language*. For these datasets, we have CDI data (some production and some comprehension). We can check how well our metrics correlate with children's CDI sumscores from CDI administrations at roughly the same time. I also correlate with children's age, as a basic check. In general, correlating with production, comprehension, and age in the expected directions is desirable, although we also may expect that LWL measures are picking up on slightly different aspects of language learning. 
+
+* another reliability measure is test-retest reliability. For a few longitudinal datasets, we have repeated administrations within a couple months of one another. For these, we can do test-retest correlations across the pair of administrations. 
+
+For all these measures, we have to do them within each dataset, due to cross-dataset variability, but we can look at the mean correlations across the datasets. 
+
+## Handling uncertainty
+
+How do we tell what numerical differences in ICC or in correlations are substantial? The approach we take here is to use bootstrapping which lets us generate per-dataset confidence intervals around the point estimate. We then can use point-estimates and the bootstrapped CIs to calculate a variance-weighted meta-analytic estimate (and CI) to get an overall estimate. 
+
+(note on bootstrapping details. For ICC which is a trial-level measure, we do the bootstrap resampling over trials. For the test-retest and CDI correlations, the correlation used is between the mean value for that administration and another administration/the external CDI. 
+
+It turns out that "take the mean across trials then correlate" is a very biased statistic. So, if you do trial-wise bootstrapping on this statistic, the results from the bootstrap samples are not evenly distributed around the sample value. The easy way to think about this is that sampling trials from the population (bootstrapping) increases the noise on the means-across-trials, and with a noisier measure, the correlation will go down.
+
+Because of this, we do administration-level bootstrapping for the CDI and age correlations and pair-of-admins-level bootstrapping for the test-retest.
+)
+
+## Turning this into recommendations
+
+This project has a non-standard aim with the statistics. We are neither trying to do just estimation nor are we trying to do "traditional" inferential (p<.05) statistics. We are trying to make inferences as to what data practices to recommend (and how strongly). 
+
+Often in our other statistical applications, we like to see differences. Here, though, it's not a bad thing, if say, exactly where one starts an accuracy window doesn't make a difference. It would be surprising and worrying if small differences in window start dramatically altered results! 
+
+Other factors may also influence what data practices to choose (and to recommend). In particular, we probably prefer parsimony -- given two processes with equivalent goodness of outcome, we should prefer the simpler one. There may also be theoretical commitments that lead to preferences over one measure or another (ex: log vs raw RT). 
+
+## Structure of analyses
+
+There are two classes of decisions we're hoping to give recommendations about: ones that apply after the data has been collected and ones that apply before the data is collected. 
+
+For the "analytic" (really data-processing) decisions, how many trials are useable is probably correlated with various kid factors (maybe squirmy kids know fewer words because they're younger). 
+
+For the "design" decisions, we're simulating hypotheticals about what the data would look like with fewer or more trials. 
+
+# Accuracy options
+
+One common measure from LWL times is accuracy which is measured as the proportion of the time the child is looking at the target out of the time they are looking at either the distractor or the target. 
+
+The data-processing decision is what that window should be -- when should it start and when should it end. (Other questions about whether to baseline-correct and whether to do exclusions based on amount of data covered in later notebooks). 
+
+```{r, echo=F, include=F}
+knitr::opts_chunk$set(warning=F, message=F, echo=F)
 source(here::here("helper/common.R"))
 
 d_aoi <- readRDS(here("cached_intermediates", "1_d_aoi.Rds"))
 t_increment <- 200
 ```
 
-# Cached icc runs
+how much data do we have?
+
+```{r}
+#looks like all datasets have lots of trials
+d_aoi |> filter(!is.na(correct)) |> group_by(dataset_name, t_norm)|> tally() |>  ggplot(aes(x=t_norm, y=n, fill=dataset_name, color=dataset_name))+geom_col()+facet_wrap(~dataset_name, scales="free_y")+theme(legend.position = "none")
+
+```
+
+
 ```{r, eval=F}
 icc_window_sim <- function(t_start = -500, t_end = 4000, object) {
   print(paste(t_start, t_end))
@@ -24,6 +86,7 @@ icc_window_sim <- function(t_start = -500, t_end = 4000, object) {
       accuracy = mean(correct, na.rm = TRUE),
       prop_data = mean(!is.na(correct))
     ) |>
+    filter(!is.na(accuracy)) |> 
     group_by(dataset_name, dataset_id, administration_id, target_label) |>
     mutate(repetition = row_number())
 
@@ -63,23 +126,13 @@ toc()
 saveRDS(accs, here("cached_intermediates", "3_accs.Rds"))
 ```
 
-# Reliability
+# ICC Reliability
 
-These simulations use ICCs as a way to understand how we summarize accuracy data. In particular, we're going to look at how ICCs change as a function of window size. 
+To start with, we consider a range of window starts from -1000ms to 1500ms (0 is point of disambiguation), and window ends from 2000 to 4000ms. 
 
 ```{r}
 accs <- readRDS(here("cached_intermediates/3_accs.Rds"))
-```
 
-Looks like for stimulus and administration you get consistent but modest gains if you take the longest window. BUT for stimuli, the early part of the trial adds reliability (probably because of bias due to stimulus-level preferences?). In contrast, for administrations, the early part of the trial is less informative. 500ms seems like a pretty good compromise. 
-
-Current thinking is that we care about administration-level icc (per kid reliability) much more than per-item reliability. 
-
-## Visualizations
-
-Summary data frame. 
-
-```{r}
 accs_summary <- accs |>
   filter(object == "administration") |>
   group_by(t_start, t_end, object) |>
@@ -89,6 +142,7 @@ accs_summary <- accs |>
   ) |>
   mutate(window_size = t_end - t_start)
 ```
+
 
 Descriptive heatmap. 
 
@@ -101,6 +155,7 @@ ggplot(accs_summary, aes(x = t_start, y = t_end, fill = mean_icc)) +
   xlab("Window Start Time (in ms)") +
   ylab("Window End Time (in ms)")
 ```
+The best ICC seems to be starting at 500-1000 and ending at 3000-4000ms. 
 
 Window-by-window. 
 
@@ -122,9 +177,23 @@ ggplot(
 
 
 
-# Window size by age
+## by age
 
 Let's do one more simulation where we check if this result holds across two ages. We'll break down age into > 24 months and < 24 months, which roughly splits the dataset. There are `r  length(unique(d_aoi$administration_id[d_aoi$age < 24]))` younger kids and `r length(unique(d_aoi$administration_id[d_aoi$age >= 24]))` older kids. 
+
+```{r, eval=F}
+#trials/dataset in each agebin
+d_aoi |> filter(!is.na(correct)) |> distinct(trial_id, age, dataset_name) |>    mutate(younger = age < 24) |>
+group_by(dataset_name, younger) |> tally() |> arrange(n)
+
+# bacon_gendercues only has 20 trials in older, ronfard_2021 only has 34 trials in older
+
+#admins/dataset in each agebin
+d_aoi |> filter(!is.na(correct)) |> distinct(administration_id, age, dataset_name) |>    mutate(younger = age < 24) |>
+group_by(dataset_name, younger) |> tally() |> arrange(n)
+
+# yep bacon_gendercues has 1 kid and ronfard_2021 has 2 kids  in the older bin
+```
 
 
 ```{r, eval=F}
@@ -139,7 +208,10 @@ icc_window_sim_age <- function(t_start = -1000, t_end = 4000, object) {
     summarise(
       accuracy = mean(correct, na.rm = TRUE),
       prop_data = mean(!is.na(correct))
-    )
+    ) |> 
+    filter(!is.na(accuracy)) |> 
+    group_by(dataset_name, younger, dataset_id, administration_id, target_label) |>
+    mutate(repetition = row_number())
 
   # compute ICCs
   df |>
@@ -169,20 +241,18 @@ cluster_copy(cluster, "d_aoi")
 cluster_copy(cluster, "icc_window_sim_age")
 
 accs_byage <- acc_params |>
-  partition(cluster) |>
+  #partition(cluster) |>
   mutate(icc = pmap(list(t_start, t_end, object), icc_window_sim_age)) |>
-  collect() |>
+  #collect() |>
   unnest(col = icc)
 
 saveRDS(accs_byage, here("cached_intermediates", "3_accs_byage.rds"))
+
+# note there are NAs for bacon_gendercues in the 24+ b/c they have exactly one child with age >=24mo
 ```
 
-## Visualizations
-
-Now plot. 
-
 ```{r}
-accs_byage <- readRDS(here("cached_intermediates", "3_accs_byage.rds"))
+accs_byage <- readRDS(here("cached_intermediates", "3_accs_byage.rds")) |> filter(!(dataset_name%in% c("bacon_gendercues", "ronfard_2021") & younger==F))
 accs_byage_summary <- accs_byage |>
   group_by(younger, t_start, t_end, object) |>
   summarize(
@@ -193,8 +263,18 @@ accs_byage_summary <- accs_byage |>
   mutate(age = ifelse(younger, ">=24 months", "<24 months"))
 ```
 
+Heatmap split by age. 
 
-Here we see that the younger kids lose more reliability when the window is short, but otherwise the conclusions remain unchanged. 
+```{r}
+ggplot(accs_byage_summary, aes(x = t_start, y = t_end, fill = mean_icc)) +
+  geom_tile(color = "white") +
+  scale_fill_viridis(name = "Mean ICC", option = "inferno") +
+  scale_x_continuous(breaks = c(-1000, -500, 0, 500, 1000, 1500)) +
+  xlab("Window Start Time (in ms)") +
+  ylab("Window End Time (in ms)") +
+  facet_wrap(~age)
+```
+Overall, the ICC for older kids is lower, but the "best" spots are still in a start at 500-1000 and go long. 
 
 ```{r}
 ggplot(
@@ -208,18 +288,13 @@ ggplot(
   scale_color_viridis(name = "Mean ICC", direction = -1) +
   theme(legend.position = "none") +
   ylab("Mean ICC") +
-  xlab("Analysis Window (in ms)") +
-  facet_grid(age ~ object)
-
-ggplot(accs_byage_summary, aes(x = t_start, y = t_end, fill = mean_icc)) +
-  geom_tile(color = "white") +
-  scale_fill_viridis(name = "Mean ICC", option = "inferno") +
-  scale_x_continuous(breaks = c(-1000, -500, 0, 500, 1000, 1500)) +
-  xlab("Window Start Time (in ms)") +
-  ylab("Window End Time (in ms)") +
-  facet_wrap(~age)
+  xlab("Analysis Window (in ms)") 
 ```
-# Fine grained reliability
+Here we see that the younger kids lose more reliability when the window is short, but otherwise the conclusions remain unchanged. 
+
+## Fine grained start time
+
+From the above, it looks like long windows are preferable, so let's set the window end to 4000 and explore the start time region more closely. It's typical to start windows pretty early, based on how short it takes someone to respond to a stimulus, so let's look more closely at the 200-600ms start times. 
 
 ```{r, eval=F}
 icc_window_sim <- function(t_start = -500, t_end = 4000, object) {
@@ -232,6 +307,7 @@ icc_window_sim <- function(t_start = -500, t_end = 4000, object) {
       accuracy = mean(correct, na.rm = TRUE),
       prop_data = mean(!is.na(correct))
     ) |>
+    filter(!is.na(accuracy)) |> 
     group_by(dataset_name, dataset_id, administration_id, target_label) |>
     mutate(repetition = row_number())
 
@@ -261,39 +337,44 @@ cluster_copy(cluster, "d_aoi")
 
 
 accs <- acc_params |>
-  partition(cluster) |>
+  #partition(cluster) |>
   mutate(icc = pmap(list(t_start, t_end, object), icc_window_sim)) |>
-  collect() |>
+  #collect() |>
   unnest(col = icc)
 
 
 saveRDS(accs, here("cached_intermediates", "3_acc_icc_finegrain.rds"))
 ```
 
-
-## Visualizations
-
-Now plot. 
-
-Not sure what was wrong with reflook and yurovsky?
-
 ```{r}
 accs_finegrain <- readRDS(here("cached_intermediates", "3_acc_icc_finegrain.rds"))
+```
 
 
-
+```{r}
 accs_finegrain |> ggplot(aes(x = t_start, y = icc)) +
-  geom_point(aes(col = dataset_name)) +
-  stat_summary()
+  geom_line(aes(col = dataset_name)) +
+  stat_summary()+
+  stat_summary(geom="line", size=1)+
+  theme(legend.position = "none")
+```
+Datasets vary a lot in what the ICC generally is, but in aggregate, the ICC doesn't seem sensitive to exactly when the window starts. 
 
+```{r}
 accs_finegrain |> ggplot(aes(x = t_start, y = icc)) +
   geom_point(aes(col = dataset_name)) +
   facet_wrap(~dataset_name) +
   theme(legend.position = "none")
 ```
-trends vary and we can't really tell!
+There is not a consistent pattern in which starting point in this range is best across datasets. 
 
-# Bootstrap
+
+
+# Bootstrapped ICC
+
+From the wide survey of values above, we now want to check more closely on short versus long window, and a range of window starting values spanning commonly used values. 
+
+We look at ends of 2000 and 4000 and starts in 0-1000 by each 100 ms increment. 
 
 ```{r, eval=F}
 icc_window_sim_age_bootstrap <- function(t_start = -500, t_end = 4000, object) {
@@ -385,21 +466,18 @@ saveRDS(accs_boot_age, here("cached_intermediates", "3_acc_icc_boot_age.rds"))
 ```{r}
 acc_boot <- readRDS(here("cached_intermediates", "3_acc_icc_boot.rds"))
 
-acc_boot_age <- readRDS(here("cached_intermediates", "3_acc_icc_boot_age.rds"))
+acc_boot_age <- readRDS(here("cached_intermediates", "3_acc_icc_boot_age.rds")) |> filter(!(dataset_name%in% c("bacon_gendercues", "ronfard_2021") & younger==F))
 ```
+
+
+here are the per individual dataset results
 
 ```{r}
 acc_boot |> ggplot(aes(x = t_start, y = est, ymin = lower, ymax = upper, color = as.character(t_end))) +
   geom_pointrange(position = position_dodge(width = 25)) +
   facet_wrap(~dataset_name)
 ```
-
-so we're going to need to figure out what to do here, since this doesn't easily represent the how much which is better and more the "this is very noisy"
-
-trying to combine into a mean across the dataset's individual distributions (assuming normality, which is surely wrong, and not entirely confident of math either)
-
-
-
+this is pretty hard to interpret, so we calculate meta-analytic means and ranges for each condition. 
 
 ```{r}
 library(metafor)
@@ -420,9 +498,6 @@ acc_boot_summary <- acc_boot |>
   unnest(icc)
 
 
-acc_boot_summary |> ggplot(aes(x = t_start, y = estimate, ymin = ci.lb, ymax = ci.ub, color = as.character(t_end))) +
-  geom_pointrange(position = position_dodge(width = 25))
-
 acc_boot_age_summary <- acc_boot_age |> 
   filter(!is.na(lower), !is.na(upper)) |>
   mutate(
@@ -440,378 +515,45 @@ acc_boot_age_summary <- acc_boot_age |>
   unnest(icc) |> 
   mutate(younger=ifelse(younger, "<24months", ">=24months"))
 
+```
+
+Looking overall
+
+```{r}
+acc_boot_summary |> ggplot(aes(x = t_start, y = estimate, ymin = ci.lb, ymax = ci.ub, color = as.character(t_end))) +
+  geom_pointrange(position = position_dodge(width = 25))
+```
+Long windows are generally higher for ICC by a fairly substantial amount. The best starting point seems to be around 600ms, but we can at least confirm that ICC increases as one gets away from 0, but also decreases by 1000ms. This is consistent with the theoretical expectation that stimulus-driven behavior starts sometime around a few hundred milliseconds. 
+
+Checking for each age range
+
+```{r}
 acc_boot_age_summary |> ggplot(aes(x = t_start, y = estimate, ymin = ci.lb, ymax = ci.ub, color = as.character(t_end))) +
   geom_pointrange(position = position_dodge(width = 50))+facet_wrap(~younger)
 
 ```
 So, the benefit to longer windows is more pronounced for the older kids, but it's true for both younger and older. 
+
 ICC wise, best start time is like 600-700, but that may be different for validity. 
 
+# CDI Validity
 
-# Validity via MB-CDI trial level (deprecated)
+Reliability measures like ICC tell us how consistently we're measuring *something*, but they don't tell us what the *something* we're measuring is. For that, we want a check on validity, so we look at the correlation between accuracy (measured on different windows) with each of CDI production measures, CDI comprehension measures, and age. 
 
 ```{r, eval=F}
-cdi_data <- readRDS("cdi.rds")
+cdi_data <- readRDS(here("cached_intermediates", "1_cdi_subjects.Rds"))
 
+relevant <- d_aoi |> distinct(dataset_name)
+cdi_data |> inner_join(relevant) |> group_by(dataset_name) |> summarize(across(c(comp, prod, age), \(c) sum(!is.na(c)))) |> arrange(age)
 
+#comp, either 0 or 34+
 
-acc_params <- expand_grid(
-  t_start = c(0, 100, 200, 300, 400, 500, 600, 700, 800, 900, 1000),
-  t_end = c(2000, 4000),
-)
+#prod -- we should exclude newman_genderdistractor, only 4 prod!!! (others either 0 or 28+)
 
-
-do_cdi_accuracy <- function(data, indices) {
-  summ <- data |>
-    slice(indices) |>
-    group_by(administration_id) |>
-    summarize(mean_var = mean(accuracy, na.rm = T)) |>
-    left_join(cdi_data) |>
-    ungroup() |>
-    summarise(
-      cor_comp = ifelse(sum(!is.na(comp) & !is.na(mean_var)) > 2, cor.test(mean_var, comp)$estimate, as.numeric(NA)),
-      cor_prod = ifelse(sum(!is.na(prod) & !is.na(mean_var)) > 2, cor.test(mean_var, prod)$estimate, as.numeric(NA)),
-      cor_age = ifelse(sum(!is.na(age) & !is.na(mean_var)) > 2, cor.test(mean_var, age)$estimate, as.numeric(NA))
-    )
-  cors <- c(summ$cor_comp[1], summ$cor_prod[1], summ$cor_age[1])
-  names(cors) <- c("cor_comp", "cor_prod", "cor_age")
-
-  return(cors)
-}
-
-acc_cdi <- function(t_start = -500, t_end = 4000) {
-  df <- d_aoi |>
-    filter(t_norm > t_start, t_norm < t_end) |>
-    group_by(dataset_name, dataset_id, administration_id, target_label, trial_id) |>
-    summarise(
-      accuracy = mean(correct, na.rm = TRUE),
-      prop_data = mean(!is.na(correct))
-    ) |>
-    group_by(dataset_name, dataset_id, administration_id, target_label) |>
-    filter(!is.na(accuracy))
-
-  # compute ICCs
-  df |>
-    group_by(dataset_name) |>
-    nest() |>
-    # head(5) |>
-    mutate(corr = map(data, \(d) {
-      b <- boot::boot(d, do_cdi_accuracy, 2000)
-      if (is.na(b$t0[1])) {
-        comp_lower <- NA
-        comp_upper <- NA
-      } else {
-        ci_comp <- boot::boot.ci(b, index = 1, type = "basic")
-        comp_lower <- ci_comp$basic[4]
-        comp_upper <- ci_comp$basic[5]
-      }
-      if (is.na(b$t0[2])) {
-        prod_lower <- NA
-        prod_upper <- NA
-      } else {
-        ci_prod <- boot::boot.ci(b, index = 2, type = "basic")
-        prod_lower <- ci_prod$basic[4]
-        prod_upper <- ci_prod$basic[5]
-      }
-      if (is.na(b$t0[3])) {
-        age_lower <- NA
-        age_upper <- NA
-      } else {
-        ci_age <- boot::boot.ci(b, index = 3, type = "basic")
-        age_lower <- ci_age$basic[4]
-        age_upper <- ci_age$basic[5]
-      }
-      tibble(
-        comp_est = b$t0[1], comp_lower = comp_lower, comp_upper = comp_upper,
-        prod_est = b$t0[2], prod_lower = prod_lower, prod_upper = prod_upper,
-        age_est = b$t0[3], age_lower = age_lower, age_upper = age_upper,
-      )
-    })) |>
-    select(-data) |>
-    unnest(corr)
-}
-
-
-cluster <- new_cluster(16)
-cluster_library(cluster, "dplyr")
-cluster_library(cluster, "stringr")
-cluster_library(cluster, "purrr")
-cluster_library(cluster, "tidyr")
-cluster_library(cluster, "stats")
-cluster_library(cluster, "tibble")
-cluster_copy(cluster, "do_cdi_accuracy")
-cluster_copy(cluster, "d_aoi")
-cluster_copy(cluster, "cdi_data")
-cluster_copy(cluster, "acc_cdi")
-
-accs_boot_cdi <- acc_params |>
-  partition(cluster) |>
-  # head(1) |>
-  mutate(cdi = pmap(list(t_start, t_end), \(t_s, t_e) acc_cdi(t_s, t_e))) |>
-  collect() |>
-  unnest(cdi)
-
-saveRDS(accs_boot_cdi, "3_accs_boot_cdi.rds")
-
+cdi_data |> inner_join(relevant) |> group_by(dataset_name) |> summarize(min_age=min(age, na.rm=T), max_age=max(age, na.rm=T), range=max_age-min_age) |> arrange(range) |> View()
 ```
 
-```{r}
-accs_boot_cdi <- readRDS(here("cached_intermediates", "3_accs_boot_cdi.rds"))
-
-library(metafor)
-
-accs_boot_cdi_summ <-  accs_boot_cdi |>
-  mutate(
-    comp_stdev = (comp_upper - comp_lower) / (1.96 * 2),
-    comp_var = comp_stdev**2,
-    prod_stdev = (prod_upper - prod_lower) / (1.96 * 2),
-    prod_var = prod_stdev**2,
-    age_stdev = (age_upper - age_lower) / (1.96 * 2),
-    age_var = age_stdev**2
-  ) |>
-  group_by(t_start, t_end) |>
-  nest() |>
-  mutate(comp= map(data, \(d){
-    rma(d$comp_est, d$comp_var) |>
-      summary() |>
-      coef()
-  }),
-  prod= map(data, \(d){
-    rma(d$prod_est, d$prod_var) |>
-      summary() |>
-      coef()
-  }),
-  age= map(data, \(d){
-    rma(d$age_est, d$age_var) |>
-      summary() |>
-      coef()
-  })) |>
-  select(-data) |>
-  unnest(c(comp, prod, age), names_sep="_")
-```
-
-Correlation with production
-```{r}
-accs_boot_cdi_summ |> ggplot(aes(x = t_start, y = prod_estimate, ymin=prod_ci.lb, ymax=prod_ci.ub, color=as.character(t_end))) +geom_pointrange(position=position_dodge(width=50))+coord_flip()
-
-
-accs_boot_cdi |> filter(!is.na(prod_est)) |>  ggplot(aes(x = t_start, y = prod_est, ymin=prod_lower, ymax=prod_upper,  col=as.character(t_end))) +
-  geom_pointrange() +
-  coord_flip() +
-  theme(legend.position = "none") +
-  facet_wrap(~dataset_name)
-```
-not much difference either for short or long window, and definitely not within start times. 
-
-Correlation with comprehension
-```{r}
-accs_boot_cdi_summ |> ggplot(aes(x = t_start, y = comp_estimate, ymin=comp_ci.lb, ymax=comp_ci.ub, color=as.character(t_end))) +geom_pointrange(position=position_dodge(width=50))+coord_flip()
-
-
-accs_boot_cdi |> filter(!is.na(comp_est)) |>  ggplot(aes(x = t_start, y = comp_est, ymin=comp_lower, ymax=comp_upper,  col=as.character(t_end))) +
-  geom_pointrange() +
-  coord_flip() +
-  theme(legend.position = "none") +
-  facet_wrap(~dataset_name)
-```
-again, differences are not big!
-
-Correlation with age
-```{r}
-accs_boot_cdi_summ |> ggplot(aes(x = t_start, y = age_estimate, ymin=age_ci.lb, ymax=age_ci.ub, color=as.character(t_end))) +geom_pointrange(position=position_dodge(width=50))+coord_flip()
-
-
-accs_boot_cdi |> filter(!is.na(age_est)) |>  ggplot(aes(x = t_start, y = age_est, ymin=age_lower, ymax=age_upper,  col=as.character(t_end))) +
-  geom_pointrange() +
-  coord_flip() +
-  theme(legend.position = "none") +
-  facet_wrap(~dataset_name)
-```
-no differences here either
-
-
-# test - retest on accuracy windowing trial level (deprecated)
-
-Goal is to find out how reliability (test-retest) varies with number of trials, within datasets. (ICC for cross dataset is covered elsewhere) 
-
-what dataset have repeated administrations?
-```{r}
-admins <- d_aoi |>
-  select(dataset_name, subject_id, administration_id, age) |>
-  distinct()
-repeated <- admins |>
-  group_by(dataset_name, subject_id) |>
-  tally() |>
-  filter(n > 1)
-
-repeated_subjects <- admins |> inner_join(repeated)
-```
-
-adams_marchman has 2 admins for each age and up to 5 ages 
-fernald totlot has 1 admin at each of 4 ages
-fmw sometimes has 2 admins at 1 age and 2 ages
-weaver_zettersten has 2 admins at 1 age 
-potter_remix has 2 admins at 1 age 
-
-so, we can say a pair is "close enough" if the ages are within 1 month of each other and then we'll have a bunch of test-retest pairs. 
-
-* for those pairs, for each admin, we want # of trials (administered), trial accuracy, trial RT, # trials with RT
-and then we want the correlation between admin-1 and admin-2 ?
-
-I don't know how much there's item overlap (probably is), so might be able to do something finer grained? 
-
-```{r}
-admins <- d_aoi |>
-  select(dataset_name, subject_id, administration_id, age) |>
-  distinct()
-repeated <- admins |>
-  group_by(dataset_name, subject_id) |>
-  tally() |>
-  filter(n > 1)
-
-repeated_subjects <- admins |> inner_join(repeated)
-# identify pairs
-# hmm, sometimes we have times with 3+ 1 month apart,
-# for now allow all the pairs that result so like 14-15 and 15-16 for the same kid
-
-pairs <- repeated_subjects |>
-  group_by(dataset_name, subject_id) |>
-  mutate(
-    forward_age = lead(age),
-    forward_diff = forward_age - age,
-    test_num = case_when(
-      forward_diff < 1.5 ~ 1,
-    ),
-    mean_age = case_when(
-      test_num == 1 ~ (age + forward_age) / 2,
-    ),
-    second_admin = case_when(
-      test_num == 1 ~ lead(administration_id)
-    )
-  ) |>
-  filter(!is.na(test_num)) |>
-  rename(first_admin = administration_id) |>
-  select(-n, -age) |>
-  left_join(repeated_subjects |> select(-age, -n), by = c("dataset_name", "subject_id", "second_admin" = "administration_id")) |>
-  ungroup() |>
-  mutate(pair_number = row_number()) |>
-  select(-forward_age, -forward_diff, -test_num)
-
-pairs_long <- pairs |> pivot_longer(c("first_admin", "second_admin"), names_to = "session_num", values_to = "administration_id")
-```
-
-
-since one of the things we want to optimize for is test-retest (as a measure of reliability, in addition to ICC, and CDI validity), we can check how window differences affect test-retest.
-
-```{r}
-library(tibble)
-library(multidplyr)
-
-pairs_aoi_data <- pairs_long |> left_join(d_aoi)
-
-test_retest_boot <- function(data, indices) {
-  summ <- data |>
-    slice(indices) |>
-    group_by(administration_id, subject_id, pair_number, session_num) |>
-    summarize(mean_var = mean(accuracy, na.rm = T), .groups = "drop") |>
-    select(-administration_id) |>
-    pivot_wider(names_from = session_num, values_from = mean_var) |>
-    summarise(cor_test_retest = ifelse(sum(!is.na(first_admin) & !is.na(second_admin)) > 2, cor.test(first_admin, second_admin)$estimate, NA))
-  return(summ$cor_test_retest[1])
-}
-
-
-acc_test_retest <- function(t_start = -500, t_end = 4000) {
-  print(paste(t_start, t_end))
-
-  df <- pairs_aoi_data |>
-    filter(t_norm > t_start, t_norm < t_end) |>
-    group_by(administration_id, dataset_name, subject_id, pair_number, session_num, target_label, trial_id) |>
-    summarise(
-      accuracy = mean(correct, na.rm = TRUE),
-      prop_data = mean(!is.na(correct)),
-      .groups = "drop"
-    ) |>
-    filter(!is.na(accuracy))
-
-  # compute
-  df |>
-    group_by(dataset_name) |>
-    nest() |>
-    mutate(corr = map(data, \(d) {
-      b <- boot::boot(d, test_retest_boot, 2000)
-      ci <- boot::boot.ci(b, type = "basic")
-      print(ci)
-      tibble(est = b$t0, lower = ci$basic[4], upper = ci$basic[5])
-    })) |>
-    select(-data) |>
-    unnest(corr)
-}
-
-acc_params <- expand_grid(
-  t_start = c(0, 100, 200, 300, 400, 500, 600, 700, 800, 900, 1000),
-  t_end = c(2000, 4000),
-  object = c("administration")
-)
-library(multidplyr)
-library(boot)
-cluster <- new_cluster(16)
-cluster_library(cluster, "dplyr")
-cluster_library(cluster, "stringr")
-cluster_library(cluster, "purrr")
-cluster_library(cluster, "tidyr")
-cluster_library(cluster, "stats")
-cluster_library(cluster, "tibble")
-cluster_library(cluster, "boot")
-
-cluster_copy(cluster, "test_retest_boot")
-cluster_copy(cluster, "pairs_aoi_data")
-cluster_copy(cluster, "cdi_data")
-cluster_copy(cluster, "acc_test_retest")
-
-accs_boot_test_retest <- acc_params |>
-  partition(cluster) |>
-  mutate(corr = pmap(list(t_start, t_end), \(t_s, t_e) acc_test_retest(t_s, t_e))) |>
-  collect() |>
-  unnest(corr)
-
-saveRDS(accs_boot_test_retest, here("cached_intermediates", "accs_boot_test_retest.rds"))
-
-```
-
-
-```{r}
-accs_boot_test_retest <- readRDS(here("cached_intermediates", "3_accs_boot_test_retest.rds"))
-
-library(metafor)
-accs_boot_test_retest_summ <-  accs_boot_test_retest |>
-  mutate(
-    stdev = (upper - lower) / (1.96 * 2),
-    var = stdev**2,
-  ) |>
-  group_by(t_start, t_end) |>
-  nest() |>
-  mutate(corr= map(data, \(d){
-    rma(d$est, d$var) |>
-      summary() |>
-      coef()
-  })) |> 
-  unnest(corr)
-  
-accs_boot_test_retest |> ggplot(aes(x=t_start, y=est, ymin=lower, ymax=upper, color=as.character(t_end)))+geom_pointrange(position = position_dodge(width=50))+facet_wrap(~dataset_name)
-
-accs_boot_test_retest_summ |> ggplot(aes(x=t_start, y=estimate, ymin=ci.lb, ymax=ci.ub, color=as.character(t_end)))+geom_pointrange(position = position_dodge(width=50))
-
-```
-something is weird because the 95Ci isn't always containing the point estimate
-which can happen with bootstraps, but still is weird!
-
-
-
-
-# CDI kid level
-
-```{r}
+```{r, eval=F}
 source("cl_helper.R")
 
 d_aoi <- readRDS("d_aoi.Rds")
@@ -920,11 +662,16 @@ saveRDS(accs_boot_cdi, here("cached_intermediates", "3_accs_kid_cdi.rds"))
 ```
 
 ```{r}
-accs_cdi_kid <- readRDS(here("cached_intermediates", "3_accs_kid_cdi.rds"))
+#newman_genderdistractor only has 4 kids with prod! all others have either 0 or  28+
+accs_cdi_kid <- readRDS(here("cached_intermediates", "3_accs_kid_cdi.rds")) |> mutate(
+  prod_est = ifelse(dataset_name=="newman_genderdistractor", NA, prod_est),
+  prod_lower = ifelse(dataset_name=="newman_genderdistractor", NA, prod_lower),
+  prod_upper = ifelse(dataset_name=="newman_genderdistractor", NA, prod_upper),
+)
 
 library(metafor)
 
-accs_cdi_kid_summ <-  accs_cdi_kid |>
+accs_cdi_kid_summ <-  accs_cdi_kid |> 
   mutate(
     comp_stdev = (comp_upper - comp_lower) / (1.96 * 2),
     comp_var = comp_stdev**2,
@@ -956,6 +703,7 @@ accs_cdi_kid_summ <-  accs_cdi_kid |>
 
 
 Correlation with production
+
 ```{r}
 accs_cdi_kid_summ |> ggplot(aes(x = t_start, y = prod_estimate, ymin=prod_ci.lb, ymax=prod_ci.ub, color=as.character(t_end))) +geom_pointrange(position=position_dodge(width=50))+coord_flip()
 
@@ -966,9 +714,10 @@ accs_cdi_kid |> filter(!is.na(prod_est)) |>  ggplot(aes(x = t_start, y = prod_es
   theme(legend.position = "none") +
   facet_wrap(~dataset_name)
 ```
-not much difference either for short or long window, and definitely not within start times. 
+All of these show the expected positive correlation between CDI production and accuracy. Kids who say more words are more accurate. We don't seem much difference at all based on windowing decisions, but if we had to say what's best, it's a long window with a moderate start (400ms?). 
 
 Correlation with comprehension
+
 ```{r}
 accs_cdi_kid_summ |> ggplot(aes(x = t_start, y = comp_estimate, ymin=comp_ci.lb, ymax=comp_ci.ub, color=as.character(t_end))) +geom_pointrange(position=position_dodge(width=50))+coord_flip()
 
@@ -979,9 +728,14 @@ accs_cdi_kid |> filter(!is.na(comp_est)) |>  ggplot(aes(x = t_start, y = comp_es
   theme(legend.position = "none") +
   facet_wrap(~dataset_name)
 ```
-again, differences are not big!
+Looking at comprehension, there aren't big differences, but we see higher correlations with shorter windows (peaking starting at 400ms). For long windows, peak seems to be for really long like 0-4000ms. 
+Again, correlation is positive, as expected!
+
 
 Correlation with age
+
+Correlating with age isn't a validity check per se, so much as a "if it doesn't correlate with age, we worry" check. 
+
 ```{r}
 accs_cdi_kid_summ |> ggplot(aes(x = t_start, y = age_estimate, ymin=age_ci.lb, ymax=age_ci.ub, color=as.character(t_end))) +geom_pointrange(position=position_dodge(width=50))+coord_flip()
 
@@ -989,13 +743,19 @@ accs_cdi_kid_summ |> ggplot(aes(x = t_start, y = age_estimate, ymin=age_ci.lb, y
 accs_cdi_kid|> filter(!is.na(age_est)) |>  ggplot(aes(x = t_start, y = age_est, ymin=age_lower, ymax=age_upper,  col=as.character(t_end))) +
   geom_pointrange() +
   coord_flip() +
+  geom_hline(yintercept=0)+
   theme(legend.position = "none") +
   facet_wrap(~dataset_name)
 ```
+Overall, there is a positive correlation with age that is not very effected by windowing choices. 
 
-# Test-retest (kid-level)
+Some of the variation in the extent of the age correlation in the dataset may be due to how much age variability the dataset has, but it's a bit strange that ferguson_eyetrackingr is negative (3 month range) and newman_genderdistractor is negative (15 month range). Perry and pomper_* datasets have 3-5 month ranges, so correlations may be less surprising there. 
 
-```{r}
+# Test-retest reliability
+
+Here, we consider all pairs of admins on the same child within 1.5 months for test-retest. In a few cases, this double-counts an administration -- when children had admins at 17, 18, and 19 months, we look at the test-retest of the 17 and 18 month admins and of the 18 and 19 month admins. 
+
+```{r, eval=F}
 source("cl_helper.R")
 
 d_aoi <- readRDS("d_aoi.Rds")
@@ -1135,24 +895,34 @@ accs_kid_test_retest_summ <-  accs_kid_test_retest |>
       coef()
   })) |> 
   unnest(corr)
-  
-accs_kid_test_retest |> ggplot(aes(x=t_start, y=est, ymin=lower, ymax=upper, color=as.character(t_end)))+geom_pointrange(position = position_dodge(width=50))+facet_wrap(~dataset_name)
+```
 
-accs_kid_test_retest_summ |> ggplot(aes(x=t_start, y=estimate, ymin=ci.lb, ymax=ci.ub, color=as.character(t_end)))+geom_pointrange(position = position_dodge(width=50))
+
+```{r}
+accs_kid_test_retest |> ggplot(aes(x=t_start, y=est, ymin=lower, ymax=upper, color=as.character(t_end)))+geom_pointrange(position = position_dodge(width=50))+facet_wrap(~dataset_name)+geom_hline(yintercept=0)
+```
+
+
+```{r}
+accs_kid_test_retest_summ |> ggplot(aes(x=t_start, y=estimate, ymin=ci.lb, ymax=ci.ub, color=as.character(t_end)))+geom_pointrange(position = position_dodge(width=50))+geom_hline(yintercept=0)
 
 ```
+Overall, test-retest reliability is higher for the longer window, but this is primarily driven by the adams-marchman dataset; other datasets don't show a big difference in either direction. No big differences based on onset window time. 
 
 # Summary
 
-* ICCs show high reliability for LONG time windows (500 - 4000) for subjects. 
-* For administrations, the baseline period actually is quite reliable (indicating visual salience). 
-* For experimental effects, there is a shorter window when the curves pull apart, but we don't have an a priori guess about when that is. Would be interesting to do this with more datasets. 
-* For correlations with CDI, it looks like shorter more traditional windows are more correlated (at least for the youngest kids). 
+Accuracy measures have reasonable ICC, reasonable correlation with CDI measures, and reasonable test-retest reliability. 
 
-So longer windows apparently index information about the child beyond what's captured by parent report. This could be language-related but not captured by CDIs - for example, late emerging or more fragmentary word knowledge, or it could be something like attention or memory or sticky fixation. Some users might want to get this information, while others might not. 
+* ICC measures favor long windows in the roughly 600-4000. We are fairly confident that 4000 is better than 2000, the exact window start point doesn't matter much.
+* Production CDI doesn't distinguish. Comprehension CDI correlates a little better with shorter windows (but not by much). 
+* Test-retest favors long windows a little. 
 
+A possible interpretation is that longer windows apparently index information about the child beyond what's captured by parent report. This could be language-related but not captured by CDIs - for example, late emerging or more fragmentary word knowledge, or it could be something like attention or memory or sticky fixation. Some users might want to get this information, while others might not. 
 
-# (Old -- to update) Validity via experimental effect
+Possible recommendation: roughly 500-4000, but other reasonable measures also have reasonable outcomes. 
+<!--
+
+(Old -- to update) Validity via experimental effect
 
 We're going to use the size and significance of the Swingley & Aslin (2002) mispronunciation effect as our simulation target instead of ICCs. 
 
@@ -1161,7 +931,7 @@ This is with younger kids.
 We have to reload data because our working dataframe is only "vanilla" familiar word trials. 
 
 
-```{r}
+```{r, eval=F}
 library(peekbankr)
 subjects <- get_subjects()
 sa_administrations <- get_administrations(dataset_name = "swingley_aslin_2002")
@@ -1179,7 +949,7 @@ sa_data <- sa_aoi_timepoints |>
 ```
 visualize the curves:
 
-```{r}
+```{r, eval=F}
 correct_accuracy <- sa_data |>
   group_by(t_norm, condition) |>
   summarise(correct = sum(aoi == "target") /
@@ -1192,7 +962,7 @@ ggplot(correct_accuracy, aes(x = t_norm, y = correct, col = condition)) +
 ```
 
 
-```{r }
+```{r, eval=F}
 sa_sim <- function(t_start = -500, t_end = 4000) {
   by_subject_accuracies <- sa_data |>
     filter(t_norm >= t_start, t_norm <= t_end) |>
@@ -1214,7 +984,7 @@ sa_sim <- function(t_start = -500, t_end = 4000) {
 }
 ```
 
-```{r}
+```{r, eval=F}
 sa_acc_params <- expand_grid(
   t_start = seq(-1000, 1500, 100),
   t_end = seq(2000, 3000, 100)
@@ -1231,7 +1001,7 @@ save(file = "cached_intermediates/3_accs_sa.Rds", sa_accs)
 ```
 Visualize.
 
-```{r}
+```{r, eval=F}
 load(file = "cached_intermediates/3_accs_sa.Rds")
 
 ggplot(sa_accs, aes(col = p_val)) +
@@ -1250,4 +1020,367 @@ ggplot(sa_accs, aes(col = p_val)) +
 Conclusion: if you cherry pick the window that has the biggest difference, you will get the lowest p-value. We should have known that before the simulation. 
 
 So really the question is when this window is, A PRIORI. Because of course the issue is that this analysis has a horrible false positive problem. Hence permutation-based analyses. 
+
+
+Validity via MB-CDI trial level (deprecated)
+
+```{r, eval=F}
+cdi_data <- readRDS("cdi.rds")
+
+
+
+acc_params <- expand_grid(
+  t_start = c(0, 100, 200, 300, 400, 500, 600, 700, 800, 900, 1000),
+  t_end = c(2000, 4000),
+)
+
+
+do_cdi_accuracy <- function(data, indices) {
+  summ <- data |>
+    slice(indices) |>
+    group_by(administration_id) |>
+    summarize(mean_var = mean(accuracy, na.rm = T)) |>
+    left_join(cdi_data) |>
+    ungroup() |>
+    summarise(
+      cor_comp = ifelse(sum(!is.na(comp) & !is.na(mean_var)) > 2, cor.test(mean_var, comp)$estimate, as.numeric(NA)),
+      cor_prod = ifelse(sum(!is.na(prod) & !is.na(mean_var)) > 2, cor.test(mean_var, prod)$estimate, as.numeric(NA)),
+      cor_age = ifelse(sum(!is.na(age) & !is.na(mean_var)) > 2, cor.test(mean_var, age)$estimate, as.numeric(NA))
+    )
+  cors <- c(summ$cor_comp[1], summ$cor_prod[1], summ$cor_age[1])
+  names(cors) <- c("cor_comp", "cor_prod", "cor_age")
+
+  return(cors)
+}
+
+acc_cdi <- function(t_start = -500, t_end = 4000) {
+  df <- d_aoi |>
+    filter(t_norm > t_start, t_norm < t_end) |>
+    group_by(dataset_name, dataset_id, administration_id, target_label, trial_id) |>
+    summarise(
+      accuracy = mean(correct, na.rm = TRUE),
+      prop_data = mean(!is.na(correct))
+    ) |>
+    group_by(dataset_name, dataset_id, administration_id, target_label) |>
+    filter(!is.na(accuracy))
+
+  # compute ICCs
+  df |>
+    group_by(dataset_name) |>
+    nest() |>
+    # head(5) |>
+    mutate(corr = map(data, \(d) {
+      b <- boot::boot(d, do_cdi_accuracy, 2000)
+      if (is.na(b$t0[1])) {
+        comp_lower <- NA
+        comp_upper <- NA
+      } else {
+        ci_comp <- boot::boot.ci(b, index = 1, type = "basic")
+        comp_lower <- ci_comp$basic[4]
+        comp_upper <- ci_comp$basic[5]
+      }
+      if (is.na(b$t0[2])) {
+        prod_lower <- NA
+        prod_upper <- NA
+      } else {
+        ci_prod <- boot::boot.ci(b, index = 2, type = "basic")
+        prod_lower <- ci_prod$basic[4]
+        prod_upper <- ci_prod$basic[5]
+      }
+      if (is.na(b$t0[3])) {
+        age_lower <- NA
+        age_upper <- NA
+      } else {
+        ci_age <- boot::boot.ci(b, index = 3, type = "basic")
+        age_lower <- ci_age$basic[4]
+        age_upper <- ci_age$basic[5]
+      }
+      tibble(
+        comp_est = b$t0[1], comp_lower = comp_lower, comp_upper = comp_upper,
+        prod_est = b$t0[2], prod_lower = prod_lower, prod_upper = prod_upper,
+        age_est = b$t0[3], age_lower = age_lower, age_upper = age_upper,
+      )
+    })) |>
+    select(-data) |>
+    unnest(corr)
+}
+
+
+cluster <- new_cluster(16)
+cluster_library(cluster, "dplyr")
+cluster_library(cluster, "stringr")
+cluster_library(cluster, "purrr")
+cluster_library(cluster, "tidyr")
+cluster_library(cluster, "stats")
+cluster_library(cluster, "tibble")
+cluster_copy(cluster, "do_cdi_accuracy")
+cluster_copy(cluster, "d_aoi")
+cluster_copy(cluster, "cdi_data")
+cluster_copy(cluster, "acc_cdi")
+
+accs_boot_cdi <- acc_params |>
+  partition(cluster) |>
+  # head(1) |>
+  mutate(cdi = pmap(list(t_start, t_end), \(t_s, t_e) acc_cdi(t_s, t_e))) |>
+  collect() |>
+  unnest(cdi)
+
+saveRDS(accs_boot_cdi, "3_accs_boot_cdi.rds")
+
+```
+
+```{r, eval=F}
+accs_boot_cdi <- readRDS(here("cached_intermediates", "3_accs_boot_cdi.rds"))
+
+library(metafor)
+
+accs_boot_cdi_summ <-  accs_boot_cdi |>
+  mutate(
+    comp_stdev = (comp_upper - comp_lower) / (1.96 * 2),
+    comp_var = comp_stdev**2,
+    prod_stdev = (prod_upper - prod_lower) / (1.96 * 2),
+    prod_var = prod_stdev**2,
+    age_stdev = (age_upper - age_lower) / (1.96 * 2),
+    age_var = age_stdev**2
+  ) |>
+  group_by(t_start, t_end) |>
+  nest() |>
+  mutate(comp= map(data, \(d){
+    rma(d$comp_est, d$comp_var) |>
+      summary() |>
+      coef()
+  }),
+  prod= map(data, \(d){
+    rma(d$prod_est, d$prod_var) |>
+      summary() |>
+      coef()
+  }),
+  age= map(data, \(d){
+    rma(d$age_est, d$age_var) |>
+      summary() |>
+      coef()
+  })) |>
+  select(-data) |>
+  unnest(c(comp, prod, age), names_sep="_")
+```
+
+Correlation with production
+```{r, eval=F}
+accs_boot_cdi_summ |> ggplot(aes(x = t_start, y = prod_estimate, ymin=prod_ci.lb, ymax=prod_ci.ub, color=as.character(t_end))) +geom_pointrange(position=position_dodge(width=50))+coord_flip()
+
+
+accs_boot_cdi |> filter(!is.na(prod_est)) |>  ggplot(aes(x = t_start, y = prod_est, ymin=prod_lower, ymax=prod_upper,  col=as.character(t_end))) +
+  geom_pointrange() +
+  coord_flip() +
+  theme(legend.position = "none") +
+  facet_wrap(~dataset_name)
+```
+not much difference either for short or long window, and definitely not within start times. 
+
+Correlation with comprehension
+```{r, eval=F}
+accs_boot_cdi_summ |> ggplot(aes(x = t_start, y = comp_estimate, ymin=comp_ci.lb, ymax=comp_ci.ub, color=as.character(t_end))) +geom_pointrange(position=position_dodge(width=50))+coord_flip()
+
+
+accs_boot_cdi |> filter(!is.na(comp_est)) |>  ggplot(aes(x = t_start, y = comp_est, ymin=comp_lower, ymax=comp_upper,  col=as.character(t_end))) +
+  geom_pointrange() +
+  coord_flip() +
+  theme(legend.position = "none") +
+  facet_wrap(~dataset_name)
+```
+again, differences are not big!
+
+Correlation with age
+```{r, eval=F}
+accs_boot_cdi_summ |> ggplot(aes(x = t_start, y = age_estimate, ymin=age_ci.lb, ymax=age_ci.ub, color=as.character(t_end))) +geom_pointrange(position=position_dodge(width=50))+coord_flip()
+
+
+accs_boot_cdi |> filter(!is.na(age_est)) |>  ggplot(aes(x = t_start, y = age_est, ymin=age_lower, ymax=age_upper,  col=as.character(t_end))) +
+  geom_pointrange() +
+  coord_flip() +
+  theme(legend.position = "none") +
+  facet_wrap(~dataset_name)
+```
+no differences here either
+
+
+# test - retest on accuracy windowing trial level (deprecated)
+
+Goal is to find out how reliability (test-retest) varies with number of trials, within datasets. (ICC for cross dataset is covered elsewhere) 
+
+what dataset have repeated administrations?
+```{r, eval=F}
+admins <- d_aoi |>
+  select(dataset_name, subject_id, administration_id, age) |>
+  distinct()
+repeated <- admins |>
+  group_by(dataset_name, subject_id) |>
+  tally() |>
+  filter(n > 1)
+
+repeated_subjects <- admins |> inner_join(repeated)
+```
+
+adams_marchman has 2 admins for each age and up to 5 ages 
+fernald totlot has 1 admin at each of 4 ages
+fmw sometimes has 2 admins at 1 age and 2 ages
+weaver_zettersten has 2 admins at 1 age 
+potter_remix has 2 admins at 1 age 
+
+so, we can say a pair is "close enough" if the ages are within 1 month of each other and then we'll have a bunch of test-retest pairs. 
+
+* for those pairs, for each admin, we want # of trials (administered), trial accuracy, trial RT, # trials with RT
+and then we want the correlation between admin-1 and admin-2 ?
+
+I don't know how much there's item overlap (probably is), so might be able to do something finer grained? 
+
+```{r, eval=F}
+admins <- d_aoi |>
+  select(dataset_name, subject_id, administration_id, age) |>
+  distinct()
+repeated <- admins |>
+  group_by(dataset_name, subject_id) |>
+  tally() |>
+  filter(n > 1)
+
+repeated_subjects <- admins |> inner_join(repeated)
+# identify pairs
+# hmm, sometimes we have times with 3+ 1 month apart,
+# for now allow all the pairs that result so like 14-15 and 15-16 for the same kid
+
+pairs <- repeated_subjects |>
+  group_by(dataset_name, subject_id) |>
+  mutate(
+    forward_age = lead(age),
+    forward_diff = forward_age - age,
+    test_num = case_when(
+      forward_diff < 1.5 ~ 1,
+    ),
+    mean_age = case_when(
+      test_num == 1 ~ (age + forward_age) / 2,
+    ),
+    second_admin = case_when(
+      test_num == 1 ~ lead(administration_id)
+    )
+  ) |>
+  filter(!is.na(test_num)) |>
+  rename(first_admin = administration_id) |>
+  select(-n, -age) |>
+  left_join(repeated_subjects |> select(-age, -n), by = c("dataset_name", "subject_id", "second_admin" = "administration_id")) |>
+  ungroup() |>
+  mutate(pair_number = row_number()) |>
+  select(-forward_age, -forward_diff, -test_num)
+
+pairs_long <- pairs |> pivot_longer(c("first_admin", "second_admin"), names_to = "session_num", values_to = "administration_id")
+```
+
+
+since one of the things we want to optimize for is test-retest (as a measure of reliability, in addition to ICC, and CDI validity), we can check how window differences affect test-retest.
+
+```{r, eval=F}
+library(tibble)
+library(multidplyr)
+
+pairs_aoi_data <- pairs_long |> left_join(d_aoi)
+
+test_retest_boot <- function(data, indices) {
+  summ <- data |>
+    slice(indices) |>
+    group_by(administration_id, subject_id, pair_number, session_num) |>
+    summarize(mean_var = mean(accuracy, na.rm = T), .groups = "drop") |>
+    select(-administration_id) |>
+    pivot_wider(names_from = session_num, values_from = mean_var) |>
+    summarise(cor_test_retest = ifelse(sum(!is.na(first_admin) & !is.na(second_admin)) > 2, cor.test(first_admin, second_admin)$estimate, NA))
+  return(summ$cor_test_retest[1])
+}
+
+
+acc_test_retest <- function(t_start = -500, t_end = 4000) {
+  print(paste(t_start, t_end))
+
+  df <- pairs_aoi_data |>
+    filter(t_norm > t_start, t_norm < t_end) |>
+    group_by(administration_id, dataset_name, subject_id, pair_number, session_num, target_label, trial_id) |>
+    summarise(
+      accuracy = mean(correct, na.rm = TRUE),
+      prop_data = mean(!is.na(correct)),
+      .groups = "drop"
+    ) |>
+    filter(!is.na(accuracy))
+
+  # compute
+  df |>
+    group_by(dataset_name) |>
+    nest() |>
+    mutate(corr = map(data, \(d) {
+      b <- boot::boot(d, test_retest_boot, 2000)
+      ci <- boot::boot.ci(b, type = "basic")
+      print(ci)
+      tibble(est = b$t0, lower = ci$basic[4], upper = ci$basic[5])
+    })) |>
+    select(-data) |>
+    unnest(corr)
+}
+
+acc_params <- expand_grid(
+  t_start = c(0, 100, 200, 300, 400, 500, 600, 700, 800, 900, 1000),
+  t_end = c(2000, 4000),
+  object = c("administration")
+)
+library(multidplyr)
+library(boot)
+cluster <- new_cluster(16)
+cluster_library(cluster, "dplyr")
+cluster_library(cluster, "stringr")
+cluster_library(cluster, "purrr")
+cluster_library(cluster, "tidyr")
+cluster_library(cluster, "stats")
+cluster_library(cluster, "tibble")
+cluster_library(cluster, "boot")
+
+cluster_copy(cluster, "test_retest_boot")
+cluster_copy(cluster, "pairs_aoi_data")
+cluster_copy(cluster, "cdi_data")
+cluster_copy(cluster, "acc_test_retest")
+
+accs_boot_test_retest <- acc_params |>
+  partition(cluster) |>
+  mutate(corr = pmap(list(t_start, t_end), \(t_s, t_e) acc_test_retest(t_s, t_e))) |>
+  collect() |>
+  unnest(corr)
+
+saveRDS(accs_boot_test_retest, here("cached_intermediates", "accs_boot_test_retest.rds"))
+
+```
+
+
+```{r, eval=F}
+accs_boot_test_retest <- readRDS(here("cached_intermediates", "3_accs_boot_test_retest.rds"))
+
+library(metafor)
+accs_boot_test_retest_summ <-  accs_boot_test_retest |>
+  mutate(
+    stdev = (upper - lower) / (1.96 * 2),
+    var = stdev**2,
+  ) |>
+  group_by(t_start, t_end) |>
+  nest() |>
+  mutate(corr= map(data, \(d){
+    rma(d$est, d$var) |>
+      summary() |>
+      coef()
+  })) |> 
+  unnest(corr)
+  
+accs_boot_test_retest |> ggplot(aes(x=t_start, y=est, ymin=lower, ymax=upper, color=as.character(t_end)))+geom_pointrange(position = position_dodge(width=50))+facet_wrap(~dataset_name)
+
+accs_boot_test_retest_summ |> ggplot(aes(x=t_start, y=estimate, ymin=ci.lb, ymax=ci.ub, color=as.character(t_end)))+geom_pointrange(position = position_dodge(width=50))
+
+```
+something is weird because the 95Ci isn't always containing the point estimate
+which can happen with bootstraps, but still is weird!
+-->
+
+
+
 
