@@ -9,9 +9,15 @@ Goal: understand order effects.
 
 ```{r}
 source(here::here("helper/common.R"))
-d_aoi <- readRDS(here("cached_intermediates", "1_d_aoi.Rds"))
+d_aoi <- readRDS(here("cached_intermediates", "1_d_aoi_distractor.rds"))
 ```
 
+We want to know about the effects of
+* trial order -- adding more trials necessarily means adding *later* trials, so we might care about practice/boredom etc effects
+* repeating the same targets
+  * same label
+  * counterbalanced so what was a target is now a distractor & v.v.
+  * could be with just the type/labels that are repeated, or the images
 # 1. Data preparation
 
 ## 1.1. Data summary
@@ -19,19 +25,6 @@ d_aoi <- readRDS(here("cached_intermediates", "1_d_aoi.Rds"))
 Create d_trial_summary dataframe which contains pre_accuracy and post_accuracy grouped by: dataset_id, dataset_name, administration_id, trial_id, trial_order, age, target_id, target_label, distractor_label.
 
 Note that some datasets have different exemplars of the same labels which should probably (?) be treated as separate, but we don't have distractor id joined on d_aoi here
-
-```{r}
-d_trial_summary <- d_aoi %>%
-  group_by(
-    dataset_id, dataset_name, administration_id, trial_id, trial_order,
-    age, target_id, target_label, distractor_label
-  ) %>%
-  summarise(
-    pre_accuracy = mean(correct[t_norm <= 400], na.rm = TRUE),
-    post_accuracy = mean(correct[t_norm > 400], na.rm = TRUE)
-  ) |>
-  filter(!is.na(post_accuracy))
-```
 
 We also create some new columns (some of these were created previously but I commented them bc they weren't used: 
 
@@ -49,69 +42,231 @@ We also create some new columns (some of these were created previously but I com
 
 ## 1.2. New columns
 
+note that now label_pair / label_pair_instance etc refers to the repetition of that pair of label/types
+and that stimulus_pair is now for those *specific* images/exemplars
+
 ```{r}
-d_trial_summary <- d_trial_summary %>%
+d_trial_summary <- d_aoi %>%
+  group_by(
+    dataset_id, dataset_name, administration_id, trial_id, trial_order,
+    age, target_id, target_label, distractor_label, distractor_id
+  ) %>%
+  summarise(
+    pre_accuracy = mean(correct[t_norm <= 400], na.rm = TRUE),
+    post_accuracy = mean(correct[t_norm > 400], na.rm = TRUE)
+  ) |>
+  filter(!is.na(post_accuracy)) |> 
   # we put in stimulus pair alphabetically because it needs to be in a consistent order
   # so that we can group by the pairing and not by pairing x target
-
-  mutate(stimulus_pair = paste(sort(c(target_label, distractor_label)), collapse = "_")) %>%
+  mutate(label_pair = paste(sort(c(target_label, distractor_label)), collapse = "_")) %>%
+    mutate(stimulus_pair = paste(sort(c(target_id, distractor_id)), collapse = "_")) %>%
   # mutate(first_stimulus = sort(c(target_label, distractor_label))[1]) %>%
   arrange(dataset_id, administration_id, trial_order) %>%
   group_by(dataset_id, administration_id, stimulus_pair) %>%
   mutate(stimulus_pair_instance = seq(1, n())) %>% # stimulus_pair_instance is how many times you've seen this pair of stimuli
-  # is_first_stimulus = ifelse(target_label == first_stimulus, TRUE, FALSE)) %>%
-  ungroup() %>%
+    group_by(dataset_id, administration_id, label_pair) %>%
+  mutate(label_pair_instance = seq(1, n())) %>% 
   group_by(dataset_id, administration_id, stimulus_pair, target_label) %>%
   mutate(stimulus_pair_target_instance = seq(1, n())) %>% # sttarget instance is how many times you've seen this pair of stimuli with this target as a target
-  ungroup() %>%
-  mutate(max_stimulus_pair_instance = max(stimulus_pair_instance), .by = "dataset_id")
+    group_by(dataset_id, administration_id, label_pair, target_label) %>%
+  mutate(label_pair_target_instance = seq(1, n())) %>% # sttarget instance is how many times you've seen this pair of stimuli with this target as a target
+  group_by(dataset_name, stimulus_pair) |> 
+  mutate(max_stimulus_pair_instance=max(stimulus_pair_instance)) |> 
+  group_by(dataset_name, label_pair) |> 
+    mutate(max_label_pair_instance=max(label_pair_instance)) |> 
+  group_by(dataset_name, stimulus_pair, target_label) |> 
+  mutate(max_stimulus_pair_target_instance=max(stimulus_pair_target_instance)) |> 
+  ungroup() 
 ```
 
 trying to figure out what the distributions look like here!
 
 ```{r}
 for_plot <- d_trial_summary |>
-  select(dataset_name, target_label, distractor_label, stimulus_pair, max_stimulus_pair_instance, stimulus_pair_target_instance) |>
-  group_by(dataset_name, target_label, distractor_label, stimulus_pair, max_stimulus_pair_instance) |>
-  summarize(max_target_pair_instance = max(stimulus_pair_target_instance)) |>
-  unique()
+  select(dataset_name, target_label, distractor_label, stimulus_pair, label_pair, stimulus_pair_target_instance, stimulus_pair_target_instance, label_pair_instance, stimulus_pair_instance,
+         max_stimulus_pair_instance, max_label_pair_instance, max_stimulus_pair_target_instance) |> distinct()
+```
 
-for_plot |> ggplot(aes(x = max_target_pair_instance, fill = dataset_name)) +
-  geom_histogram()
+I think garrison_bergelson is the "yours or mine" paper, so it has a lot of labels that aren't seen by lots of kids? Filtering it out from the aggregate
 
-for_plot |> ggplot(aes(x = max_stimulus_pair_instance, fill = dataset_name)) +
-  geom_histogram()
+```{r}
+for_plot |> select(dataset_name, label_pair, max_label_pair_instance) |> distinct() |> ggplot(aes(x = max_label_pair_instance, fill = dataset_name)) +
+  geom_histogram()+facet_wrap(~dataset_name, scales="free_y")+theme(legend.position="none")
+
+for_plot |> filter(!dataset_name=="garrison_bergelson_2020") |> select(dataset_name, label_pair, max_label_pair_instance) |> distinct() |> ggplot(aes(x = max_label_pair_instance, fill = dataset_name)) +
+  geom_histogram()+theme(legend.position = "none")
+```
+A number of label-pairs shown only once; but also lots that show up twice, 4 and 8 times are also pretty prevelent. 
+
+Looking at stimulus pairs (images)
+```{r}
+for_plot |> select(dataset_name, stimulus_pair, max_stimulus_pair_instance) |> distinct() |> ggplot(aes(x = max_stimulus_pair_instance, fill = dataset_name)) +
+  geom_histogram()+facet_wrap(~dataset_name, scales="free_y")+theme(legend.position="none")
+
+for_plot |> filter(!dataset_name=="garrison_bergelson_2020") |> select(dataset_name, stimulus_pair, max_stimulus_pair_instance) |> distinct() |> ggplot(aes(x = max_stimulus_pair_instance, fill = dataset_name)) +
+  geom_histogram()+theme(legend.position = "none")
+```
+some shift because for same datasets the label repetitions are with different stimuli!
 
 
+```{r}
+for_plot |> select(dataset_name, target_label, stimulus_pair, max_stimulus_pair_target_instance) |> distinct() |> ggplot(aes(x = max_stimulus_pair_target_instance, fill = dataset_name)) +
+  geom_histogram()+facet_wrap(~dataset_name, scales="free_y")+theme(legend.position="none")
+
+for_plot |> filter(!dataset_name=="garrison_bergelson_2020") |> select(dataset_name,target_label, stimulus_pair, max_stimulus_pair_target_instance) |> distinct() |> ggplot(aes(x = max_stimulus_pair_target_instance, fill = dataset_name)) +
+  geom_histogram()+theme(legend.position = "none")
+```
+mostly there aren't direct repeats, but some datasets do!
+
+```{r}
 for_plot |>
-  select(dataset_name, stimulus_pair) |>
+  select(dataset_name, label_pair) |>
   unique() |>
   group_by(dataset_name) |>
   tally() |>
   arrange(desc(n))
-# between 4 and 241 pairs; with most not having all that many
+
+# between 2 and 17 pairs of nouns per dataset (not counting garrison-bergelson's 122) 
 ```
-so repeating the same item is pretty common (probably in part to counterbalance side)
 
-goal is to understand whether infant behavior to repeated stim pairs is somehow different
-* for instance, does habituation/familiarity with the images matter
-* do kids have a was-target preference 
---> this will lead to advice on when and how to repeat or not repeat items (possibly)
-note however that the nth repetition of items is going to be confounded with things like how many trials the infant has seen, so analysis might get annoying
+one question is which datasets contain what kinds of repetition
 
-so, there's both looking at what the looking trajectories are (which people have analysed below)
-and could also look at the effects on acc / RT / not having RT etc (from other processed data)
+we want to know for each dataset 
+* what label pairs are there
+* how many stimulus pairs go with that item pair
+* how many targets go with that item pair
+* how many admins go with that item pair
+* max reps for that label pair
 
-are there datasets where the second time a stimulus pair is shown, either target is same or target is different for the same pair? 
+```{r}
+ d_trial_summary |> group_by(label_pair, dataset_name, max_label_pair_instance) |> 
+  summarize(stimulus_pairs=unique(stimulus_pair) |> length(),
+            target_labels = unique(target_label) |> length(),
+            admins = unique(administration_id) |> length()) |> 
+  filter(max_label_pair_instance>1) |> 
+  arrange(dataset_name) |> View()
+```
 
-also a question of whether *exact* stimulus pair matters (same pictures), or whether this also occurs with different exemplars (hypothesis is that it would only happen for exact stimulus, but we have the data to check)
+types of things we want to do comparison of:
+* initial trial
+* different-image different-target
+* same-image different-target
+* different-image same-target 
+* same-image same-target
 
-for the purpose of methods paper mostly want to check how RT and accuracy vary across 
-* trial_num 
-* repeated stim (x target)
-because if they don't show effects on those measures, it's less of a concern. 
+so, we could label by 
+* # of times label pair has occurred
+* # of times stimulus pair has occurred
+* # of times target-label has occurred
+* # of times target-label x stimulus has occurred
 
-separately, pre-looking one sided would especially cause issues for baseline correction when there is counterbalancing
+which datasets have multiple stimuli with the same label-pair (and label)?
+
+```{r}
+d_trial_summary |>   filter(max_label_pair_instance>1) |> group_by(label_pair, dataset_name) |> summarize(stimulus_pairs=unique(stimulus_pair) |> length())|> filter(stimulus_pairs>1) |> ungroup() |> distinct(dataset_name)
+
+```
+which datasets have repeats of the same stimulus pair + target label?
+
+```{r}
+d_trial_summary |> group_by(stimulus_pair, dataset_name) |> filter(max_stimulus_pair_target_instance>1) |> ungroup() |> distinct(dataset_name)
+
+```
+which datasets have repeats of the same stimulus pair + switch target label?
+
+```{r}
+d_trial_summary |> group_by(stimulus_pair, dataset_name) |> filter(max_stimulus_pair_instance>1) |> summarize(targets=unique(target_label) |> length()) |>  ungroup() |> filter(targets>1) |>  distinct(dataset_name)
+
+```
+are there datasets that have all of these? 
+
+```{r}
+all_types <- d_trial_summary |>   filter(max_label_pair_instance>1) |> group_by(label_pair, dataset_name) |> summarize(stimulus_pairs=unique(stimulus_pair) |> length(),                                                                                                  targets=unique(target_label) |> length())|> filter(stimulus_pairs>1, targets>1) |> ungroup()|> inner_join(d_trial_summary |> group_by(label_pair, stimulus_pair, dataset_name) |> filter(max_stimulus_pair_target_instance>1)) |> ungroup() |> distinct(dataset_name)
+
+all_types
+```
+
+# Play
+
+let's start by looking just at these datasets and doing some time course visualization by what kids have seen before
+
+(label-pair) (target-label) (stimulus-pair) (target+stimulus)
+
+(looks like sander-montant doesn't actually have different stim for the same target in the same administration)
+```{r}
+test <- d_aoi |> inner_join(all_types) |> left_join(d_trial_summary) |> 
+  filter(max_stimulus_pair_target_instance>1) |> filter(dataset_name!="sander-montant_2022")
+```
+
+```{r}
+by_first <- test |> mutate(
+  first_label = label_pair_instance==1,
+  first_stimulus= stimulus_pair_instance==1,
+  first_target = label_pair_target_instance==1,
+  first_stim_target = stimulus_pair_target_instance ==1
+) |> 
+  mutate(type=case_when(
+  first_label ~ "first_label",
+  first_stimulus ~ "first_stimulus",
+  first_stim_target ~ "first_stim_target",
+  T ~ "repeat_stim_target"
+  ))
+
+  by_first |> group_by(dataset_name, type, t_norm) |> 
+  summarize(correct=mean(correct, na.rm=T)) |>  ggplot(aes(x=t_norm, y=correct, col=type))+geom_smooth(method="gam")+geom_hline(yintercept=.5, lty="dashed")+geom_vline(xintercept=0, lty="dashed")+facet_wrap(~dataset_name)
+```
+we are interested in when there are things that don't look like "first label" -- 
+
+let's try limiting to the first or second time this *stimulus pair* is displayed
+```{r}
+early <- test |> filter(stimulus_pair_instance %in% c(1,2)) |> 
+  mutate(prev_label=stimulus_pair_instance!=label_pair_instance,
+         type=case_when(
+           stimulus_pair_instance==1 ~ "first stim",
+           stimulus_pair_target_instance==1 ~ "prev distractor",
+           T ~ "prev target"
+         ))
+
+ early_summ <-  early |> group_by(dataset_name, type, prev_label, t_norm) |> 
+  summarize(correct=mean(correct, na.rm=T), n=unique(trial_id) |> length()) 
+ 
+ early_summ |> filter(n>10) |> filter(prev_label==F)|> ggplot(aes(x=t_norm, y=correct, col=str_c(type, prev_label)))+#geom_smooth(method="gam")+
+   geom_hline(yintercept=.5, lty="dashed")+geom_vline(xintercept=0, lty="dashed")+facet_wrap(~dataset_name)+geom_line()
+ 
+  early_summ |> filter(n>10) |> filter(prev_label==T)|> ggplot(aes(x=t_norm, y=correct, col=str_c(type, prev_label)))+#geom_smooth(method="gam")+
+   geom_hline(yintercept=.5, lty="dashed")+geom_vline(xintercept=0, lty="dashed")+facet_wrap(~dataset_name)+geom_line()
+  
+  
+    early_summ |> filter(n>10) |> filter(type=="first stim")|> ggplot(aes(x=t_norm, y=correct, col=str_c(type, prev_label)))+#geom_smooth(method="gam")+
+   geom_hline(yintercept=.5, lty="dashed")+geom_vline(xintercept=0, lty="dashed")+facet_wrap(~dataset_name)+geom_line()
+```
+this is all confusing how can we deal with it?
+
+* Do we try to look at time course, or do we just use RT / accuracy numbers? 
+* Trial order may have an effect (overall familiarity/fatigue), child age/attention may dictate how many trials they even get through...
+* We think the effects we're (theoretically) interested in are about whether the stimuli pair has been seen before and if so whether the target was the same previously for child-pragmatics reasons
+* but we also want to check that this is at the stimulus-pair level and not the label-pair level 
+* we might expect that more distance between same-stimulus trials & especially intervening same-label different-stimulus trials might diminish the effects of interest by weakening the pragmatic assumptions
+* we also think that stimulus saliency is a nuisance factor that could be all over the place 
+
+I don't really want to start by throwing it all into a giant model, would be nice to get some viz first!!
+
+
+what would this model have to look like 
+
+(simplest version)
+
+DV ~ trial_order + first_stimulus + first_target_stimulus + other_label_stimulus + (1 | dataset)
+
+(complex version)
+
+DV ~ trial_order + stimulus_instance + target_stimulus_instance + other_label_instance + trials_since_last_stimulus (all per dataset?)
+
+this still wouldn't account for kid & item random effects
+
+we could do this within each dataset and then meta-analyse? 
+
+<!-- older stuff below here -->
 
 # 2. Repetitions classification
 
@@ -224,22 +379,39 @@ repetitions_data_long |>
   filter(Time == "post_accuracy") |>
   summarize(mean_acc = mean(Accuracy, na.rm = T)) |>
   ggplot(aes(x = type_of_instance, y = mean_acc, col = dataset_name)) +
-  stat_summary(fun.data = "mean_cl_boot", position = position_dodge(width = .5))
+  stat_summary(fun.data = "mean_cl_boot", position = position_dodge(width = .5))+
+    facet_wrap(~dataset_name)+theme(legend.position = "none")
+
 ```
 there might be something here -- we can't really tell and it could be ordering effects if it's not_repeated versus the other two, but there are datasets where it could matter (and thus be worth investigating further for methods paper)
 
 ```{r}
 rt <- readRDS(here("cached_intermediates", "4_rt_canonical.rds"))
 
-repetitions_data |>
+repetitions_data |> 
   filter(!dataset_name %in% bad_n_datasets) |>
-  left_join(rt |> filter(shift_type == "D-T")) |>
+  left_join(rt |> filter(shift_type == "D-T") |>  filter(approach=="trad_land", logged=="raw")) |>
   group_by(dataset_name, type_of_instance, administration_id) |>
   summarize(mean_rt = mean(rt, na.rm = T)) |>
   ggplot(aes(x = type_of_instance, y = mean_rt, col = dataset_name)) +
-  stat_summary(fun.data = "mean_cl_boot", position = position_dodge(width = .5))
+  stat_summary(fun.data = "mean_cl_boot", position = position_dodge(width = .5))+
+    facet_wrap(~dataset_name)+theme(legend.position = "none")
+
 ```
 again, could be sparsity, could be trial order, but seems like there might be something 
+
+```{r}
+repetitions_data |>
+  filter(!dataset_name %in% bad_n_datasets) %>% # filtering datasets. |>
+  mutate(bc_acc=post_accuracy-pre_accuracy) |> #this is a lazy approach to bc_correction
+    group_by(dataset_name, type_of_instance, administration_id) |>
+  summarize(mean_bc_acc = mean(bc_acc, na.rm = T)) |>
+  ggplot(aes(x = type_of_instance, y = mean_bc_acc, col = dataset_name)) +
+  stat_summary(fun.data = "mean_cl_boot", position = position_dodge(width = .5))+
+  facet_wrap(~dataset_name)+theme(legend.position = "none")
+
+```
+
 
 is there an effect of trial order within these categories?
 
@@ -249,19 +421,17 @@ repetitions_data |>
   left_join(rt |> filter(shift_type == "D-T")) |>
   group_by(dataset_name, type_of_instance, administration_id) |>
   ggplot(aes(x = trial_order, y = rt, col = dataset_name)) +
-  geom_smooth(method = "lm") +
-  facet_wrap(~type_of_instance)
+   # facet_wrap(~type_of_instance)+
+  geom_smooth(method = "lm")
 
 repetitions_data |>
   filter(!dataset_name %in% bad_n_datasets) %>% # filtering datasets. |>
   group_by(dataset_name, type_of_instance, administration_id) |>
   ggplot(aes(x = trial_order, y = post_accuracy, col = dataset_name)) +
-  geom_smooth(method = "lm") +
-  facet_wrap(~type_of_instance)
+   # facet_wrap(~type_of_instance)+
+  geom_smooth(method = "lm") 
 ```
 so, there's a possibility of trial order effects (of unknown size and direction), so we can't really rule out dealing with combinations of that and familiarity effects. 
-
-if we think trial order might matter with need to get distractor id
 
 # 4. Timecourse plots
 

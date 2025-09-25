@@ -18,6 +18,9 @@ library(here)
 library(peekbankr)
 source(here("helper","common.R"))
 # source(here("helper","rt_helper.R"))
+
+library(data.table)
+library(dtplyr)
 ```
 
 
@@ -39,13 +42,34 @@ all_datasets <- get_datasets(connection=con) %>% collect()
 
 Now do the joins. 
 
+Veronica notes that in the interest of being kind to RAM, some filters and selects have been moved up. 
+
 ```{r}
+all_aoi_timepoints <- lazy_dt(all_aoi_timepoints)
+
+all_administrations <- all_administrations |> select(administration_id, age, dataset_id, subject_id, dataset_name) |> filter(age <= 60)
+
+all_trials <- all_trials |> select(trial_id, trial_order, trial_type_id, dataset_id, dataset_name)
+
+all_trial_types <- all_trial_types |> select(trial_type_id, dataset_id, dataset_name, distractor_id, target_id, target_side, vanilla_trial) |> filter(vanilla_trial == TRUE)
+
+all_stimuli <- all_stimuli |> select(stimulus_id, stimulus_novelty, english_stimulus_label, dataset_id) |> mutate(english_stimulus_label=str_to_lower(english_stimulus_label))
+
 aoi_data_joined <- all_aoi_timepoints |>
   right_join(all_administrations) |>
-  right_join(all_subjects) |>
+  #right_join(all_subjects) |>
   right_join(all_trials) |>
   right_join(all_trial_types) |>
   mutate(stimulus_id = target_id) |>
+  filter(!(dataset_name %in% c("casillas_tseltal_2015", # tseltsal
+                               "hurtado_2008", # spanish
+                               "kartushina_2019", # norwegian
+                               "weisleder_stl", # spanish
+                               "xsectional_2007", # spanish
+                               "gazetriggered_2020", # dutch
+                               "byers-heinlein_2017", # french bilinguals
+                               "moore_bergelson_2022_verb" #verbs
+  ))) |> 
   left_join(all_stimuli) |>
   select(dataset_name, subject_id, administration_id, trial_id, trial_order, dataset_id, 
          stimulus_id, distractor_id, t_norm, age, aoi, english_stimulus_label, 
@@ -57,7 +81,10 @@ aoi_data_joined <- all_aoi_timepoints |>
                      stimulus_novelty, english_stimulus_label) %>%
               rename(distractor_id = stimulus_id, 
                      distractor_novelty = stimulus_novelty,
-                     distractor_label = english_stimulus_label))
+                     distractor_label = english_stimulus_label)) |> 
+    select(dataset_name, subject_id, administration_id, trial_id, trial_order,
+         dataset_id, target_id, distractor_id, t_norm, age, aoi, target_label, distractor_label, target_side) |> 
+  as_tibble()
 
 saveRDS(aoi_data_joined, file= here("cached_intermediates","1_aoi_data_joined.Rds"))
 ```
@@ -82,8 +109,10 @@ We now have a `vanilla_trial` flag that we can use for filtering.
 
 Take only English familiar word data and also remove datasets that aren't ready for primetime.
 
-```{r}
-d_joined <- aoi_data_joined |>
+```{r, eval=F}
+
+aoi_data_joined <- aoi_data_joined |> lazy_dt()
+d_joined <- aoi_data_joined |> 
   filter(!(dataset_name %in% c("casillas_tseltal_2015", # tseltsal
                                "hurtado_2008", # spanish
                                "kartushina_2019", # norwegian
@@ -92,7 +121,7 @@ d_joined <- aoi_data_joined |>
                                "gazetriggered_2020", # dutch
                                "byers-heinlein_2017", # french bilinguals
                                "moore_bergelson_2022_verb" #verbs
-  ))) |>
+  )))
   filter(age <= 60, 
          vanilla_trial == TRUE,
          # stimulus_novelty == "familiar", # these conditions should be redundant with "vanilla"
@@ -122,9 +151,9 @@ write_csv(all_items, here("metadata", "all_items_2025.1.csv"))
 Rename and exclude in a more general way. This is a manual step by which we have gone through and merged items by hand when we thought they should have the same general form. 
 
 ```{r}
-included_items <- read_csv(here("metadata","included_items_2025.1.csv"))
+included_items <- read_csv(here("metadata","included_items_2025.1.csv")) |> select(-item.2024)
 
-d_aoi <- d_joined |>
+d_aoi <- aoi_data_joined |>
   left_join(included_items, by = join_by(target_label == item)) |>
   left_join(included_items, by = join_by(distractor_label == item), 
             suffix = c("_target","_distractor")) |>
@@ -178,7 +207,9 @@ Previously we filtered by hand, but for several of our analyses, we want all the
 
 ```{r}
 d_aoi <- d_aoi |>
-  filter(t_norm >= -4000, t_norm <= 4000)
+  filter(t_norm >= -4000, t_norm <= 4000) |> 
+    mutate(correct = ifelse(aoi == "target", 1, 
+                          ifelse(aoi == "distractor", 0, NA))
 
 saveRDS(d_aoi, file = here("cached_intermediates","1_d_aoi.Rds"))
 ```
@@ -188,11 +219,19 @@ saveRDS(d_aoi, file = here("cached_intermediates","1_d_aoi.Rds"))
 For the stimulus repetition anlaysis, we want just just distractor label, but also distractor id  which wasn't in the d_aoi
 
 ```{r}
-distractor_id <- aoi_data_joined |> select(trial_id, distractor_id, distractor_label) |> distinct()
+#distractor_id <- aoi_data_joined |> select(trial_id, distractor_id, distractor_label) |> distinct()
 
-d_aoi_distractor_id <- readRDS(here("cached_intermediates","1_d_aoi.Rds")) |> left_join(distractor_id)
+#d_aoi_distractor_id <- readRDS(here("cached_intermediates","1_d_aoi.Rds")) |> left_join(distractor_id)
 
-saveRDS(d_aoi_distractor_id, here("cached_intermediates", "1_d_aoi_distractor.rds"))
+saveRDS(d_aoi_d, here("cached_intermediates", "1_d_aoi_distractor.rds"))
+```
+
+```{r}
+d_aoi <- readRDS(here("cached_intermediates","1_d_aoi.Rds")) 
+d_aoi_d <- readRDS(here("cached_intermediates", "1_d_aoi_distractor.rds"))
+
+d_aoi_d <- d_aoi_d |>   mutate(correct = ifelse(aoi == "target", 1, 
+                          ifelse(aoi == "distractor", 0, NA)))
 ```
 
 ## CDI data
