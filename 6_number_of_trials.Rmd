@@ -12,7 +12,7 @@ source(here::here("helper/common.R"))
 d_aoi <- readRDS(here("cached_intermediates", "1_d_aoi.Rds"))
 ```
 
-Goal is to find out how reliability (test-retest) varies with number of trials, within datasets. (ICC for cross dataset is covered elsewhere) 
+Goal is to find out how reliability (test-retest) varies with number of trials, within datasets. 
 
 what dataset have repeated administrations?
 ```{r}
@@ -77,7 +77,7 @@ pairs_long <- pairs |> pivot_longer(c("first_admin", "second_admin"), names_to =
 ```{r}
 acc <- d_aoi |>
   inner_join(pairs_long |> select(dataset_name, administration_id, subject_id) |> distinct()) |>
-  filter(t_norm >= 400) |>
+  filter(t_norm >= 500) |>
   filter(t_norm <= 4000) |>
   group_by(dataset_name, subject_id, administration_id, trial_id, trial_order, target_label) |>
   summarize(acc = mean(correct, na.rm = T)) |>

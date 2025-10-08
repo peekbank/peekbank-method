@@ -204,13 +204,18 @@ no large effects of trial order
 
 # Seen prev as distractor
 
+note that we subset here to where the target is only the distractor for its partner
 ```{r, eval=T}
 prev_dist <- d_trial_summary |> filter(target_image_appearance_num %in% c(1,2)) |> 
   filter(is.na(target_prior_role)|target_prior_role=="distractor") |> 
   mutate(type=case_when(
     is.na(target_prior_role) ~ "first",
     T ~ "prev_as_distractor"
-  ))
+  )) |> 
+  filter(!(stimulus_pair_instance==1 & type=="prev_as_distractor"))
+
+
+#prev_dist |> group_by(dataset_name, type, stimulus_pair_instance) |> tally() |> filter(stimulus_pair_instance==1, type=="prev_as_distractor")
 
 prev_dist_both <- prev_dist |>  distinct(dataset_name, administration_id, target_image_appearance_num) |> group_by(dataset_name, administration_id) |> 
   summarize(count=n()) |> filter(count==2) |> select(-count)
@@ -267,7 +272,9 @@ prev_target <- d_trial_summary |> filter(target_image_appearance_num %in% c(1,2)
   mutate(type=case_when(
     is.na(target_prior_role) ~ "first",
     T ~ "prev_as_target"
-  ))
+  )) |> filter(!(stimulus_pair_instance==1 & type=="prev_as_target"))
+
+#prev_target |> group_by( stimulus_pair_instance, type) |> tally() |> View()
 
 prev_target_both <- prev_target |>  distinct(dataset_name, administration_id, target_image_appearance_num) |> group_by(dataset_name, administration_id) |> 
   summarize(count=n()) |> filter(count==2) |> select(-count)
@@ -324,7 +331,7 @@ prev_any <- d_trial_summary |> filter(target_image_appearance_num %in% c(1,2)) |
     is.na(target_prior_role) ~ "first",
     target_prior_role=="target"~ "prev_as_target",
     target_prior_role=="distractor" ~ "prev_as_distractor"
-  ))
+  )) |> filter(type=="first" | stimulus_pair_instance==2)
 
 prev_any_all_types<- prev_any |>  distinct(dataset_name, administration_id, type) |> group_by(dataset_name, administration_id) |> 
   summarize(count=n()) |> filter(count==3) |> select(-count)
