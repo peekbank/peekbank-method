@@ -2,22 +2,1478 @@
 title: "Order effects"
 author: "Hackathon"
 date: "2024-08-27"
-output: html_document
+output: 
+  html_document:
+    toc: true
 ---
 
 Goal: understand order effects.
 
-```{r}
+DVs:
+
+* we primarily care about outcomes like RT and accuracy (as we are measuring), but also care about level of "has-rt" (since looking to target at t=0 will reduce that), and do care (some) about looks before and around t=0. 
+
+for each comparison, I do
+
+* time course graph on -500 to 2000
+* 5 models -- -500-0 (if data on this range); 0-250; RT; accuracy on 500-4000; has-rt
+
+IVs:
+
+* trial order -- for stimuli seen for the first time how does position in order change?
+
+* seen prev (as distractor) -- for stim how does 1st time compare to seen prev as distractor?
+    * for models, also look at trial order x seen prev as distractor
+
+* seen prev (as target) -- for stim how does 1st time compare to seen prev as target?
+    * for models, also look at trial order x seen prev as target 
+
+* for datasets where we have it -- 3 way on first; prev-dist; prev-target
+
+# Prep
+```{r, eval=T, echo=F}
+knitr::opts_chunk$set(warning=F, message=F, echo=F, eval=F)
 source(here::here("helper/common.R"))
 d_aoi <- readRDS(here("cached_intermediates", "1_d_aoi_distractor.rds"))
+library(lme4)
 ```
 
-We want to know about the effects of
-* trial order -- adding more trials necessarily means adding *later* trials, so we might care about practice/boredom etc effects
-* repeating the same targets
-  * same label
-  * counterbalanced so what was a target is now a distractor & v.v.
-  * could be with just the type/labels that are repeated, or the images
+```{r, eval=T}
+# set up dvs
+window_0_250 <- d_aoi |>
+  filter(t_norm >= 0, t_norm <= 250) |>
+  group_by(trial_order, trial_id, administration_id, dataset_name, target_id, target_label, distractor_id, distractor_label) |>
+  summarize(
+    correct_late = mean(correct, na.rm = T),
+    percent_existing = mean(!is.na(correct))
+  ) |>
+  filter(percent_existing >= .8) |>
+  select(-percent_existing) |>
+  filter(!is.na(correct_late)) |>
+  ungroup() |>
+  select(dataset_name, administration_id, trial_id, correct_late)
+
+window_500_0 <- d_aoi |>
+  group_by(trial_id, trial_order, administration_id, age, dataset_name, target_id, target_label, distractor_id, distractor_label) |>
+  filter(min(t_norm) <= -500) |>
+  filter(t_norm >= -500, t_norm < 0) |>
+  group_by(trial_id, trial_order, administration_id, dataset_name, target_id, target_label, distractor_id, distractor_label) |>
+  summarize(
+    correct_early = mean(correct, na.rm = T),
+    percent_existing = mean(!is.na(correct))
+  ) |>
+  filter(percent_existing >= .8) |>
+  select(-percent_existing) |>
+  filter(!is.na(correct_early)) |>
+  ungroup() |>
+  select(dataset_name, trial_id, administration_id, correct_early)
+
+rts <- readRDS(here("cached_intermediates", "4_rt_canonical.rds")) |>
+  filter(shift_type == "D-T") |>
+  filter(approach == "trad_land", logged == "raw") |>
+  ungroup() |>
+  select(dataset_name, administration_id, trial_id, rt)
+
+accuracy <- d_aoi |>
+  filter(t_norm >= 500, t_norm <= 4000) |>
+  group_by(dataset_name, trial_id, administration_id) |>
+  summarize(accuracy = mean(correct, na.rm = T)) |>
+  filter(!is.na(accuracy))
+
+dvs <- window_0_250 |>
+  full_join(window_500_0) |>
+  full_join(rts) |>
+  full_join(accuracy) |>
+  mutate(has_rt = ifelse(is.na(rt), 0, 1))
+```
+
+
+```{r, eval=T}
+# most datasets pair stims, but not all do, so need to figure out when seen
+d_trial_summary_long <- d_aoi %>%
+  ungroup() |>
+  distinct(
+    dataset_id, dataset_name, administration_id, trial_id, trial_order,
+    target_id, distractor_id
+  ) %>%
+  pivot_longer(c("target_id", "distractor_id"), names_to = "type_of_stim", values_to = "stim_id") |>
+  group_by(dataset_id, dataset_name, administration_id, stim_id) |>
+  arrange(trial_order) |>
+  mutate(
+    target_image_appearance_num = row_number(),
+    target_prior_role = case_when(
+      lag(type_of_stim) == "target_id" ~ "target",
+      lag(type_of_stim) == "distractor_id" ~ "distractor",
+      T ~ NA
+    )
+  ) |>
+  filter(type_of_stim == "target_id") |>
+  select(dataset_name, administration_id, trial_id, target_id = stim_id, target_image_appearance_num, target_prior_role)
+
+d_trial_summary <- d_aoi %>%
+  ungroup() |>
+  distinct(
+    dataset_id, dataset_name, administration_id, trial_id, trial_order,
+    target_id, target_label, distractor_label, distractor_id
+  ) %>%
+  # we put in stimulus pair alphabetically because it needs to be in a consistent order
+  # so that we can group by the pairing and not by pairing x target
+  rowwise() |>
+  mutate(label_pair = paste(sort(c(target_label, distractor_label)), collapse = "_")) %>%
+  mutate(stimulus_pair = paste(sort(c(target_id, distractor_id)), collapse = "_")) %>%
+  # mutate(first_stimulus = sort(c(target_label, distractor_label))[1]) %>%
+  arrange(dataset_id, administration_id, trial_order) %>%
+  group_by(dataset_id, administration_id, stimulus_pair) %>%
+  mutate(stimulus_pair_instance = seq(1, n())) %>% # stimulus_pair_instance is how many times you've seen this pair of stimuli
+  group_by(dataset_id, administration_id, label_pair) %>%
+  mutate(label_pair_instance = seq(1, n())) %>%
+  group_by(dataset_id, administration_id, stimulus_pair, target_label) %>%
+  mutate(stimulus_pair_target_instance = seq(1, n())) %>% # sttarget instance is how many times you've seen this pair of stimuli with this target as a target
+  group_by(dataset_id, administration_id, label_pair, target_label) %>%
+  mutate(label_pair_target_instance = seq(1, n())) %>% # sttarget instance is how many times you've seen this pair of stimuli with this target as a target
+  group_by(dataset_name, stimulus_pair) |>
+  mutate(max_stimulus_pair_instance = max(stimulus_pair_instance)) |>
+  group_by(dataset_name, label_pair) |>
+  mutate(max_label_pair_instance = max(label_pair_instance)) |>
+  group_by(dataset_name, stimulus_pair, target_label) |>
+  mutate(max_stimulus_pair_target_instance = max(stimulus_pair_target_instance)) |>
+  ungroup() |>
+  left_join(d_trial_summary_long)
+```
+
+
+# Trial order
+
+both want to look for order effects on say 1-10
+and binned for longer!
+
+```{r, eval=T}
+trial_order <- d_trial_summary |> filter(target_image_appearance_num == 1)
+
+trial_order |>
+  left_join(d_aoi) |>
+    filter(t_norm>=-500, t_norm<=2000) |> 
+  filter(trial_order < 11) |>
+  group_by(dataset_name, trial_order, t_norm) |>
+  summarize(acc = mean(correct, na.rm = T),
+            count=n()) |>
+  filter(count>9) |> 
+  ggplot(aes(x = t_norm, y = acc, color = as.character(trial_order))) +
+  facet_wrap(~dataset_name) +
+  geom_line() +
+  geom_hline(yintercept = .5, lty = "dashed")+
+  geom_vline(xintercept=0, lty="dashed")
+```
+
+
+group trials by 5s (labelled by the early trial of the block)
+```{r, eval=T}
+trial_order |>
+  left_join(d_aoi) |>
+  filter(t_norm>=-500, t_norm<=2000) |> 
+  mutate(trial_order_block=trial_order%/%5*5+1) |> 
+  group_by(dataset_name, trial_order_block, t_norm) |>
+  summarize(acc = mean(correct, na.rm = T),
+            count=n()) |>
+  filter(count>9) |> 
+  ggplot(aes(x = t_norm, y = acc, color = as.character(trial_order_block))) +
+  facet_wrap(~dataset_name) +
+  geom_line() +
+  geom_hline(yintercept = .5, lty = "dashed")+
+  geom_vline(xintercept=0, lty="dashed")
+```
+not seeing much that's consistent trends that would be worrisome
+
+```{r, eval=T}
+trial_order_mod <- trial_order |> left_join(dvs)
+
+lmer(correct_early ~ trial_order + (1|administration_id)+(1|target_label)+(1|dataset_name), data=trial_order_mod) |> summary()
+
+lmer(correct_late ~ trial_order + (1|administration_id)+(1|target_label)+(1|dataset_name), data=trial_order_mod) |> summary()
+
+lmer(accuracy ~ trial_order + (1|administration_id)+(1|target_label)+(1|dataset_name), data=trial_order_mod) |> summary()
+
+lmer(has_rt ~ trial_order + (1|administration_id)+(1|target_label)+(1|dataset_name), data=trial_order_mod) |> summary()
+
+lmer(rt ~ trial_order + (1|administration_id)+(1|target_label)+(1|dataset_name), data=trial_order_mod) |> summary()
+
+```
+no large effects of trial order 
+
+
+
+# Seen prev as distractor
+
+```{r, eval=T}
+prev_dist <- d_trial_summary |> filter(target_image_appearance_num %in% c(1,2)) |> 
+  filter(is.na(target_prior_role)|target_prior_role=="distractor") |> 
+  mutate(type=case_when(
+    is.na(target_prior_role) ~ "first",
+    T ~ "prev_as_distractor"
+  ))
+
+prev_dist_both <- prev_dist |>  distinct(dataset_name, administration_id, target_image_appearance_num) |> group_by(dataset_name, administration_id) |> 
+  summarize(count=n()) |> filter(count==2) |> select(-count)
+
+prev_dist |> inner_join(prev_dist_both) |> 
+  left_join(d_aoi) |>
+    filter(t_norm>=-500, t_norm<=2000) |> 
+  group_by(dataset_name, administration_id, type, t_norm) |>
+  summarize(correct=mean(correct,na.rm=T)) |> 
+  group_by(dataset_name, type, t_norm) |> 
+  summarize(acc = mean(correct, na.rm = T),
+            count=n()) |>
+  filter(count>9) |> 
+  ggplot(aes(x = t_norm, y = acc, color = type)) +
+  facet_wrap(~dataset_name) +
+  geom_line() +
+  geom_hline(yintercept = .5, lty = "dashed")+
+  geom_vline(xintercept=0, lty="dashed")+theme(legend.position = "bottom")
+```
+
+```{r, eval=T}
+prev_dist_mod <- prev_dist |> left_join(dvs)
+
+lmer(correct_early ~ type + (1|administration_id)+(1|target_label)+(1|dataset_name), data=prev_dist_mod) |> summary()
+lmer(correct_late ~ type + (1|administration_id)+(1|target_label)+(1|dataset_name), data=prev_dist_mod) |> summary()
+lmer(accuracy ~ type + (1|administration_id)+(1|target_label)+(1|dataset_name), data=prev_dist_mod) |> summary()
+
+lmer(has_rt ~ type + (1|administration_id)+(1|target_label)+(1|dataset_name), data=prev_dist_mod) |> summary()
+
+lmer(rt ~ type+ (1|administration_id)+(1|target_label)+(1|dataset_name), data=prev_dist_mod) |> summary()
+```
+estimates of around 1% differences in accuracy (preferring prev distractor), sometimes "significant"
+
+```{r, eval=T}
+lmer(correct_early ~ type*trial_order + (1|administration_id)+(1|target_label)+(1|dataset_name), data=prev_dist_mod) |> summary()
+
+
+lmer(correct_late ~ type*trial_order + (1|administration_id)+(1|target_label)+(1|dataset_name), data=prev_dist_mod) |> summary()
+
+lmer(accuracy ~ type*trial_order + (1|administration_id)+(1|target_label)+(1|dataset_name), data=prev_dist_mod) |> summary()
+
+lmer(has_rt ~ type*trial_order + (1|administration_id)+(1|target_label)+(1|dataset_name), data=prev_dist_mod) |> summary()
+
+lmer(rt ~ type*trial_order + (1|administration_id)+(1|target_label)+(1|dataset_name), data=prev_dist_mod) |> summary()
+
+```
+but it diminishes and sometimes flips sign if we take trial order into account as well. Possible faster RT to previous distractors over time. 
+
+# Seen prev as target
+
+```{r, eval=T}
+prev_target <- d_trial_summary |> filter(target_image_appearance_num %in% c(1,2)) |> 
+  filter(is.na(target_prior_role)|target_prior_role=="target") |> 
+  mutate(type=case_when(
+    is.na(target_prior_role) ~ "first",
+    T ~ "prev_as_target"
+  ))
+
+prev_target_both <- prev_target |>  distinct(dataset_name, administration_id, target_image_appearance_num) |> group_by(dataset_name, administration_id) |> 
+  summarize(count=n()) |> filter(count==2) |> select(-count)
+
+prev_target |> inner_join(prev_target_both) |> 
+  left_join(d_aoi) |>
+    filter(t_norm>=-500, t_norm<=2000) |> 
+  group_by(dataset_name,administration_id, type, t_norm) |>
+  summarize(correct=mean(correct,na.rm=T)) |> 
+  group_by(dataset_name, type, t_norm) |> 
+  summarize(acc = mean(correct, na.rm = T),
+            count=n()) |>
+  filter(count>9) |> 
+  ggplot(aes(x = t_norm, y = acc, color = type)) +
+  facet_wrap(~dataset_name) +
+  geom_line() +
+  geom_hline(yintercept = .5, lty = "dashed")+
+  geom_vline(xintercept=0, lty="dashed")+theme(legend.position = "bottom")
+```
+
+```{r, eval=T}
+prev_target_mod <- prev_target |> left_join(dvs)
+
+lmer(correct_early ~ type + (1|administration_id)+(1|target_label)+(1|dataset_name), data=prev_target_mod) |> summary()
+lmer(correct_late ~ type + (1|administration_id)+(1|target_label)+(1|dataset_name), data=prev_target_mod) |> summary()
+lmer(accuracy ~ type + (1|administration_id)+(1|target_label)+(1|dataset_name), data=prev_target_mod) |> summary()
+
+lmer(has_rt ~ type + (1|administration_id)+(1|target_label)+(1|dataset_name), data=prev_target_mod) |> summary()
+
+lmer(rt ~ type+ (1|administration_id)+(1|target_label)+(1|dataset_name), data=prev_target_mod) |> summary()
+```
+-2% difference in accuracy when repeating as the target 
+
+```{r, eval=T}
+lmer(correct_early ~ type*trial_order + (1|administration_id)+(1|target_label)+(1|dataset_name), data=prev_target_mod) |> summary()
+
+
+lmer(correct_late ~ type*trial_order + (1|administration_id)+(1|target_label)+(1|dataset_name), data=prev_target_mod) |> summary()
+
+lmer(accuracy ~ type*trial_order + (1|administration_id)+(1|target_label)+(1|dataset_name), data=prev_target_mod) |> summary()
+
+lmer(has_rt ~ type*trial_order + (1|administration_id)+(1|target_label)+(1|dataset_name), data=prev_target_mod) |> summary()
+
+lmer(rt ~ type*trial_order + (1|administration_id)+(1|target_label)+(1|dataset_name), data=prev_target_mod) |> summary()
+
+```
+no substantial differences 
+
+# compare all three
+
+```{r, eval=T}
+prev_any <- d_trial_summary |> filter(target_image_appearance_num %in% c(1,2)) |> 
+  mutate(type=case_when(
+    is.na(target_prior_role) ~ "first",
+    target_prior_role=="target"~ "prev_as_target",
+    target_prior_role=="distractor" ~ "prev_as_distractor"
+  ))
+
+prev_any_all_types<- prev_any |>  distinct(dataset_name, administration_id, type) |> group_by(dataset_name, administration_id) |> 
+  summarize(count=n()) |> filter(count==3) |> select(-count)
+
+prev_any |> inner_join(prev_any_all_types) |> 
+  left_join(d_aoi) |>
+    filter(t_norm>=-500, t_norm<=2000) |> 
+  group_by(dataset_name,administration_id, type, t_norm) |>
+  summarize(correct=mean(correct,na.rm=T)) |> 
+  group_by(dataset_name, type, t_norm) |> 
+  summarize(acc = mean(correct, na.rm = T),
+            count=n()) |>
+  filter(count>9) |> 
+  ggplot(aes(x = t_norm, y = acc, color = type)) +
+  facet_wrap(~dataset_name) +
+  geom_line() +
+  geom_hline(yintercept = .5, lty = "dashed")+
+  geom_vline(xintercept=0, lty="dashed")+theme(legend.position = "bottom")
+```
+
+```{r, eval=T}
+prev_any_mod <- prev_any |> left_join(dvs)
+
+lmer(correct_early ~ type + (1|administration_id)+(1|target_label)+(1|dataset_name), data=prev_any_mod) |> summary()
+lmer(correct_late ~ type + (1|administration_id)+(1|target_label)+(1|dataset_name), data=prev_any_mod) |> summary()
+lmer(accuracy ~ type + (1|administration_id)+(1|target_label)+(1|dataset_name), data=prev_any_mod) |> summary()
+
+lmer(has_rt ~ type + (1|administration_id)+(1|target_label)+(1|dataset_name), data=prev_any_mod) |> summary()
+
+lmer(rt ~ type+ (1|administration_id)+(1|target_label)+(1|dataset_name), data=prev_any_mod) |> summary()
+```
+-3% difference in accuracy when repeating as the target 
+
+```{r, eval=T}
+lmer(correct_early ~ type*trial_order + (1|administration_id)+(1|target_label)+(1|dataset_name), data=prev_any_mod) |> summary()
+
+
+lmer(correct_late ~ type*trial_order + (1|administration_id)+(1|target_label)+(1|dataset_name), data=prev_any_mod) |> summary()
+
+lmer(accuracy ~ type*trial_order + (1|administration_id)+(1|target_label)+(1|dataset_name), data=prev_any_mod) |> summary()
+
+lmer(has_rt ~ type*trial_order + (1|administration_id)+(1|target_label)+(1|dataset_name), data=prev_any_mod) |> summary()
+
+lmer(rt ~ type*trial_order + (1|administration_id)+(1|target_label)+(1|dataset_name), data=prev_any_mod) |> summary()
+
+```
+no substantial differences, even wipes out the -3% we were seeing without trial effects 
+
+# Summary
+
+The effects of having a target image that has been seen 1 time previously (as distractor or target), versus a target image that is being seen for the first time are (if they exist) have central estimates around 1% of the time more or less looking (both for windows around 0 and actual accuracy). These effects may well interact with trial order, although again, effects and interactions, if they exist, are small.  
+
+<!--
+# older
+For these datasets, we want to know what types of repeats they have. 
+
+* is a target image always paired with the same distractor
+* is a target label always paired with the same distractor (label)
+* is each target-distractor label always the same instance
+* is a stimulus just the distractor or both target and distractor
+* how many labels are there
+* how many stimuli are there
+* how many times does each label repeat
+* how many times does each stimulus repeat
+
+
+```{r}
+dataset <- "fernald_totlot"
+
+d_dataset_summary <- d_trial_summary |> filter(dataset_name == dataset)
+
+d_dataset_summary |>
+  group_by(administration_id, target_id) |>
+  distinct(distractor_id) |>
+  tally() |>
+  group_by(n) |>
+  tally()
+
+d_dataset_summary |>
+  group_by(administration_id, target_label) |>
+  distinct(distractor_label) |>
+  tally() |>
+  group_by(n) |>
+  tally()
+
+d_dataset_summary |> distinct(label_pair)
+
+d_dataset_summary |>
+  group_by(administration_id) |>
+  distinct(label_pair) |>
+  tally() |>
+  group_by(n) |>
+  tally()
+
+d_dataset_summary |> distinct(stimulus_pair)
+
+d_dataset_summary |>
+  group_by(administration_id) |>
+  distinct(stimulus_pair) |>
+  tally() |>
+  group_by(n) |>
+  tally()
+
+d_dataset_summary |> distinct(target_label, stimulus_pair)
+
+d_dataset_summary |>
+  distinct(administration_id, target_label) |>
+  group_by(administration_id) |>
+  tally() |>
+  group_by(n) |>
+  tally()
+
+d_dataset_summary |>
+  group_by(stimulus_pair, administration_id) |>
+  tally() |>
+  group_by(stimulus_pair) |>
+  summarize(m = mean(n))
+
+d_dataset_summary |>
+  group_by(administration_id) |>
+  tally() |>
+  group_by(n) |>
+  tally()
+
+d_dataset_summary |>
+  group_by(administration_id, stimulus_pair, label_pair) |>
+  distinct(target_id) |>
+  tally() |>
+  group_by(n, label_pair) |>
+  tally()
+
+d_dataset_summary |>
+  group_by(label_pair, target_label, stimulus_pair, administration_id) |>
+  tally() |>
+  select(-administration_id) |>
+  unique()
+```
+<!--
+Most datasets have data from -500:
+
+Both types of repetitions:
+* adams_marchman_2018: each target image occurs with only 1 distractor; each target label occurs with only 1 distractor label; 17 possible label pairs, most kids see 3/4/9 depending on session; 66 different stimulus pairs; kids commonly see 10/11/12/18/24 stimulus pairs; 27 target labels overall 
+ stimulus pairs are generally seen 1 or 2 per admin
+ most stimulus pairs are only ever seen with 1 target, a decent number with 2
+ overall 14, 18 or 32 trials
+ roughly 1600 of same-target and 1600 of different target *but* all of these have intervening other instances of the same label category
+ 
+* fernald_marchman_2012 -- some targets have multiple distractors, but most do not; there is 1-1 for target label to distractor label; 7 label pairs, 10 labels; kids see iether 2 or 4 label pairs; 44 stimulus pairs; kids see 5, 7 or 16 trials; kids generally see only 1 or 2 of each stimulus pair 
+3600 new-target; 480 same-target *but* all of these have intervening other instances of the same label category
+
+* garrison_bergelson_2020 -- 1 distractor / target; many label pairs!; 4 label pairs for each kid, and 8 stimuli pairs (mine and yours?); each stimulus pair shown 4 times (236 to new-target; 40 to same-target) *but* all of these have intervening other instances of the same label category
+
+* mahr_coartic -- 1 distractor/target; 5 label pairs; 14 stim pairs; 10 target labels; most things are seen twice, 2 seen 3x; kids do 30 trials (295 to same-target; 100 to new-target; but generally has other items intervening) *but* all of these have intervening other instances of the same label category
+
+*newman_genderdistractor -- 1 distractor/target; 4 label pairs; 4 stimulus pairs; 8 targets; looks like each stimulus pair is seen 4 times for 16 trials; 19 kids; 51 trials new target; 25 trials same target
+
+*sander-montant_2022 -- 1 distractor / target; 11 label pairs; kids each see 6 label pairs; 23 stimulus pairs; most kids see 6 (so 1 stim/label), but a fraction see 10-11; most kids have 12 trials, generally with 12 different targets; 45 repeated same-target trials (548 switch-target trials)
+
+*swingley_aslin_2002 -- a few targets come with multiple distractors; (9 cases); 7 label pairs, 7 stimulus pairs (with some target recombinations); kids see between 3 and 7 label pairs; all items as target sometimes; 6-9 targets / kid; generally 10-13 trials/kid; there are only 6 trials instances of repeated same-target trials (142 different switch-target trials)
+
+
+
+Counterbalance repeats:
+* weaver_zettersten_2024: 1 distractor / target; usually 3 stimulus options per target label; labels are repaired with each other, so could be label in other pairings ; 12 trials/kid; repeats are always with the distractor as new target
+*bacon_gendercues
+*baumgartner_2014
+*fmw_2013
+*perry_cowpig
+*potter_canine
+*potter_remix
+*yurovsky_2017
+
+Only target repeats:
+*pomper_prime
+
+
+
+No repetitions:
+* frank_tablet_2016 -- each target image only occurs with one distractor image; 1:1 stimulus - label; 8 pairs total; distractors are never targets; no repeats
+
+*reflook_v4
+*pomper_saffran_2016
+*pomper_yumme
+*pomper_salientme
+## Try on fernald_totlot
+
+this doens't have pre 0 data, so need to use early post 0 
+
+has 1:1 stimulus to label
+
+434 switch; 244 same-target
+
+```{r}
+try <- d_trial_summary |>
+  filter(dataset_name == "fernald_totlot") |>
+  group_by(administration_id) |>
+  filter(stimulus_pair_instance < 3) |>
+  group_by(stimulus_pair, administration_id) |>
+  mutate(count = n()) |>
+  filter(count > 1)
+
+
+
+try |>
+  group_by(stimulus_pair_instance, target_label, stimulus_pair_target_instance, stimulus_pair) |>
+  tally() |>
+  arrange(desc(n))
+
+
+try |>
+  group_by(stimulus_pair_target_instance, stimulus_pair_instance) |>
+  tally() |>
+  arrange(desc(n))
+
+
+# this is a dataset where we can't filter to just before it's been the target!
+try_2 <- d_trial_summary |>
+  filter(dataset_name == "fernald_totlot") |>
+  group_by(administration_id) |>
+  filter(stimulus_pair_instance < 3) |>
+  filter(label_pair_instance < 3) |>
+  group_by(stimulus_pair, administration_id) |>
+  mutate(count = n()) |>
+  filter(count > 1)
+
+try_2 |>
+  filter(stimulus_pair_target_instance == 2) |>
+  group_by(stimulus_pair_instance, target_label, label_pair, stimulus_pair_target_instance, label_pair_instance)
+```
+
+```{r}
+try |> # group_by(administration_id) |> filter(sum(stimulus_pair_target_instance==2)>0) |>
+
+  group_by(stimulus_pair, administration_id) |>
+  mutate(count = n()) |>
+  filter(count == 2) |>
+  ungroup() |>
+  left_join(window_0_250) |>
+  mutate(type = case_when(
+    stimulus_pair_instance == 1 ~ "first",
+    stimulus_pair_target_instance == 1 ~ "was_distractor",
+    stimulus_pair_target_instance == 2 ~ "was_target"
+  )) |>
+  ggplot(aes(x = type, y = correct)) +
+  stat_summary(aes(col = target_label), position = position_dodge(width = .5)) +
+  geom_hline(yintercept = .5, lty = "dashed") +
+  facet_wrap(~label_pair)
+
+
+try |> # group_by(administration_id) |> filter(sum(stimulus_pair_target_instance==2)>0) |>
+  group_by(stimulus_pair, administration_id) |>
+  mutate(count = n()) |>
+  filter(count == 2) |>
+  ungroup() |>
+  left_join(window_0_250) |>
+  mutate(type = case_when(
+    stimulus_pair_instance == 1 ~ "first",
+    stimulus_pair_target_instance == 1 ~ "was_distractor",
+    stimulus_pair_target_instance == 2 ~ "was_target"
+  )) |>
+  ggplot(aes(x = type, y = correct)) +
+  stat_summary(aes(col = target_label), position = position_dodge(width = .5)) +
+  geom_hline(yintercept = .5, lty = "dashed") +
+  stat_summary()
+
+
+try |> # group_by(administration_id) |> filter(sum(stimulus_pair_target_instance==2)>0) |>
+
+  group_by(stimulus_pair, administration_id) |>
+  mutate(count = n()) |>
+  filter(count == 2) |>
+  ungroup() |>
+  left_join(window_0_250) |>
+  mutate(type = case_when(
+    stimulus_pair_instance == 1 ~ "first",
+    stimulus_pair_target_instance == 1 ~ "was_distractor",
+    stimulus_pair_target_instance == 2 ~ "was_target"
+  )) |>
+  filter(!is.na(correct)) |>
+  group_by(type, target_label, label_pair) |>
+  tally() |>
+  arrange(desc(n))
+```
+
+
+
+
+
+## Try on sander-montant
+
+generally don't have repeated trials to the same targets, but a subset of kids do; 45 instances 
+
+```{r}
+try <- d_trial_summary |>
+  filter(dataset_name == "sander-montant_2022") |>
+  group_by(administration_id) |>
+  filter(stimulus_pair_instance < 3) |>
+  group_by(stimulus_pair, administration_id) |>
+  mutate(count = n()) |>
+  filter(count > 1)
+
+
+
+try |>
+  group_by(stimulus_pair_instance, target_label, stimulus_pair_target_instance, stimulus_pair) |>
+  tally() |>
+  arrange(desc(n))
+
+
+try |>
+  group_by(stimulus_pair_target_instance, stimulus_pair_instance) |>
+  tally() |>
+  arrange(desc(n))
+
+
+# this is a dataset where we can't filter to just before it's been the target!
+try_2 <- d_trial_summary |>
+  filter(dataset_name == "sander-montant_2022") |>
+  group_by(administration_id) |>
+  filter(stimulus_pair_instance < 3) |>
+  filter(label_pair_instance < 3) |>
+  group_by(stimulus_pair, administration_id) |>
+  mutate(count = n()) |>
+  filter(count > 1)
+
+try_2 |>
+  filter(stimulus_pair_target_instance == 2) |>
+  group_by(stimulus_pair_instance, target_label, label_pair, stimulus_pair_target_instance, label_pair_instance)
+```
+
+```{r}
+try |> # group_by(administration_id) |> filter(sum(stimulus_pair_target_instance==2)>0) |>
+
+  group_by(stimulus_pair, administration_id) |>
+  mutate(count = n()) |>
+  filter(count == 2) |>
+  ungroup() |>
+  left_join(window_500_0) |>
+  mutate(type = case_when(
+    stimulus_pair_instance == 1 ~ "first",
+    stimulus_pair_target_instance == 1 ~ "was_distractor",
+    stimulus_pair_target_instance == 2 ~ "was_target"
+  )) |>
+  ggplot(aes(x = type, y = correct)) +
+  stat_summary(aes(col = target_label), position = position_dodge(width = .5)) +
+  geom_hline(yintercept = .5, lty = "dashed") +
+  facet_wrap(~label_pair)
+
+
+try |> # group_by(administration_id) |> filter(sum(stimulus_pair_target_instance==2)>0) |>
+  group_by(stimulus_pair, administration_id) |>
+  mutate(count = n()) |>
+  filter(count == 2) |>
+  ungroup() |>
+  left_join(window_500_0) |>
+  mutate(type = case_when(
+    stimulus_pair_instance == 1 ~ "first",
+    stimulus_pair_target_instance == 1 ~ "was_distractor",
+    stimulus_pair_target_instance == 2 ~ "was_target"
+  )) |>
+  ggplot(aes(x = type, y = correct)) +
+  stat_summary(aes(col = target_label), position = position_dodge(width = .5)) +
+  geom_hline(yintercept = .5, lty = "dashed") +
+  stat_summary()
+```
+
+
+
+
+## Try on newman gender
+
+This one doesn't have multiple stim / label, and they do 4 trials per stim (2 and 2); also they only have 19 kids. 
+
+```{r}
+try <- d_trial_summary |>
+  filter(dataset_name == "newman_genderdistractor") |>
+  group_by(administration_id) |>
+  filter(stimulus_pair_instance < 3) |>
+  group_by(stimulus_pair, administration_id) |>
+  mutate(count = n()) |>
+  filter(count > 1)
+
+try |>
+  group_by(stimulus_pair_instance, target_label, stimulus_pair_target_instance, stimulus_pair) |>
+  tally() |>
+  arrange(desc(n))
+
+
+try |>
+  group_by(stimulus_pair_target_instance, stimulus_pair_instance) |>
+  tally() |>
+  arrange(desc(n))
+
+
+# this is a dataset where we can't filter to just before it's been the target!
+try_2 <- d_trial_summary |>
+  filter(dataset_name == "newman_genderdistractor") |>
+  group_by(administration_id) |>
+  filter(stimulus_pair_instance < 3) |>
+  filter(label_pair_instance < 3) |>
+  group_by(stimulus_pair, administration_id) |>
+  mutate(count = n()) |>
+  filter(count > 1)
+
+try_2 |>
+  filter(stimulus_pair_target_instance == 2) |>
+  group_by(stimulus_pair_instance, target_label, label_pair, stimulus_pair_target_instance, label_pair_instance)
+```
+
+note again that there's potential for same label interference
+```{r}
+try_2 |>
+  group_by(stimulus_pair, administration_id) |>
+  mutate(count = n()) |>
+  filter(count == 2) |>
+  ungroup() |>
+  left_join(window_500_0) |>
+  mutate(type = case_when(
+    stimulus_pair_instance == 1 ~ "first",
+    stimulus_pair_target_instance == 1 ~ "was_distractor",
+    stimulus_pair_target_instance == 2 ~ "was_target"
+  )) |>
+  ggplot(aes(x = type, y = correct)) +
+  stat_summary(aes(col = target_label), position = position_dodge(width = .5)) +
+  geom_hline(yintercept = .5, lty = "dashed") +
+  facet_wrap(~label_pair)
+
+
+try_2 |>
+  group_by(stimulus_pair, administration_id) |>
+  mutate(count = n()) |>
+  filter(count == 2) |>
+  ungroup() |>
+  left_join(window_500_0) |>
+  mutate(type = case_when(
+    stimulus_pair_instance == 1 ~ "first",
+    stimulus_pair_target_instance == 1 ~ "was_distractor",
+    stimulus_pair_target_instance == 2 ~ "was_target"
+  )) |>
+  ggplot(aes(x = type, y = correct)) +
+  stat_summary(aes(col = target_label), position = position_dodge(width = .5)) +
+  geom_hline(yintercept = .5, lty = "dashed") +
+  stat_summary()
+```
+
+
+
+## Try on mahr coartic
+
+looks like there was generally counterbalancing; and a different target_pair instance generally occurred before the second instance with the same target 
+
+```{r}
+try <- d_trial_summary |>
+  filter(dataset_name == "mahr_coartic") |>
+  group_by(administration_id) |>
+  filter(stimulus_pair_instance < 3) |>
+  group_by(stimulus_pair, administration_id) |>
+  mutate(count = n()) |>
+  filter(count > 1)
+
+try |>
+  group_by(stimulus_pair_instance, target_label, stimulus_pair_target_instance, stimulus_pair) |>
+  tally() |>
+  arrange(desc(n))
+
+
+try |>
+  group_by(stimulus_pair_target_instance, stimulus_pair_instance) |>
+  tally() |>
+  arrange(desc(n))
+
+
+# this is a dataset where we can't filter to just before it's been the target!
+try_2 <- d_trial_summary |>
+  filter(dataset_name == "mahr_coartic") |>
+  group_by(administration_id) |>
+  filter(stimulus_pair_instance < 3) |>
+  filter(label_pair_instance < 3) |>
+  group_by(stimulus_pair, administration_id) |>
+  mutate(count = n()) |>
+  filter(count > 1)
+
+try_2 |>
+  filter(stimulus_pair_target_instance == 2) |>
+  group_by(stimulus_pair_instance, target_label, label_pair, stimulus_pair_target_instance, label_pair_instance) |>
+  tally() |>
+  arrange(label_pair)
+```
+
+note again that there's potential for same label interference
+```{r}
+try |>
+  group_by(stimulus_pair, administration_id) |>
+  mutate(count = n()) |>
+  filter(count == 2) |>
+  ungroup() |>
+  left_join(window_500_0) |>
+  mutate(type = case_when(
+    stimulus_pair_instance == 1 ~ "first",
+    stimulus_pair_target_instance == 1 ~ "was_distractor",
+    stimulus_pair_target_instance == 2 ~ "was_target"
+  )) |>
+  ggplot(aes(x = type, y = correct)) +
+  stat_summary(aes(col = target_label)) +
+  geom_hline(yintercept = .5, lty = "dashed") +
+  facet_wrap(~label_pair)
+```
+again, not good within item controls, and there are times when other instances of the same pair occur intervening between. 
+
+
+
+## Try on garrison bergelson
+
+looks like there was generally counterbalancing; and a different target_pair instance generally occurred before the second instance with the same target 
+
+```{r}
+try <- d_trial_summary |>
+  filter(dataset_name == "garrison_bergelson_2020") |>
+  group_by(administration_id) |>
+  filter(stimulus_pair_instance < 3) |>
+  group_by(stimulus_pair, administration_id) |>
+  mutate(count = n()) |>
+  filter(count > 1)
+
+try |>
+  group_by(stimulus_pair_instance, target_label, stimulus_pair_target_instance, stimulus_pair) |>
+  tally() |>
+  arrange(desc(n))
+
+
+try |>
+  group_by(stimulus_pair_target_instance, stimulus_pair_instance) |>
+  tally() |>
+  arrange(desc(n))
+
+
+# this is a dataset where we can filter to just before it's been the target!
+try_2 <- d_trial_summary |>
+  filter(dataset_name == "garrison_bergelson_2020") |>
+  group_by(administration_id) |>
+  filter(stimulus_pair_instance < 3) |>
+  filter(label_pair_instance < 3) |>
+  group_by(stimulus_pair, administration_id) |>
+  mutate(count = n()) |>
+  filter(count > 1)
+
+try_2 |>
+  filter(stimulus_pair_target_instance == 2) |>
+  group_by(stimulus_pair_instance, target_label, label_pair, stimulus_pair_target_instance, label_pair_instance) |>
+  tally() |>
+  arrange(label_pair)
+```
+
+note again that there's potential for same label interference
+```{r}
+try |>
+  group_by(stimulus_pair, administration_id) |>
+  mutate(count = n()) |>
+  filter(count == 2) |>
+  ungroup() |>
+  left_join(window_500_0) |>
+  mutate(type = case_when(
+    stimulus_pair_instance == 1 ~ "first",
+    stimulus_pair_target_instance == 1 ~ "was_distractor",
+    stimulus_pair_target_instance == 2 ~ "was_target"
+  )) |>
+  ggplot(aes(x = type, y = correct)) +
+  stat_summary() +
+  geom_hline(yintercept = .5, lty = "dashed") #+facet_wrap(~label_pair)
+```
+
+
+## Try on adams-marchman
+
+```{r}
+try <- d_trial_summary |>
+  filter(dataset_name == "adams_marchman_2018") |>
+  group_by(administration_id) |>
+  filter(stimulus_pair_instance < 3) |>
+  group_by(stimulus_pair, administration_id) |>
+  mutate(count = n()) |>
+  filter(count > 1)
+
+try |>
+  group_by(stimulus_pair_instance, target_label, stimulus_pair_target_instance, stimulus_pair) |>
+  tally() |>
+  arrange(desc(n))
+
+try |>
+  group_by(stimulus_pair_target_instance, stimulus_pair_instance) |>
+  tally() |>
+  arrange(desc(n))
+
+# if we restricted on label_pair instance, we only get the counterbalance, not the same stim as target again!
+try_2 <- d_trial_summary |>
+  filter(dataset_name == "adams_marchman_2018") |>
+  group_by(administration_id) |>
+  filter(stimulus_pair_instance < 3) |>
+  filter(label_pair_instance < 3) |>
+  group_by(stimulus_pair, administration_id) |>
+  mutate(count = n()) |>
+  filter(count > 1)
+
+try_2 |>
+  group_by(stimulus_pair_instance, target_label, label_pair, stimulus_pair_target_instance, label_pair_instance) |>
+  tally() |>
+  arrange(label_pair)
+```
+
+```{r}
+try |>
+  group_by(stimulus_pair, administration_id) |>
+  mutate(count = n()) |>
+  filter(count == 2) |>
+  ungroup() |>
+  left_join(window_500_0) |>
+  mutate(type = case_when(
+    stimulus_pair_instance == 1 ~ "first",
+    stimulus_pair_target_instance == 1 ~ "was_distractor",
+    stimulus_pair_target_instance == 2 ~ "was_target"
+  )) |>
+  ggplot(aes(x = type, y = correct)) +
+  stat_summary(aes(color = target_label, group = interaction(target_label, stimulus_pair)), position = position_dodge(width = .4)) +
+  geom_hline(yintercept = .5, lty = "dashed") +
+  facet_wrap(~label_pair)
+
+
+try |>
+  group_by(stimulus_pair, administration_id) |>
+  mutate(count = n()) |>
+  filter(count == 2) |>
+  ungroup() |>
+  left_join(window_500_0) |>
+  mutate(type = case_when(
+    stimulus_pair_instance == 1 ~ "first",
+    stimulus_pair_target_instance == 1 ~ "was_distractor",
+    stimulus_pair_target_instance == 2 ~ "was_target"
+  )) |>
+  filter(label_pair %in% c("baby_doggy", "ball_shoe", "bird_cat")) |>
+  ggplot(aes(x = type, y = correct)) +
+  stat_summary(aes(color = target_label, group = interaction(target_label, stimulus_pair)), position = position_dodge(width = .4)) +
+  geom_hline(yintercept = .5, lty = "dashed") +
+  stat_summary()
+```
+
+## Try on fernald-marchman
+
+```{r}
+try <- d_trial_summary |>
+  filter(dataset_name == "fernald_marchman_2012") |>
+  group_by(administration_id) |>
+  filter(stimulus_pair_instance < 3) |>
+  group_by(stimulus_pair, administration_id) |>
+  mutate(count = n()) |>
+  filter(count > 1)
+
+try |>
+  group_by(stimulus_pair_instance, target_label, stimulus_pair_target_instance, stimulus_pair) |>
+  tally() |>
+  arrange(desc(n))
+
+try |>
+  group_by(stimulus_pair_target_instance, stimulus_pair_instance) |>
+  tally() |>
+  arrange(desc(n))
+
+try_2 <- d_trial_summary |>
+  filter(dataset_name == "fernald_marchman_2012") |>
+  group_by(administration_id) |>
+  filter(stimulus_pair_instance < 3) |>
+  filter(label_pair_instance < 3) |>
+  group_by(stimulus_pair, administration_id) |>
+  mutate(count = n()) |>
+  filter(count > 1)
+
+try_2 |>
+  group_by(stimulus_pair_instance, target_label, label_pair, stimulus_pair_target_instance, label_pair_instance) |>
+  tally() |>
+  arrange(label_pair)
+```
+
+```{r}
+try |>
+  group_by(stimulus_pair, administration_id) |>
+  mutate(count = n()) |>
+  filter(count == 2) |>
+  ungroup() |>
+  left_join(window_500_0) |>
+  mutate(type = case_when(
+    stimulus_pair_instance == 1 ~ "first",
+    stimulus_pair_target_instance == 1 ~ "was_distractor",
+    stimulus_pair_target_instance == 2 ~ "was_target"
+  )) |>
+  ggplot(aes(x = type, y = correct)) +
+  stat_summary(aes(color = target_label, group = interaction(target_label, stimulus_pair)), position = position_dodge(width = .4)) +
+  geom_hline(yintercept = .5, lty = "dashed") +
+  facet_wrap(~label_pair)
+
+
+try |>
+  group_by(stimulus_pair, administration_id) |>
+  mutate(count = n()) |>
+  filter(count == 2) |>
+  ungroup() |>
+  left_join(window_500_0) |>
+  mutate(type = case_when(
+    stimulus_pair_instance == 1 ~ "first",
+    stimulus_pair_target_instance == 1 ~ "was_distractor",
+    stimulus_pair_target_instance == 2 ~ "was_target"
+  )) |>
+  filter(label_pair %in% c("baby_doggy", "ball_shoe", "bird_cat")) |>
+  ggplot(aes(x = type, y = correct)) +
+  stat_summary(aes(color = target_label, group = interaction(target_label, stimulus_pair)), position = position_dodge(width = .4)) +
+  geom_hline(yintercept = .5, lty = "dashed") +
+  stat_summary()
+```
+here where we again possible have repeats with different images (and that might have had the target image under different circumstances) but don't see any effect
+
+## try weaver-zettersten
+
+since things are intermixed
+
+generally 24 separate targets 
+```{r}
+try <- d_trial_summary |>
+  filter(dataset_name == "weaver_zettersten_2024") |>
+  group_by(administration_id) |>
+  filter(stimulus_pair_instance < 3) |>
+  group_by(stimulus_pair, administration_id) |>
+  mutate(count = n()) |>
+  filter(count > 1)
+
+try |>
+  group_by(stimulus_pair, administration_id) |>
+  mutate(count = n()) |>
+  filter(count == 2) |>
+  ungroup() |>
+  left_join(window_500_0) |>
+  mutate(type = case_when(
+    stimulus_pair_instance == 1 ~ "first",
+    stimulus_pair_target_instance == 1 ~ "was_distractor",
+    stimulus_pair_target_instance == 2 ~ "was_target"
+  )) |>
+  ggplot(aes(x = type, y = correct)) +
+  stat_summary(aes(color = target_label, group = interaction(target_label, stimulus_pair)), position = position_dodge(width = .4)) +
+  geom_hline(yintercept = .5, lty = "dashed") +
+  facet_wrap(~label_pair)
+
+
+try |>
+  group_by(stimulus_pair, administration_id) |>
+  mutate(count = n()) |>
+  filter(count == 2) |>
+  ungroup() |>
+  left_join(window_500_0) |>
+  mutate(type = case_when(
+    stimulus_pair_instance == 1 ~ "first",
+    stimulus_pair_target_instance == 1 ~ "was_distractor",
+    stimulus_pair_target_instance == 2 ~ "was_target"
+  )) |>
+  ggplot(aes(x = type, y = correct)) +
+  stat_summary(aes(color = target_label, group = interaction(target_label, stimulus_pair)), position = position_dodge(width = .4), geom = "point") +
+  stat_summary(aes(color = target_label, group = target_label)) +
+  geom_hline(yintercept = .5, lty = "dashed") +
+  stat_summary()
+```
+no big difference here, but it's only ever the distractor repeating; item labels are repeated elsewhere
+
+
+# Focus on adams_marchman
+
+```{r}
+d_am <- d_trial_summary |> filter(dataset_name == "adams_marchman_2018")
+
+rts <- readRDS(here("cached_intermediates", "4_rt_canonical.rds")) |>
+  filter(shift_type == "D-T") |>
+  filter(approach == "trad_land", logged == "raw") |>
+  select(administration_id, trial_id, trial_order, rt)
+
+accuracy <- d_aoi |>
+  filter(dataset_name == "adams_marchman_2018") |>
+  filter(t_norm >= 500, t_norm <= 4000) |>
+  group_by(dataset_name, trial_id, administration_id) |>
+  summarize(accuracy = mean(correct, na.rm = T)) |>
+  filter(!is.na(accuracy))
+# model 1: look only at
+
+for_mod_1 <- d_am |>
+  filter(stimulus_pair_instance %in% c(1, 2)) |> # only look at first or second instances
+  group_by(stimulus_pair, administration_id) |>
+  mutate(n = n()) |>
+  filter(n == 2) |>
+  ungroup() |> # and only look at children who have both instances for that stimulus
+  mutate(
+    type = case_when(
+      stimulus_pair_target_instance == 2 ~ "repeat_target",
+      stimulus_pair_instance == 2 ~ "repeat_stim",
+      # label_pair_instance>1 ~ "repeat_label",
+      T ~ "first"
+    ),
+    type = factor(type, levels = c("first", "repeat_stim", "repeat_target"))
+  ) |>
+  left_join(window_0_250) |>
+  left_join(window_500_0) |>
+  left_join(rts) |>
+  left_join(accuracy) |>
+  mutate(has_rt = ifelse(is.na(rt), 0, 1))
+
+for_mod_3 <- d_am |>
+  left_join(window_0_250) |>
+  left_join(window_500_0) |>
+  left_join(rts) |>
+  left_join(accuracy) |>
+  mutate(has_rt = ifelse(is.na(rt), 0, 1))
+```
+
+```{r}
+d_am |>
+  left_join(d_aoi) |>
+  filter(target_label %in% c("baby", "doggy", "book", "bird", "cat", "car", "ball", "shoe")) |>
+  filter(distractor_label %in% c("baby", "doggy", "book", "bird", "cat", "car", "ball", "shoe")) |>
+  mutate(
+    prior_stimulus_target = stimulus_pair_target_instance - 1,
+    prior_stimulus_distractor = stimulus_pair_instance - stimulus_pair_target_instance,
+    prior_other_target = label_pair_target_instance - stimulus_pair_instance,
+    prior_other_distractor = label_pair_instance - prior_other_target
+  ) |>
+  filter(stimulus_pair_instance %in% c(1, 2)) |> # only look at first or second instances
+  mutate(type = case_when(
+    stimulus_pair_target_instance == 2 ~ "repeat_target",
+    stimulus_pair_instance == 2 ~ "repeat_stim",
+    # label_pair_instance>1 ~ "repeat_label",
+    T ~ "first"
+  )) |>
+  filter(t_norm > -500, t_norm < 2000) |>
+  group_by(
+    type, target_label, distractor_label,
+    # prior_other_target, prior_other_distractor,
+    t_norm
+  ) |>
+  summarize(m = mean(correct, na.rm = T)) |>
+  filter(!is.na(m)) |>
+  ggplot(aes(x = t_norm, y = m, color = type)) +
+  geom_line() +
+  geom_hline(yintercept = .5, lty = "dashed") +
+  geom_vline(xintercept = 0, lty = "dashed") +
+  facet_wrap(~ str_c(target_label, " (", distractor_label, ")"))
+```
+```{r}
+# what if we try to clean up the *kids* even more
+
+good <- d_am |>
+  left_join(d_aoi) |>
+  filter(target_label %in% c("baby", "doggy", "book", "bird", "cat", "car", "ball", "shoe")) |>
+  filter(distractor_label %in% c("baby", "doggy", "book", "bird", "cat", "car", "ball", "shoe")) |>
+  filter(stimulus_pair_instance %in% c(1, 2)) |> # only look at first or second instances
+  filter(t_norm > -500, t_norm < 0) |>
+  group_by(administration_id, target_label, distractor_label, trial_id, stimulus_pair, age) |>
+  summarize(pct_good = mean(!is.na(correct))) |>
+  filter(pct_good >= .8) |>
+  group_by(administration_id, stimulus_pair, age) |>
+  mutate(count = n()) |>
+  filter(count == 2) |>
+  select(administration_id, trial_id, age)
+
+has_both <- d_am |>
+  inner_join(good) |>
+  group_by(administration_id) |>
+  filter(stimulus_pair_instance %in% c(1, 2)) |> # only look at first or second instances
+  mutate(type = case_when(
+    stimulus_pair_target_instance == 2 ~ "repeat_target",
+    stimulus_pair_instance == 2 ~ "repeat_stim",
+    # label_pair_instance>1 ~ "repeat_label",
+    T ~ "first"
+  )) |>
+  filter(stimulus_pair_instance == 2) |>
+  distinct(administration_id, type) |>
+  group_by(administration_id) |>
+  tally() |>
+  filter(n == 2)
+
+d_am |>
+  left_join(d_aoi) |>
+  filter(target_label %in% c("baby", "doggy", "book", "bird", "cat", "car", "ball", "shoe")) |>
+  filter(distractor_label %in% c("baby", "doggy", "book", "bird", "cat", "car", "ball", "shoe")) |>
+  filter(stimulus_pair_instance %in% c(1, 2)) |> # only look at first or second instances
+  mutate(type = case_when(
+    stimulus_pair_target_instance == 2 ~ "repeat_target",
+    stimulus_pair_instance == 2 ~ "repeat_stim",
+    # label_pair_instance>1 ~ "repeat_label",
+    T ~ "first"
+  )) |>
+  inner_join(good) |>
+  inner_join(has_both) |>
+  filter(t_norm > -500, t_norm < 2000) |>
+  group_by(
+    type, target_label, distractor_label,
+    # prior_other_target, prior_other_distractor,
+    t_norm
+  ) |>
+  summarize(
+    m = mean(correct, na.rm = T),
+    n = n()
+  ) |>
+  filter(!is.na(m)) |>
+  filter(n > 10) |>
+  ggplot(aes(x = t_norm, y = m, color = type)) +
+  geom_line() +
+  geom_hline(yintercept = .5, lty = "dashed") +
+  geom_vline(xintercept = 0, lty = "dashed") +
+  facet_wrap(~ str_c(target_label, " (", distractor_label, ")"))
+
+d_am |>
+  filter(target_label %in% c("baby", "doggy", "book", "bird", "cat", "car", "ball", "shoe")) |>
+  filter(distractor_label %in% c("baby", "doggy", "book", "bird", "cat", "car", "ball", "shoe")) |>
+  filter(stimulus_pair_instance %in% c(1, 2)) |> # only look at first or second instances
+  mutate(type = case_when(
+    stimulus_pair_target_instance == 2 ~ "repeat_target",
+    stimulus_pair_instance == 2 ~ "repeat_stim",
+    # label_pair_instance>1 ~ "repeat_label",
+    T ~ "first"
+  )) |>
+  inner_join(good) |>
+  inner_join(has_both) |>
+  mutate(age_group = round(age / 6)) |>
+  distinct(type, target_label, distractor_label, administration_id, trial_order, age_group) |>
+  filter(trial_order < 40) |>
+  ggplot(aes(x = str_c(target_label, " (", distractor_label, ")"), y = trial_order, col = type)) +
+  geom_jitter(alpha = .1) +
+  stat_summary() +
+  coord_flip()
+
+d_am |>
+  left_join(d_aoi) |>
+  filter(target_label %in% c("baby", "doggy", "book", "bird", "cat", "car", "ball", "shoe")) |>
+  filter(distractor_label %in% c("baby", "doggy", "book", "bird", "cat", "car", "ball", "shoe")) |>
+  mutate(
+    prior_stimulus_target = stimulus_pair_target_instance - 1,
+    prior_stimulus_distractor = stimulus_pair_instance - stimulus_pair_target_instance,
+    prior_other_target = label_pair_target_instance - stimulus_pair_target_instance,
+    prior_other_distractor = label_pair_instance - stimulus_pair_instance - prior_other_target
+  ) |>
+  # filter(stimulus_pair_instance %in% c(1,2)) |> # only look at first or second instances
+  mutate(type = case_when(
+    stimulus_pair_target_instance >= 2 ~ "repeat_target",
+    stimulus_pair_instance >= 2 ~ "repeat_stim",
+    # label_pair_instance>1 ~ "repeat_label",
+    T ~ "first"
+  )) |>
+  inner_join(good) |>
+  inner_join(has_both) |>
+  filter(t_norm > -500, t_norm < 2000) |>
+  group_by(
+    type,
+    prior_other_target, prior_other_distractor,
+    t_norm
+  ) |>
+  summarize(
+    m = mean(correct, na.rm = T),
+    n = n()
+  ) |>
+  filter(!is.na(m)) |>
+  filter(n > 5) |>
+  ggplot(aes(x = t_norm, y = m, color = as.character(prior_other_distractor))) +
+  geom_line() +
+  geom_hline(yintercept = .5, lty = "dashed") +
+  geom_vline(xintercept = 0, lty = "dashed") +
+  # facet_grid(~str_c(target_label, " (", distractor_label, ")"))+  facet_grid(str_c("prior_distractor:", prior_other_distractor)~str_c("prior_target:", prior_other_target))
+  facet_grid(type ~ prior_other_target)
+```
+
+```{r}
+d_am |>
+  left_join(d_aoi) |>
+  filter(target_label %in% c("baby", "doggy", "book", "bird", "cat", "car", "ball", "shoe")) |>
+  filter(distractor_label %in% c("baby", "doggy", "book", "bird", "cat", "car", "ball", "shoe")) |>
+  mutate(
+    prior_stimulus_target = stimulus_pair_target_instance - 1,
+    prior_stimulus_distractor = stimulus_pair_instance - stimulus_pair_target_instance,
+    prior_other_target = label_pair_target_instance - stimulus_pair_target_instance,
+    prior_other_distractor = label_pair_instance - stimulus_pair_instance - prior_other_target
+  ) |>
+  # filter(stimulus_pair_instance %in% c(1,2)) |> # only look at first or second instances
+  mutate(
+    type = case_when(
+      stimulus_pair_target_instance >= 2 ~ "repeat_target",
+      stimulus_pair_instance >= 2 ~ "repeat_stim",
+      # label_pair_instance>1 ~ "repeat_label",
+      T ~ "first"
+    ),
+    prior_other_target = ifelse(prior_other_target %in% c(0, 1), as.character(prior_other_target),
+      "2+"
+    ),
+    prior_other_distractor = ifelse(prior_other_distractor %in% c(0, 1), as.character(prior_other_distractor),
+      "2+"
+    )
+  ) |>
+  filter(t_norm > -500, t_norm < 2000) |>
+  group_by(
+    type,
+    prior_other_target, prior_other_distractor,
+    t_norm
+  ) |>
+  summarize(m = mean(correct, na.rm = T)) |>
+  filter(!is.na(m)) |>
+  ggplot(aes(x = t_norm, y = m, color = type)) +
+  geom_line() +
+  geom_hline(yintercept = .5, lty = "dashed") +
+  geom_vline(xintercept = 0, lty = "dashed") +
+  facet_grid(str_c("prior_distractor:", prior_other_distractor) ~ str_c("prior_target:", prior_other_target))
+
+d_am |>
+  left_join(d_aoi) |>
+  filter(target_label %in% c("baby", "doggy", "book", "bird", "cat", "car", "ball", "shoe")) |>
+  filter(distractor_label %in% c("baby", "doggy", "book", "bird", "cat", "car", "ball", "shoe")) |>
+  mutate(
+    prior_stimulus_target = stimulus_pair_target_instance - 1,
+    prior_stimulus_distractor = stimulus_pair_instance - stimulus_pair_target_instance,
+    prior_other_target = label_pair_target_instance - stimulus_pair_target_instance,
+    prior_other_distractor = label_pair_instance - stimulus_pair_instance - prior_other_target
+  ) |>
+  # filter(stimulus_pair_instance %in% c(1,2)) |> # only look at first or second instances
+  mutate(
+    type = case_when(
+      stimulus_pair_target_instance >= 2 ~ "repeat_target",
+      stimulus_pair_instance >= 2 ~ "repeat_stim",
+      # label_pair_instance>1 ~ "repeat_label",
+      T ~ "first"
+    ),
+    prior_other_target = ifelse(prior_other_target %in% c(0, 1), as.character(prior_other_target),
+      "2+"
+    ),
+    prior_other_distractor = ifelse(prior_other_distractor %in% c(0, 1), as.character(prior_other_distractor),
+      "2+"
+    )
+  ) |>
+  filter(t_norm > -500, t_norm < 2000) |>
+  group_by(
+    type,
+    prior_other_target, prior_other_distractor,
+    t_norm
+  ) |>
+  summarize(m = mean(correct, na.rm = T)) |>
+  filter(!is.na(m)) |>
+  ggplot(aes(x = t_norm, y = m, color = prior_other_distractor)) +
+  geom_line() +
+  geom_hline(yintercept = .5, lty = "dashed") +
+  geom_vline(xintercept = 0, lty = "dashed") +
+  facet_grid(type ~ str_c("prior_target:", prior_other_target))
+
+d_am |>
+  left_join(d_aoi) |>
+  filter(target_label %in% c("baby", "doggy", "book", "bird", "cat", "car", "ball", "shoe")) |>
+  filter(distractor_label %in% c("baby", "doggy", "book", "bird", "cat", "car", "ball", "shoe")) |>
+  mutate(
+    prior_stimulus_target = stimulus_pair_target_instance - 1,
+    prior_stimulus_distractor = stimulus_pair_instance - stimulus_pair_target_instance,
+    prior_other_target = label_pair_target_instance - stimulus_pair_target_instance,
+    prior_other_distractor = label_pair_instance - stimulus_pair_instance - prior_other_target
+  ) |>
+  # filter(stimulus_pair_instance %in% c(1,2)) |> # only look at first or second instances
+  mutate(
+    type = case_when(
+      stimulus_pair_target_instance >= 2 ~ "repeat_target",
+      stimulus_pair_instance >= 2 ~ "repeat_stim",
+      # label_pair_instance>1 ~ "repeat_label",
+      T ~ "first"
+    ),
+    prior_other_target = ifelse(prior_other_target %in% c(0, 1), as.character(prior_other_target),
+      "2+"
+    ),
+    prior_other_distractor = ifelse(prior_other_distractor %in% c(0, 1), as.character(prior_other_distractor),
+      "2+"
+    )
+  ) |>
+  filter(t_norm > -500, t_norm < 2000) |>
+  group_by(
+    type,
+    prior_other_target, prior_other_distractor,
+    t_norm
+  ) |>
+  summarize(m = mean(correct, na.rm = T)) |>
+  filter(!is.na(m)) |>
+  ggplot(aes(x = t_norm, y = m, color = prior_other_target)) +
+  geom_line() +
+  geom_hline(yintercept = .5, lty = "dashed") +
+  geom_vline(xintercept = 0, lty = "dashed") +
+  facet_grid(type ~ str_c("prior_distractor:", prior_other_distractor))
+```
+
+
+```{r}
+library(lme4)
+mod_1 <- lmer(correct_early ~ type * age + (1 | administration_id) + (1 | target_label), data = for_mod_1)
+summary(mod_1)
+mod_2 <- lmer(correct_early ~ type * age + trial_order + label_pair_instance + (1 | administration_id) + (1 | target_label), data = for_mod_1)
+summary(mod_2)
+mod_3 <- lmer(correct_early ~ age * stimulus_pair_instance + age * stimulus_pair_target_instance + age * trial_order + age * label_pair_instance + age * label_pair_target_instance + (1 | administration_id) + (1 | target_label), data = for_mod_3)
+summary(mod_3)
+```
+
+
+```{r}
+### look at the slightly later period instead
+mod_1 <- lmer(correct_late ~ age * type + (1 | administration_id) + (1 | target_label), data = for_mod_1)
+summary(mod_1)
+mod_2 <- lmer(correct_late ~ age * type + trial_order + label_pair_instance + (1 | administration_id) + (1 | target_label), data = for_mod_1)
+summary(mod_2)
+
+mod_3 <- lmer(correct_late ~ age * stimulus_pair_instance + age * stimulus_pair_target_instance + trial_order + age * label_pair_instance + (1 | administration_id) + (1 | target_label), data = for_mod_3)
+summary(mod_3)
+```
+
+
+```{r}
+# look at actual accuracy
+mod_1 <- lmer(accuracy ~ age * type + (type | administration_id) + (type | target_label), data = for_mod_1)
+summary(mod_1)
+mod_2 <- lmer(accuracy ~ age * type + trial_order + label_pair_instance + (1 | administration_id) + (1 | target_label), data = for_mod_1)
+summary(mod_2)
+
+mod_3 <- lmer(accuracy ~ age * stimulus_pair_instance + age * stimulus_pair_target_instance + trial_order + age * label_pair_instance + age * label_pair_target_instance + (1 | administration_id) + (1 | target_label), data = for_mod_3)
+summary(mod_3)
+```
+for many of these, we're seeing more looks to targets that have previously been distractors more (3% more accuracy per time a word-pair has been seen before)
+
+```{r}
+# look at rt
+mod_1 <- lmer(rt ~ age * type + (1 | administration_id) + (1 | target_label), data = for_mod_1)
+summary(mod_1)
+
+mod_2 <- lmer(rt ~ age * type + trial_order + label_pair_instance + (1 | administration_id) + (1 | target_label), data = for_mod_1)
+summary(mod_2)
+
+mod_3 <- lmer(rt ~ age * stimulus_pair_instance + age * stimulus_pair_target_instance + trial_order + age * label_pair_instance + age * label_pair_target_instance + (1 | administration_id) + (1 | target_label), data = for_mod_3)
+summary(mod_3)
+```
+
+```{r}
+# look at rt
+mod_1 <- lmer(has_rt ~ age * type + (1 | administration_id) + (1 | target_label), data = for_mod_1)
+summary(mod_1)
+
+mod_2 <- lmer(has_rt ~ age * type + trial_order + label_pair_instance + (1 | administration_id) + (1 | target_label), data = for_mod_1)
+summary(mod_2)
+
+mod_3 <- lmer(has_rt ~ age * stimulus_pair_instance + age * stimulus_pair_target_instance + trial_order + age * label_pair_instance + age * label_pair_target_instance + (1 | administration_id) + (1 | target_label), data = for_mod_3)
+summary(mod_3)
+```
 # 1. Data preparation
 
 ## 1.1. Data summary
@@ -40,6 +1496,55 @@ We also create some new columns (some of these were created previously but I com
 
 -   max_stimulus_pair_instance: tells the maximum number of trials repetitions in the dataset
 
+## before anything else, let's check for "generic" order effects
+
+need to check how much of time window we have!!
+
+```{r}
+ordering <- d_aoi |>
+  group_by(
+    dataset_id, dataset_name, administration_id, trial_id, trial_order,
+    age, target_id, target_label, distractor_label, distractor_id
+  ) %>%
+  filter(t_norm >= -500, t_norm < 0) |>
+  summarize(pre_accuracy = mean(correct, na.rm = T)) |>
+  group_by(dataset_name, administration_id) |>
+  arrange(trial_order) |>
+  mutate(trial_order_within = row_number())
+
+ordering |> ggplot(aes(x = trial_order, y = pre_accuracy)) +
+  geom_smooth(method = "lm") +
+  facet_wrap(~dataset_name) +
+  geom_hline(yintercept = .5, lty = "dashed") +
+  labs(x = "Trial order overall")
+
+# ordering |> ggplot(aes(x=trial_order_within, y=pre_accuracy))+geom_smooth(method="lm")+facet_wrap(~dataset_name)+geom_hline(yintercept=.5, lty="dashed")
+
+ordering |>
+  rowwise() |>
+  mutate(stimulus_pair = paste(sort(c(target_id, distractor_id)), collapse = "_")) |>
+  group_by(dataset_id, administration_id, stimulus_pair) |>
+  arrange(trial_order) |>
+  slice(1) |>
+  ggplot(aes(x = trial_order, y = pre_accuracy)) +
+  geom_hline(yintercept = .5, lty = "dashed") +
+  # geom_smooth(aes(group=target_label), method="lm", se=F, size=.2, color="black")+
+  geom_smooth(method = "lm") +
+  facet_wrap(~dataset_name) +
+  labs(x = "Trial number -- First stimulus pair instances only")
+
+ordering |>
+  rowwise() |>
+  mutate(stimulus_pair = paste(sort(c(target_id, distractor_id)), collapse = "_")) |>
+  group_by(dataset_id, administration_id, stimulus_pair) |>
+  arrange(trial_order) |>
+  slice(1) |>
+  ggplot(aes(x = trial_order, y = pre_accuracy)) +
+  geom_hline(yintercept = .5, lty = "dashed") +
+  geom_smooth(aes(group = interaction(target_label, dataset_name)), method = "lm", se = F, size = .2, color = "black") +
+  geom_smooth(aes(group = dataset_name), method = "lm", se = F)
+```
+
 ## 1.2. New columns
 
 note that now label_pair / label_pair_instance etc refers to the repetition of that pair of label/types
@@ -55,66 +1560,99 @@ d_trial_summary <- d_aoi %>%
     pre_accuracy = mean(correct[t_norm <= 400], na.rm = TRUE),
     post_accuracy = mean(correct[t_norm > 400], na.rm = TRUE)
   ) |>
-  filter(!is.na(post_accuracy)) |> 
+  filter(!is.na(post_accuracy)) |>
   # we put in stimulus pair alphabetically because it needs to be in a consistent order
   # so that we can group by the pairing and not by pairing x target
   mutate(label_pair = paste(sort(c(target_label, distractor_label)), collapse = "_")) %>%
-    mutate(stimulus_pair = paste(sort(c(target_id, distractor_id)), collapse = "_")) %>%
+  mutate(stimulus_pair = paste(sort(c(target_id, distractor_id)), collapse = "_")) %>%
   # mutate(first_stimulus = sort(c(target_label, distractor_label))[1]) %>%
   arrange(dataset_id, administration_id, trial_order) %>%
   group_by(dataset_id, administration_id, stimulus_pair) %>%
   mutate(stimulus_pair_instance = seq(1, n())) %>% # stimulus_pair_instance is how many times you've seen this pair of stimuli
-    group_by(dataset_id, administration_id, label_pair) %>%
-  mutate(label_pair_instance = seq(1, n())) %>% 
+  group_by(dataset_id, administration_id, label_pair) %>%
+  mutate(label_pair_instance = seq(1, n())) %>%
   group_by(dataset_id, administration_id, stimulus_pair, target_label) %>%
   mutate(stimulus_pair_target_instance = seq(1, n())) %>% # sttarget instance is how many times you've seen this pair of stimuli with this target as a target
-    group_by(dataset_id, administration_id, label_pair, target_label) %>%
+  group_by(dataset_id, administration_id, label_pair, target_label) %>%
   mutate(label_pair_target_instance = seq(1, n())) %>% # sttarget instance is how many times you've seen this pair of stimuli with this target as a target
-  group_by(dataset_name, stimulus_pair) |> 
-  mutate(max_stimulus_pair_instance=max(stimulus_pair_instance)) |> 
-  group_by(dataset_name, label_pair) |> 
-    mutate(max_label_pair_instance=max(label_pair_instance)) |> 
-  group_by(dataset_name, stimulus_pair, target_label) |> 
-  mutate(max_stimulus_pair_target_instance=max(stimulus_pair_target_instance)) |> 
-  ungroup() 
+  group_by(dataset_name, administration_id, stimulus_pair) |>
+  mutate(max_stimulus_pair_instance = max(stimulus_pair_instance)) |>
+  group_by(dataset_name, administration_id, label_pair) |>
+  mutate(max_label_pair_instance = max(label_pair_instance)) |>
+  group_by(dataset_name, administration_id, stimulus_pair, target_label) |>
+  mutate(max_stimulus_pair_target_instance = max(stimulus_pair_target_instance)) |>
+  ungroup()
 ```
 
 trying to figure out what the distributions look like here!
 
 ```{r}
 for_plot <- d_trial_summary |>
-  select(dataset_name, target_label, distractor_label, stimulus_pair, label_pair, stimulus_pair_target_instance, stimulus_pair_target_instance, label_pair_instance, stimulus_pair_instance,
-         max_stimulus_pair_instance, max_label_pair_instance, max_stimulus_pair_target_instance) |> distinct()
+  select(
+    dataset_name, target_label, distractor_label, stimulus_pair, label_pair, stimulus_pair_target_instance, stimulus_pair_target_instance, label_pair_instance, stimulus_pair_instance,
+    max_stimulus_pair_instance, max_label_pair_instance, max_stimulus_pair_target_instance
+  ) |>
+  distinct()
 ```
 
 I think garrison_bergelson is the "yours or mine" paper, so it has a lot of labels that aren't seen by lots of kids? Filtering it out from the aggregate
 
 ```{r}
-for_plot |> select(dataset_name, label_pair, max_label_pair_instance) |> distinct() |> ggplot(aes(x = max_label_pair_instance, fill = dataset_name)) +
-  geom_histogram()+facet_wrap(~dataset_name, scales="free_y")+theme(legend.position="none")
+for_plot |>
+  select(dataset_name, label_pair, max_label_pair_instance) |>
+  distinct() |>
+  ggplot(aes(x = max_label_pair_instance, fill = dataset_name)) +
+  geom_histogram() +
+  facet_wrap(~dataset_name, scales = "free_y") +
+  theme(legend.position = "none")
 
-for_plot |> filter(!dataset_name=="garrison_bergelson_2020") |> select(dataset_name, label_pair, max_label_pair_instance) |> distinct() |> ggplot(aes(x = max_label_pair_instance, fill = dataset_name)) +
-  geom_histogram()+theme(legend.position = "none")
+for_plot |>
+  filter(!dataset_name == "garrison_bergelson_2020") |>
+  select(dataset_name, label_pair, max_label_pair_instance) |>
+  distinct() |>
+  ggplot(aes(x = max_label_pair_instance, fill = dataset_name)) +
+  geom_histogram() +
+  theme(legend.position = "none")
 ```
 A number of label-pairs shown only once; but also lots that show up twice, 4 and 8 times are also pretty prevelent. 
 
 Looking at stimulus pairs (images)
 ```{r}
-for_plot |> select(dataset_name, stimulus_pair, max_stimulus_pair_instance) |> distinct() |> ggplot(aes(x = max_stimulus_pair_instance, fill = dataset_name)) +
-  geom_histogram()+facet_wrap(~dataset_name, scales="free_y")+theme(legend.position="none")
+for_plot |>
+  select(dataset_name, stimulus_pair, max_stimulus_pair_instance) |>
+  distinct() |>
+  ggplot(aes(x = max_stimulus_pair_instance, fill = dataset_name)) +
+  geom_histogram() +
+  facet_wrap(~dataset_name, scales = "free_y") +
+  theme(legend.position = "none")
 
-for_plot |> filter(!dataset_name=="garrison_bergelson_2020") |> select(dataset_name, stimulus_pair, max_stimulus_pair_instance) |> distinct() |> ggplot(aes(x = max_stimulus_pair_instance, fill = dataset_name)) +
-  geom_histogram()+theme(legend.position = "none")
+for_plot |>
+  filter(!dataset_name == "garrison_bergelson_2020") |>
+  select(dataset_name, stimulus_pair, max_stimulus_pair_instance) |>
+  distinct() |>
+  ggplot(aes(x = max_stimulus_pair_instance, fill = dataset_name)) +
+  geom_histogram() +
+  theme(legend.position = "none")
 ```
 some shift because for same datasets the label repetitions are with different stimuli!
 
 
 ```{r}
-for_plot |> select(dataset_name, target_label, stimulus_pair, max_stimulus_pair_target_instance) |> distinct() |> ggplot(aes(x = max_stimulus_pair_target_instance, fill = dataset_name)) +
-  geom_histogram()+facet_wrap(~dataset_name, scales="free_y")+theme(legend.position="none")
+for_plot |>
+  select(dataset_name, target_label, stimulus_pair, max_stimulus_pair_target_instance) |>
+  distinct() |>
+  ggplot(aes(x = max_stimulus_pair_target_instance, fill = dataset_name)) +
+  geom_histogram() +
+  facet_wrap(~dataset_name, scales = "free_y") +
+  theme(legend.position = "none")
 
-for_plot |> filter(!dataset_name=="garrison_bergelson_2020") |> select(dataset_name,target_label, stimulus_pair, max_stimulus_pair_target_instance) |> distinct() |> ggplot(aes(x = max_stimulus_pair_target_instance, fill = dataset_name)) +
-  geom_histogram()+theme(legend.position = "none")
+for_plot |>
+  filter(!dataset_name == "garrison_bergelson_2020") |>
+  select(dataset_name, target_label, stimulus_pair, max_stimulus_pair_target_instance) |>
+  distinct() |>
+  ggplot(aes(x = max_stimulus_pair_target_instance, fill = dataset_name)) +
+  geom_histogram() +
+  theme(legend.position = "none")
 ```
 mostly there aren't direct repeats, but some datasets do!
 
@@ -126,7 +1664,7 @@ for_plot |>
   tally() |>
   arrange(desc(n))
 
-# between 2 and 17 pairs of nouns per dataset (not counting garrison-bergelson's 122) 
+# between 2 and 17 pairs of nouns per dataset (not counting garrison-bergelson's 122)
 ```
 
 one question is which datasets contain what kinds of repetition
@@ -139,12 +1677,16 @@ we want to know for each dataset
 * max reps for that label pair
 
 ```{r}
- d_trial_summary |> group_by(label_pair, dataset_name, max_label_pair_instance) |> 
-  summarize(stimulus_pairs=unique(stimulus_pair) |> length(),
-            target_labels = unique(target_label) |> length(),
-            admins = unique(administration_id) |> length()) |> 
-  filter(max_label_pair_instance>1) |> 
-  arrange(dataset_name) |> View()
+d_trial_summary |>
+  group_by(label_pair, dataset_name, max_label_pair_instance) |>
+  summarize(
+    stimulus_pairs = unique(stimulus_pair) |> length(),
+    target_labels = unique(target_label) |> length(),
+    admins = unique(administration_id) |> length()
+  ) |>
+  filter(max_label_pair_instance > 1) |>
+  arrange(dataset_name) |>
+  View()
 ```
 
 types of things we want to do comparison of:
@@ -163,25 +1705,46 @@ so, we could label by
 which datasets have multiple stimuli with the same label-pair (and label)?
 
 ```{r}
-d_trial_summary |>   filter(max_label_pair_instance>1) |> group_by(label_pair, dataset_name) |> summarize(stimulus_pairs=unique(stimulus_pair) |> length())|> filter(stimulus_pairs>1) |> ungroup() |> distinct(dataset_name)
-
+d_trial_summary |>
+  filter(max_label_pair_instance > 1) |>
+  group_by(label_pair, dataset_name) |>
+  summarize(stimulus_pairs = unique(stimulus_pair) |> length()) |>
+  filter(stimulus_pairs > 1) |>
+  ungroup() |>
+  distinct(dataset_name)
 ```
 which datasets have repeats of the same stimulus pair + target label?
 
 ```{r}
-d_trial_summary |> group_by(stimulus_pair, dataset_name) |> filter(max_stimulus_pair_target_instance>1) |> ungroup() |> distinct(dataset_name)
-
+d_trial_summary |>
+  group_by(stimulus_pair, dataset_name) |>
+  filter(max_stimulus_pair_target_instance > 1) |>
+  ungroup() |>
+  distinct(dataset_name)
 ```
 which datasets have repeats of the same stimulus pair + switch target label?
 
 ```{r}
-d_trial_summary |> group_by(stimulus_pair, dataset_name) |> filter(max_stimulus_pair_instance>1) |> summarize(targets=unique(target_label) |> length()) |>  ungroup() |> filter(targets>1) |>  distinct(dataset_name)
-
+d_trial_summary |>
+  group_by(stimulus_pair, dataset_name) |>
+  filter(max_stimulus_pair_instance > 1) |>
+  summarize(targets = unique(target_label) |> length()) |>
+  ungroup() |>
+  filter(targets > 1) |>
+  distinct(dataset_name)
 ```
 are there datasets that have all of these? 
 
 ```{r}
-all_types <- d_trial_summary |>   filter(max_label_pair_instance>1) |> group_by(label_pair, dataset_name) |> summarize(stimulus_pairs=unique(stimulus_pair) |> length(),                                                                                                  targets=unique(target_label) |> length())|> filter(stimulus_pairs>1, targets>1) |> ungroup()|> inner_join(d_trial_summary |> group_by(label_pair, stimulus_pair, dataset_name) |> filter(max_stimulus_pair_target_instance>1)) |> ungroup() |> distinct(dataset_name)
+all_types <- d_trial_summary |>
+  filter(max_label_pair_instance > 1) |>
+  group_by(label_pair, dataset_name) |>
+  summarize(stimulus_pairs = unique(stimulus_pair) |> length(), targets = unique(target_label) |> length()) |>
+  filter(stimulus_pairs > 1, targets > 1) |>
+  ungroup() |>
+  inner_join(d_trial_summary |> group_by(label_pair, stimulus_pair, dataset_name) |> filter(max_stimulus_pair_target_instance > 1)) |>
+  ungroup() |>
+  distinct(dataset_name)
 
 all_types
 ```
@@ -194,51 +1757,83 @@ let's start by looking just at these datasets and doing some time course visuali
 
 (looks like sander-montant doesn't actually have different stim for the same target in the same administration)
 ```{r}
-test <- d_aoi |> inner_join(all_types) |> left_join(d_trial_summary) |> 
-  filter(max_stimulus_pair_target_instance>1) |> filter(dataset_name!="sander-montant_2022")
+test <- d_aoi |>
+  inner_join(all_types) |>
+  left_join(d_trial_summary) |>
+  filter(max_stimulus_pair_target_instance > 1) |>
+  filter(dataset_name != "sander-montant_2022")
 ```
 
 ```{r}
-by_first <- test |> mutate(
-  first_label = label_pair_instance==1,
-  first_stimulus= stimulus_pair_instance==1,
-  first_target = label_pair_target_instance==1,
-  first_stim_target = stimulus_pair_target_instance ==1
-) |> 
-  mutate(type=case_when(
-  first_label ~ "first_label",
-  first_stimulus ~ "first_stimulus",
-  first_stim_target ~ "first_stim_target",
-  T ~ "repeat_stim_target"
+by_first <- test |>
+  mutate(
+    first_label = label_pair_instance == 1,
+    first_stimulus = stimulus_pair_instance == 1,
+    first_target = label_pair_target_instance == 1,
+    first_stim_target = stimulus_pair_target_instance == 1
+  ) |>
+  mutate(type = case_when(
+    first_label ~ "first_label",
+    first_stimulus ~ "first_stimulus",
+    first_stim_target ~ "first_stim_target",
+    T ~ "repeat_stim_target"
   ))
 
-  by_first |> group_by(dataset_name, type, t_norm) |> 
-  summarize(correct=mean(correct, na.rm=T)) |>  ggplot(aes(x=t_norm, y=correct, col=type))+geom_smooth(method="gam")+geom_hline(yintercept=.5, lty="dashed")+geom_vline(xintercept=0, lty="dashed")+facet_wrap(~dataset_name)
+by_first |>
+  group_by(dataset_name, type, t_norm) |>
+  summarize(correct = mean(correct, na.rm = T)) |>
+  ggplot(aes(x = t_norm, y = correct, col = type)) +
+  geom_smooth(method = "gam") +
+  geom_hline(yintercept = .5, lty = "dashed") +
+  geom_vline(xintercept = 0, lty = "dashed") +
+  facet_wrap(~dataset_name)
 ```
 we are interested in when there are things that don't look like "first label" -- 
 
 let's try limiting to the first or second time this *stimulus pair* is displayed
 ```{r}
-early <- test |> filter(stimulus_pair_instance %in% c(1,2)) |> 
-  mutate(prev_label=stimulus_pair_instance!=label_pair_instance,
-         type=case_when(
-           stimulus_pair_instance==1 ~ "first stim",
-           stimulus_pair_target_instance==1 ~ "prev distractor",
-           T ~ "prev target"
-         ))
+early <- test |>
+  filter(stimulus_pair_instance %in% c(1, 2)) |>
+  mutate(
+    prev_label = stimulus_pair_instance != label_pair_instance,
+    type = case_when(
+      stimulus_pair_instance == 1 ~ "first stim",
+      stimulus_pair_target_instance == 1 ~ "prev distractor",
+      T ~ "prev target"
+    )
+  )
 
- early_summ <-  early |> group_by(dataset_name, type, prev_label, t_norm) |> 
-  summarize(correct=mean(correct, na.rm=T), n=unique(trial_id) |> length()) 
- 
- early_summ |> filter(n>10) |> filter(prev_label==F)|> ggplot(aes(x=t_norm, y=correct, col=str_c(type, prev_label)))+#geom_smooth(method="gam")+
-   geom_hline(yintercept=.5, lty="dashed")+geom_vline(xintercept=0, lty="dashed")+facet_wrap(~dataset_name)+geom_line()
- 
-  early_summ |> filter(n>10) |> filter(prev_label==T)|> ggplot(aes(x=t_norm, y=correct, col=str_c(type, prev_label)))+#geom_smooth(method="gam")+
-   geom_hline(yintercept=.5, lty="dashed")+geom_vline(xintercept=0, lty="dashed")+facet_wrap(~dataset_name)+geom_line()
-  
-  
-    early_summ |> filter(n>10) |> filter(type=="first stim")|> ggplot(aes(x=t_norm, y=correct, col=str_c(type, prev_label)))+#geom_smooth(method="gam")+
-   geom_hline(yintercept=.5, lty="dashed")+geom_vline(xintercept=0, lty="dashed")+facet_wrap(~dataset_name)+geom_line()
+early_summ <- early |>
+  group_by(dataset_name, type, prev_label, t_norm) |>
+  summarize(correct = mean(correct, na.rm = T), n = unique(trial_id) |> length())
+
+early_summ |>
+  filter(n > 10) |>
+  filter(prev_label == F) |>
+  ggplot(aes(x = t_norm, y = correct, col = str_c(type, prev_label))) + # geom_smooth(method="gam")+
+  geom_hline(yintercept = .5, lty = "dashed") +
+  geom_vline(xintercept = 0, lty = "dashed") +
+  facet_wrap(~dataset_name) +
+  geom_line()
+
+early_summ |>
+  filter(n > 10) |>
+  filter(prev_label == T) |>
+  ggplot(aes(x = t_norm, y = correct, col = str_c(type, prev_label))) + # geom_smooth(method="gam")+
+  geom_hline(yintercept = .5, lty = "dashed") +
+  geom_vline(xintercept = 0, lty = "dashed") +
+  facet_wrap(~dataset_name) +
+  geom_line()
+
+
+early_summ |>
+  filter(n > 10) |>
+  filter(type == "first stim") |>
+  ggplot(aes(x = t_norm, y = correct, col = str_c(type, prev_label))) + # geom_smooth(method="gam")+
+  geom_hline(yintercept = .5, lty = "dashed") +
+  geom_vline(xintercept = 0, lty = "dashed") +
+  facet_wrap(~dataset_name) +
+  geom_line()
 ```
 this is all confusing how can we deal with it?
 
@@ -266,9 +1861,419 @@ this still wouldn't account for kid & item random effects
 
 we could do this within each dataset and then meta-analyse? 
 
-<!-- older stuff below here -->
+# Model attempt 2
+Following convo with Alvin, go for the most likely to show an effect 
 
-# 2. Repetitions classification
+```{r}
+# let's try a narrower pre-accuracy window say -500 -- 0
+
+pre_1 <- d_aoi |>
+  filter(t_norm >= -500, t_norm <= 0) |>
+  group_by(trial_id) |>
+  summarize(acc_500_0 = mean(correct))
+
+
+pre_2 <- d_aoi |>
+  filter(t_norm >= -250, t_norm <= 250) |>
+  group_by(trial_id) |>
+  summarize(acc_250_250 = mean(correct))
+
+pre_3 <- d_aoi |>
+  filter(t_norm >= 0, t_norm <= 500) |>
+  group_by(trial_id) |>
+  summarize(acc_0_500 = mean(correct))
+
+model_prep <- d_trial_summary |>
+  filter(stimulus_pair_instance %in% c(1, 2)) |> # only look at first or second instances
+  group_by(stimulus_pair, administration_id) |>
+  mutate(n = n()) |>
+  filter(n == 2) |>
+  ungroup() |> # and only look at children who have both instances for that stimulus
+  mutate(
+    type = case_when(
+      stimulus_pair_target_instance == 2 ~ "repeat_target",
+      stimulus_pair_instance == 2 ~ "repeat_stim",
+      label_pair_instance > 1 ~ "repeat_label",
+      T ~ "first"
+    ),
+    type = factor(type, levels = c("first", "repeat_label", "repeat_stim", "repeat_target"))
+  ) |>
+  left_join(pre_1) |>
+  left_join(pre_2) |>
+  left_join(pre_3) |>
+  select(
+    dataset_name, administration_id, target_label,
+    acc_500_0, acc_250_250, acc_0_500, pre_accuracy, post_accuracy,
+    trial_order, type
+  )
+```
+```{r}
+library(lme4)
+pre_acc_model_1 <- lmer(acc_500_0 ~ type + (1 | dataset_name), data = model_prep |> filter(!is.na(pre_accuracy)))
+
+summary(pre_acc_model_1)
+
+agg <- broom.mixed::tidy(pre_acc_model_1, effects = "fixed", conf.int = T)
+
+
+by_dataset_pre_acc <- model_prep |>
+  group_by(dataset_name) |>
+  nest() |>
+  mutate(coef = map(data, \(d)
+  lm(acc_500_0 ~ type, data = d) |>
+    broom.mixed::tidy(effects = "fixed", conf.int = T))) |>
+  select(-data) |>
+  unnest(coef) |>
+  bind_rows(agg |> as_tibble() |> mutate(dataset_name = "Aggregate")) |>
+  mutate(dataset_name = dataset_name |> as.factor())
+
+
+by_dataset_pre_acc |>
+  filter(term != "(Intercept)") |>
+  ggplot(aes(x = dataset_name, y = estimate, ymin = conf.low, ymax = conf.high)) +
+  geom_pointrange() +
+  geom_pointrange(data = by_dataset_pre_acc |> filter(term != "(Intercept)") |> filter(dataset_name == "Aggregate"), col = "red", shape = 5) +
+  coord_flip() +
+  geom_hline(yintercept = 0) +
+  facet_grid(. ~ term, scales = "free_y")
+```
+
+```{r}
+library(lme4)
+pre_acc_model_1 <- lmer(acc_250_250 ~ type + (1 | dataset_name), data = model_prep)
+
+summary(pre_acc_model_1)
+
+agg <- broom.mixed::tidy(pre_acc_model_1, effects = "fixed", conf.int = T)
+
+
+by_dataset_pre_acc <- model_prep |>
+  group_by(dataset_name) |>
+  nest() |>
+  mutate(coef = map(data, \(d)
+  lm(acc_250_250 ~ type, data = d) |>
+    broom.mixed::tidy(effects = "fixed", conf.int = T))) |>
+  select(-data) |>
+  unnest(coef) |>
+  bind_rows(agg |> as_tibble() |> mutate(dataset_name = "Aggregate")) |>
+  mutate(dataset_name = dataset_name |> as.factor())
+
+
+by_dataset_pre_acc |>
+  filter(term != "(Intercept)") |>
+  ggplot(aes(x = dataset_name, y = estimate, ymin = conf.low, ymax = conf.high)) +
+  geom_pointrange() +
+  geom_pointrange(data = by_dataset_pre_acc |> filter(term != "(Intercept)") |> filter(dataset_name == "Aggregate"), col = "red", shape = 5) +
+  coord_flip() +
+  geom_hline(yintercept = 0) +
+  facet_grid(. ~ term, scales = "free_y")
+```
+these effects are suggesting that (compared to first instances), there's more looking to the target on second instances *regardless* of whether it's the same target. 
+
+That suggests either we have participant level selection effects or we have order effects. Or coding screwed up. 
+
+Let's double check that we only include pairs where were have data for both trials *per kid*. 
+
+Even when accounting for this, we still see positive estimates for both repeat_stim and repeat_target (and repeat_label), which seems weird! 
+
+so things to check are:
+* slightly different time windows (how much is this just a fluke)
+* order effects
+* graphical
+* whether item/target mixed effects make it go away
+
+```{r}
+model_prep |> ggplot(aes(x = type, color = type, y = acc_500_0)) +
+  geom_jitter(alpha = .1, ) +
+  geom_hline(yintercept = .5, lty = "dashed") +
+  stat_summary(color = "black")
+
+model_prep |> ggplot(aes(x = type, color = type, y = acc_250_250)) +
+  geom_jitter(alpha = .1, ) +
+  geom_hline(yintercept = .5, lty = "dashed") +
+  stat_summary(color = "black")
+
+model_prep |> ggplot(aes(x = type, color = type, y = acc_0_500)) +
+  geom_jitter(alpha = .1, ) +
+  geom_hline(yintercept = .5, lty = "dashed") +
+  stat_summary(color = "black")
+
+
+model_prep |> ggplot(aes(x = trial_order, color = type, y = acc_500_0)) +
+  geom_jitter(alpha = .1, ) +
+  geom_hline(yintercept = .5, lty = "dashed") +
+  geom_smooth(method = "lm")
+
+
+d_trial_summary |>
+  left_join(pre_1) |>
+  ggplot(aes(x = trial_order, y = acc_500_0)) +
+  geom_jitter(alpha = .1, ) +
+  geom_hline(yintercept = .5, lty = "dashed") +
+  geom_smooth(method = "lm")
+
+d_trial_summary |>
+  left_join(pre_1) |>
+  filter(stimulus_pair_instance == 1) |>
+  ggplot(aes(x = trial_order, y = acc_500_0)) +
+  geom_jitter(alpha = .1, ) +
+  geom_hline(yintercept = .5, lty = "dashed") +
+  geom_smooth(aes(col = dataset_name), method = "lm", se = F) +
+  geom_smooth(method = "lm")
+```
+```{r}
+d_trial_order <- d_trial_summary |>
+  group_by(dataset_id, administration_id) |>
+  arrange(trial_order) |>
+  mutate(trial_order_fam = row_number()) |>
+  mutate(max_trial = max(trial_order_fam)) |>
+  filter(max_trial >= 10) |>
+  filter(trial_order_fam < 11)
+
+d_trial_order |>
+  left_join(pre_1) |>
+  ggplot(aes(x = trial_order_fam, y = acc_500_0)) +
+  geom_jitter(alpha = .1, ) +
+  geom_hline(yintercept = .5, lty = "dashed") +
+  geom_smooth(method = "lm")
+
+
+d_trial_order |>
+  left_join(pre_1) |>
+  filter(dataset_name == "fernald_totlot") |>
+  ggplot(aes(x = trial_order_fam, y = acc_500_0, col = target_label)) +
+  geom_point() +
+  geom_smooth(method = "lm", se = F)
+
+ggplot(aes(x = trial_order_fam, y = acc_500_0, col = dataset_name)) +
+  geom_jitter(alpha = .1, ) +
+  geom_hline(yintercept = .5, lty = "dashed") +
+  geom_line(method = "lm", se = F)
+
+
+
+
+joined <- d_trial_order |>
+  mutate(type = case_when(
+    stimulus_pair_target_instance == 2 ~ "repeat_target",
+    stimulus_pair_instance == 2 ~ "repeat_stim",
+    label_pair_instance > 1 ~ "repeat_label",
+    T ~ "first"
+  )) |>
+  left_join(pre_1) |>
+  filter(!is.na(acc_500_0))
+
+joined |>
+  filter(dataset_name == "fernald_totlot") |>
+  ggplot(aes(x = trial_order_fam, y = acc_500_0, col = target_label)) +
+  geom_point() +
+  geom_smooth(method = "lm", se = F)
+
+joined |>
+  filter(dataset_name == "fernald_totlot") |>
+  ggplot(aes(x = trial_order_fam, y = acc_500_0, col = type)) +
+  geom_jitter(alpha = .1, height = .1) +
+  geom_smooth(method = "lm", se = F)
+
+
+ggplot(aes(x = trial_order_fam, y = acc_500_0, group = administration_id)) +
+  geom_jitter(alpha = .1, ) +
+  geom_hline(yintercept = .5, lty = "dashed") +
+  geom_smooth(method = "lm")
+```
+
+is it mostly trial order then
+
+```{r}
+library(lme4)
+
+for_model_limited <- d_trial_order |> inner_join(model_prep)
+
+pre_acc_model_1 <- lmer(acc_500_0 ~ trial_order_fam + type + (1 | dataset_name), data = for_model_limited |> filter(!is.na(acc_500_0)))
+
+summary(pre_acc_model_1)
+
+agg <- broom.mixed::tidy(pre_acc_model_1, effects = "fixed", conf.int = T)
+
+
+by_dataset_pre_acc <- for_model_limited |>
+  filter(!is.na(acc_500_0)) |>
+  group_by(dataset_name) |>
+  nest() |>
+  mutate(coef = map(data, \(d)
+  lm(acc_500_0 ~ trial_order_fam + type, data = d) |>
+    broom.mixed::tidy(effects = "fixed", conf.int = T))) |>
+  select(-data) |>
+  unnest(coef) |>
+  bind_rows(agg |> as_tibble() |> mutate(dataset_name = "Aggregate")) |>
+  mutate(dataset_name = dataset_name |> as.factor())
+
+
+by_dataset_pre_acc |>
+  filter(term != "(Intercept)") |>
+  ggplot(aes(x = dataset_name, y = estimate, ymin = conf.low, ymax = conf.high)) +
+  geom_pointrange(data = by_dataset_pre_acc |> filter(term != "(Intercept)") |> filter(dataset_name == "Aggregate"), col = "red", shape = 18, size = .8) +
+  geom_pointrange(data = by_dataset_pre_acc |> filter(term != "(Intercept)") |> filter(dataset_name != "Aggregate")) +
+  coord_flip() +
+  geom_hline(yintercept = 0) +
+  facet_grid(. ~ term, scales = "free_y")
+```
+
+
+# Let's just model 
+
+DV is post-acc / RT / pre-window accuracy / is-RT-not-NA
+```{r}
+rts <- rt <- readRDS(here("cached_intermediates", "4_rt_canonical.rds")) |>
+  filter(shift_type == "D-T") |>
+  filter(approach == "trad_land", logged == "raw")
+
+
+# let's try a narrower pre-accuracy window say -500 -- 0
+
+narrow_pre <- d_aoi |>
+  filter(t_norm >= -500, t_norm <= 0) |>
+  group_by(trial_id) |>
+  summarize(narrow_pre_acc = mean(correct))
+
+model_prep <- d_trial_summary |>
+  filter(max_stimulus_pair_instance > 1) |> # only look at stimuli that repeat
+  mutate(
+    repeat_stim = ifelse(stimulus_pair_instance == 1, 0, 1),
+    repeat_target = ifelse(stimulus_pair_target_instance == 1, 0, 1),
+    other_label_stim = ifelse(stimulus_pair_instance == label_pair_instance, 0, 1),
+    other_label_instance = label_pair_instance - stimulus_pair_instance
+  ) |>
+  group_by(administration_id, dataset_id, stimulus_pair) |>
+  mutate(
+    prior_stim_trial = lag(trial_order),
+    prior_target = lag(target_label)
+  ) |>
+  ungroup() |>
+  mutate(
+    trials_since = ifelse(is.na(prior_stim_trial), 0, trial_order - prior_stim_trial),
+    same_target = ifelse(prior_target == target_label, 1, 0)
+  ) |>
+  left_join(rts) |>
+  left_join(narrow_pre) |>
+  mutate(has_rt = ifelse(is.na(rt), 0, 1)) |>
+  select(
+    dataset_name, administration_id, target_label,
+    narrow_pre_acc, pre_accuracy, post_accuracy, rt, has_rt,
+    trial_order, stimulus_pair_instance, stimulus_pair_target_instance, other_label_instance,
+    repeat_stim, repeat_target, other_label_stim,
+    trials_since, same_target
+  )
+```
+
+
+```{r}
+formula_1 <- "~ trial_order + repeat_stim + repeat_target + other_label_stim "
+
+library(lme4)
+pre_acc_model_1 <- lmer(str_c("narrow_pre_acc", formula_1, " + (1|dataset_name)"), data = model_prep |> filter(!is.na(pre_accuracy)))
+
+summary(pre_acc_model_1)
+
+agg <- broom.mixed::tidy(pre_acc_model_1, effects = "fixed", conf.int = T)
+
+
+by_dataset_pre_acc <- model_prep |>
+  group_by(dataset_name) |>
+  nest() |>
+  mutate(coef = map(data, \(d)
+  lm(str_c("narrow_pre_acc", formula_1),
+    data = d |> filter(!is.na(pre_accuracy))
+  ) |>
+    broom.mixed::tidy(effects = "fixed", conf.int = T))) |>
+  select(-data) |>
+  unnest(coef) |>
+  bind_rows(agg |> as_tibble() |> mutate(dataset_name = "Aggregate")) |>
+  mutate(dataset_name = dataset_name |> as.factor())
+
+
+by_dataset_pre_acc |>
+  filter(term != "(Intercept)") |>
+  ggplot(aes(x = dataset_name, y = estimate, ymin = conf.low, ymax = conf.high)) +
+  geom_pointrange() +
+  geom_pointrange(data = by_dataset_pre_acc |> filter(term != "(Intercept)") |> filter(dataset_name == "Aggregate"), col = "red", shape = 5) +
+  coord_flip() +
+  geom_hline(yintercept = 0) +
+  facet_grid(. ~ term, scales = "free_y")
+```
+
+
+```{r}
+formula_2 <- "~ trial_order + repeat_stim + repeat_target + other_label_stim + same_target "
+
+pre_acc_model_2 <- lmer(str_c("narrow_pre_acc", formula_2, " + (1|dataset_name)"), data = model_prep |> filter(!is.na(pre_accuracy)))
+
+summary(pre_acc_model_2)
+
+agg_2 <- broom.mixed::tidy(pre_acc_model_2, effects = "fixed", conf.int = T)
+
+
+by_dataset_pre_acc_2 <- model_prep |>
+  group_by(dataset_name) |>
+  nest() |>
+  mutate(coef = map(data, \(d)
+  lm(str_c("narrow_pre_acc", formula_2),
+    data = d |> filter(!is.na(pre_accuracy))
+  ) |>
+    broom.mixed::tidy(effects = "fixed", conf.int = T))) |>
+  select(-data) |>
+  unnest(coef) |>
+  bind_rows(agg_2 |> as_tibble() |> mutate(dataset_name = "Aggregate")) |>
+  mutate(dataset_name = dataset_name |> as.factor())
+
+
+by_dataset_pre_acc_2 |>
+  filter(term != "(Intercept)") |>
+  ggplot(aes(x = dataset_name, y = estimate, ymin = conf.low, ymax = conf.high)) +
+  geom_pointrange() +
+  geom_pointrange(data = by_dataset_pre_acc_2 |> filter(term != "(Intercept)") |> filter(dataset_name == "Aggregate"), col = "red", shape = 5) +
+  coord_flip() +
+  geom_hline(yintercept = 0) +
+  facet_grid(. ~ term, scales = "free_y")
+```
+
+
+```{r}
+formula_3 <- "~ trial_order + stimulus_pair_instance + stimulus_pair_target_instance + other_label_instance + same_target + trials_since"
+
+pre_acc_model_3 <- lmer(str_c("narrow_pre_acc", formula_3, " + (1|dataset_name)"), data = model_prep |> filter(!is.na(pre_accuracy)))
+
+summary(pre_acc_model_3)
+
+agg_3 <- broom.mixed::tidy(pre_acc_model_3, effects = "fixed", conf.int = T)
+
+
+by_dataset_pre_acc_3 <- model_prep |>
+  group_by(dataset_name) |>
+  nest() |>
+  mutate(coef = map(data, \(d)
+  lm(str_c("narrow_pre_acc", formula_3),
+    data = d |> filter(!is.na(pre_accuracy))
+  ) |>
+    broom.mixed::tidy(effects = "fixed", conf.int = T))) |>
+  select(-data) |>
+  unnest(coef) |>
+  bind_rows(agg_3 |> as_tibble() |> mutate(dataset_name = "Aggregate")) |>
+  mutate(dataset_name = dataset_name |> as.factor())
+
+
+by_dataset_pre_acc_3 |>
+  filter(term != "(Intercept)") |>
+  ggplot(aes(x = dataset_name, y = estimate, ymin = conf.low, ymax = conf.high)) +
+  geom_pointrange() +
+  geom_pointrange(data = by_dataset_pre_acc_3 |> filter(term != "(Intercept)") |> filter(dataset_name == "Aggregate"), col = "red", shape = 5) +
+  coord_flip() +
+  geom_hline(yintercept = 0) +
+  facet_wrap(~term)
+```
+<!-- older stuff below here
+
+<!--# 2. Repetitions classification
 
 We could focus in trials with stimulus_pair_instance == 1 \| 2 to make it easier to approach. In that case, we should have these combinations
 
@@ -292,6 +2297,22 @@ repetitions_data <- d_trial_summary %>%
     stimulus_pair_instance == 1 & stimulus_pair_target_instance == 1 ~ "Not repeated",
     stimulus_pair_instance == 2 & stimulus_pair_target_instance == 1 ~ "Repeated pair",
     stimulus_pair_instance == 2 & stimulus_pair_target_instance == 2 ~ "Repeated pair and target"
+  )))
+
+
+# using *label* insated of stimulus
+repetitions_data_label <- d_trial_summary %>%
+  filter(max_label_pair_instance >= 2) %>% # I keep all datasets with at least 2 repetitions for each pair
+
+  filter(label_pair_instance <= 2) %>% # I keep all pairs with only two pair repetitions.
+  # because it means we'll have pairs which were not repeated
+  # trials which only repeated pair OR targets which repeated both pair and targets
+  # maybe it could be an option to compare repeated pair AND repeated pair and target
+
+  mutate(type_of_instance = as.factor(case_when(
+    label_pair_instance == 1 & label_pair_target_instance == 1 ~ "Not repeated",
+    label_pair_instance == 2 & label_pair_target_instance == 1 ~ "Repeated pair",
+    label_pair_instance == 2 & label_pair_target_instance == 2 ~ "Repeated pair and target"
   )))
 ```
 
@@ -379,37 +2400,37 @@ repetitions_data_long |>
   filter(Time == "post_accuracy") |>
   summarize(mean_acc = mean(Accuracy, na.rm = T)) |>
   ggplot(aes(x = type_of_instance, y = mean_acc, col = dataset_name)) +
-  stat_summary(fun.data = "mean_cl_boot", position = position_dodge(width = .5))+
-    facet_wrap(~dataset_name)+theme(legend.position = "none")
-
+  stat_summary(fun.data = "mean_cl_boot", position = position_dodge(width = .5)) +
+  facet_wrap(~dataset_name) +
+  theme(legend.position = "none")
 ```
 there might be something here -- we can't really tell and it could be ordering effects if it's not_repeated versus the other two, but there are datasets where it could matter (and thus be worth investigating further for methods paper)
 
 ```{r}
 rt <- readRDS(here("cached_intermediates", "4_rt_canonical.rds"))
 
-repetitions_data |> 
+repetitions_data |>
   filter(!dataset_name %in% bad_n_datasets) |>
-  left_join(rt |> filter(shift_type == "D-T") |>  filter(approach=="trad_land", logged=="raw")) |>
+  left_join(rt |> filter(shift_type == "D-T") |> filter(approach == "trad_land", logged == "raw")) |>
   group_by(dataset_name, type_of_instance, administration_id) |>
   summarize(mean_rt = mean(rt, na.rm = T)) |>
   ggplot(aes(x = type_of_instance, y = mean_rt, col = dataset_name)) +
-  stat_summary(fun.data = "mean_cl_boot", position = position_dodge(width = .5))+
-    facet_wrap(~dataset_name)+theme(legend.position = "none")
-
+  stat_summary(fun.data = "mean_cl_boot", position = position_dodge(width = .5)) +
+  facet_wrap(~dataset_name) +
+  theme(legend.position = "none")
 ```
 again, could be sparsity, could be trial order, but seems like there might be something 
 
 ```{r}
 repetitions_data |>
   filter(!dataset_name %in% bad_n_datasets) %>% # filtering datasets. |>
-  mutate(bc_acc=post_accuracy-pre_accuracy) |> #this is a lazy approach to bc_correction
-    group_by(dataset_name, type_of_instance, administration_id) |>
+  mutate(bc_acc = post_accuracy - pre_accuracy) |> # this is a lazy approach to bc_correction
+  group_by(dataset_name, type_of_instance, administration_id) |>
   summarize(mean_bc_acc = mean(bc_acc, na.rm = T)) |>
   ggplot(aes(x = type_of_instance, y = mean_bc_acc, col = dataset_name)) +
-  stat_summary(fun.data = "mean_cl_boot", position = position_dodge(width = .5))+
-  facet_wrap(~dataset_name)+theme(legend.position = "none")
-
+  stat_summary(fun.data = "mean_cl_boot", position = position_dodge(width = .5)) +
+  facet_wrap(~dataset_name) +
+  theme(legend.position = "none")
 ```
 
 
@@ -421,15 +2442,15 @@ repetitions_data |>
   left_join(rt |> filter(shift_type == "D-T")) |>
   group_by(dataset_name, type_of_instance, administration_id) |>
   ggplot(aes(x = trial_order, y = rt, col = dataset_name)) +
-   # facet_wrap(~type_of_instance)+
+  # facet_wrap(~type_of_instance)+
   geom_smooth(method = "lm")
 
 repetitions_data |>
   filter(!dataset_name %in% bad_n_datasets) %>% # filtering datasets. |>
   group_by(dataset_name, type_of_instance, administration_id) |>
   ggplot(aes(x = trial_order, y = post_accuracy, col = dataset_name)) +
-   # facet_wrap(~type_of_instance)+
-  geom_smooth(method = "lm") 
+  # facet_wrap(~type_of_instance)+
+  geom_smooth(method = "lm")
 ```
 so, there's a possibility of trial order effects (of unknown size and direction), so we can't really rule out dealing with combinations of that and familiarity effects. 
 
@@ -439,8 +2460,13 @@ Data cleaning (sort of...)
 
 ```{r}
 rep_timecourse <- d_aoi %>%
-  filter(!dataset_name %in% bad_n_datasets) %>% # filtering datasets.
+  # filter(!dataset_name %in% bad_n_datasets) %>% # filtering datasets.
   left_join(repetitions_data) %>%
+  filter(!is.na(type_of_instance))
+
+label_rep_timecourse <- d_aoi %>%
+  # filter(!dataset_name %in% bad_n_datasets) %>% # filtering datasets.
+  left_join(repetitions_data_label) %>%
   filter(!is.na(type_of_instance))
 ```
 
@@ -458,17 +2484,209 @@ rep_timecourse %>%
   # group_by(dataset_name,administration_id, type_of_instance, t_norm) %>%      # Group by dataset AND subject?
   summarize(accuracy = mean(correct, na.rm = TRUE)) %>%
   group_by(type_of_instance, t_norm) %>%
-  summarize(accuracy = mean(accuracy, na.rm = TRUE)) %>%
-  filter(t_norm > -1000, t_norm < 4000) %>%
+  # summarize(accuracy = mean(accuracy, na.rm = TRUE)) %>%
+  filter(t_norm > -500, t_norm < 500) %>%
   ggplot(aes(x = t_norm, y = accuracy, color = type_of_instance)) +
   geom_smooth(method = "gam") +
   geom_vline(xintercept = 0) +
   geom_hline(yintercept = 0.5, linetype = "dashed") +
   geom_vline(xintercept = 400, linetype = "dashed") +
   theme_minimal() +
-  theme(legend.position = "bottom")
+  theme(legend.position = "bottom") +
+  facet_wrap(~dataset_name) +
+  labs(title = "1st and 2nd stimulus pair instances")
+
+
+rep_timecourse %>%
+  # filter(age < 20) %>%
+  # filter(age > 17 & age < 20.5) %>%
+
+  group_by(dataset_name, type_of_instance, t_norm) %>% # Group by dataset? by dataset AND subject?
+  # group_by(dataset_name,administration_id, type_of_instance, t_norm) %>%      # Group by dataset AND subject?
+  summarize(accuracy = mean(correct, na.rm = TRUE)) %>%
+  group_by(type_of_instance, t_norm) %>%
+  summarize(accuracy = mean(accuracy, na.rm = TRUE)) %>%
+  filter(t_norm > -500, t_norm < 500) %>%
+  ggplot(aes(x = t_norm, y = accuracy, color = type_of_instance)) +
+  geom_smooth(method = "gam") +
+  geom_vline(xintercept = 0) +
+  geom_hline(yintercept = 0.5, linetype = "dashed") +
+  geom_vline(xintercept = 400, linetype = "dashed") +
+  theme_minimal() +
+  theme(legend.position = "bottom") + # facet_wrap(~dataset_name)+
+  labs(title = "1st and 2nd stimulus pair instances")
 ```
 
+```{r, fig.width= 6, fig.height= 6}
+rep_timecourse %>%
+  # filter(age < 20) %>%
+  # filter(age > 17 & age < 20.5) %>%
+
+  group_by(dataset_name, type_of_instance, t_norm) %>% # Group by dataset? by dataset AND subject?
+  # group_by(dataset_name,administration_id, type_of_instance, t_norm) %>%      # Group by dataset AND subject?
+  summarize(accuracy = mean(correct, na.rm = TRUE)) %>%
+  group_by(type_of_instance, t_norm) %>%
+  # summarize(accuracy = mean(accuracy, na.rm = TRUE)) %>%
+  filter(t_norm > -500, t_norm < 500) %>%
+  ggplot(aes(x = t_norm, y = accuracy, color = type_of_instance)) +
+  # geom_smooth(method = "gam") +
+  geom_line() +
+  geom_vline(xintercept = 0) +
+  geom_hline(yintercept = 0.5, linetype = "dashed") +
+  geom_vline(xintercept = 400, linetype = "dashed") +
+  theme_minimal() +
+  theme(legend.position = "bottom") +
+  facet_wrap(~dataset_name) +
+  labs(title = "1st and 2nd stimulus pair instances")
+
+rep_timecourse %>%
+  # filter(age < 20) %>%
+  # filter(age > 17 & age < 20.5) %>%
+
+  # group_by(dataset_name, type_of_instance, t_norm) %>% # Group by dataset? by dataset AND subject?
+  # group_by(dataset_name,administration_id, type_of_instance, t_norm) %>%      # Group by dataset AND subject?
+  # summarize(accuracy = mean(correct, na.rm = TRUE)) %>%
+  group_by(type_of_instance, t_norm) %>%
+  summarize(accuracy = mean(correct, na.rm = TRUE)) %>%
+  filter(t_norm > -500, t_norm < 500) %>%
+  ggplot(aes(x = t_norm, y = accuracy, color = type_of_instance)) +
+  # geom_smooth(method = "gam") +
+  geom_line() +
+  geom_vline(xintercept = 0) +
+  geom_hline(yintercept = 0.5, linetype = "dashed") +
+  geom_vline(xintercept = 400, linetype = "dashed") +
+  theme_minimal() +
+  theme(legend.position = "bottom") +
+  labs(title = "1st and 2nd stimulus pair instances (trial weighted)")
+
+rep_timecourse %>%
+  # filter(age < 20) %>%
+  # filter(age > 17 & age < 20.5) %>%
+
+  group_by(dataset_name, administration_id, type_of_instance, t_norm) %>% # Group by dataset? by dataset AND subject?
+  # group_by(dataset_name,administration_id, type_of_instance, t_norm) %>%      # Group by dataset AND subject?
+  summarize(accuracy = mean(correct, na.rm = TRUE)) %>%
+  group_by(type_of_instance, t_norm) %>%
+  summarize(accuracy = mean(accuracy, na.rm = TRUE)) %>%
+  filter(t_norm > -500, t_norm < 500) %>%
+  ggplot(aes(x = t_norm, y = accuracy, color = type_of_instance)) +
+  # geom_smooth(method = "gam") +
+  geom_line() +
+  geom_vline(xintercept = 0) +
+  geom_hline(yintercept = 0.5, linetype = "dashed") +
+  geom_vline(xintercept = 400, linetype = "dashed") +
+  theme_minimal() +
+  theme(legend.position = "bottom") +
+  labs(title = "1st and 2nd stimulus pair instances, admin_id weighted")
+
+
+rep_timecourse %>%
+  # filter(age < 20) %>%
+  # filter(age > 17 & age < 20.5) %>%
+
+  group_by(dataset_name, administration_id, type_of_instance, t_norm) %>% # Group by dataset? by dataset AND subject?
+  # group_by(dataset_name,administration_id, type_of_instance, t_norm) %>%      # Group by dataset AND subject?
+  summarize(accuracy = mean(correct, na.rm = TRUE)) %>%
+  group_by(type_of_instance, t_norm) %>%
+  summarize(accuracy = mean(accuracy, na.rm = TRUE)) %>%
+  filter(t_norm > -1000, t_norm < 2000) %>%
+  ggplot(aes(x = t_norm, y = accuracy, color = type_of_instance)) +
+  # geom_smooth(method = "gam") +
+  geom_line() +
+  geom_vline(xintercept = 0) +
+  geom_hline(yintercept = 0.5, linetype = "dashed") +
+  geom_vline(xintercept = 400, linetype = "dashed") +
+  theme_minimal() +
+  theme(legend.position = "bottom") +
+  labs(title = "1st and 2nd stimulus pair instances, admin_id weighted")
+
+
+
+rep_timecourse %>%
+  # filter(age < 20) %>%
+  # filter(age > 17 & age < 20.5) %>%
+
+  group_by(dataset_name, type_of_instance, t_norm) %>% # Group by dataset? by dataset AND subject?
+  # group_by(dataset_name,administration_id, type_of_instance, t_norm) %>%      # Group by dataset AND subject?
+  summarize(accuracy = mean(correct, na.rm = TRUE)) %>%
+  group_by(type_of_instance, t_norm) %>%
+  summarize(accuracy = mean(accuracy, na.rm = TRUE)) %>%
+  filter(t_norm > -500, t_norm < 500) %>%
+  ggplot(aes(x = t_norm, y = accuracy, color = type_of_instance)) +
+  # geom_smooth(method = "gam") +
+  geom_line() +
+  geom_vline(xintercept = 0) +
+  geom_hline(yintercept = 0.5, linetype = "dashed") +
+  geom_vline(xintercept = 400, linetype = "dashed") +
+  theme_minimal() +
+  theme(legend.position = "bottom") + # facet_wrap(~dataset_name)+
+  labs(title = "1st and 2nd stimulus pair instances (even dataset weighting)")
+```
+
+```{r, fig.width= 6, fig.height= 6}
+label_rep_timecourse %>%
+  # filter(age < 20) %>%
+  # filter(age > 17 & age < 20.5) %>%
+
+  group_by(dataset_name, type_of_instance, t_norm) %>% # Group by dataset? by dataset AND subject?
+  # group_by(dataset_name,administration_id, type_of_instance, t_norm) %>%      # Group by dataset AND subject?
+  summarize(accuracy = mean(correct, na.rm = TRUE)) %>%
+  group_by(type_of_instance, t_norm) %>%
+  summarize(accuracy = mean(accuracy, na.rm = TRUE)) %>%
+  filter(t_norm > -500, t_norm < 500) %>%
+  ggplot(aes(x = t_norm, y = accuracy, color = type_of_instance)) +
+  # geom_smooth(method = "gam") +
+  geom_line() +
+  geom_vline(xintercept = 0) +
+  geom_hline(yintercept = 0.5, linetype = "dashed") +
+  geom_vline(xintercept = 400, linetype = "dashed") +
+  theme_minimal() +
+  theme(legend.position = "bottom") +
+  labs(title = "1st and 2nd label pair instances")
+
+
+label_rep_timecourse %>%
+  # filter(age < 20) %>%
+  # filter(age > 17 & age < 20.5) %>%
+
+  group_by(dataset_name, administration_id, type_of_instance, t_norm) %>% # Group by dataset? by dataset AND subject?
+  # group_by(dataset_name,administration_id, type_of_instance, t_norm) %>%      # Group by dataset AND subject?
+  summarize(accuracy = mean(correct, na.rm = TRUE)) %>%
+  group_by(type_of_instance, t_norm) %>%
+  summarize(accuracy = mean(accuracy, na.rm = TRUE)) %>%
+  filter(t_norm > -1000, t_norm < 2000) %>%
+  ggplot(aes(x = t_norm, y = accuracy, color = type_of_instance)) +
+  # geom_smooth(method = "gam") +
+  geom_line() +
+  geom_vline(xintercept = 0) +
+  geom_hline(yintercept = 0.5, linetype = "dashed") +
+  geom_vline(xintercept = 400, linetype = "dashed") +
+  theme_minimal() +
+  theme(legend.position = "bottom") +
+  labs(title = "1st and 2nd label pair instances, admin_id weighted")
+
+
+
+label_rep_timecourse %>%
+  # filter(age < 20) %>%
+  # filter(age > 17 & age < 20.5) %>%
+
+  group_by(dataset_name, type_of_instance, t_norm) %>% # Group by dataset? by dataset AND subject?
+  # group_by(dataset_name,administration_id, type_of_instance, t_norm) %>%      # Group by dataset AND subject?
+  summarize(accuracy = mean(correct, na.rm = TRUE)) %>%
+  group_by(type_of_instance, t_norm) %>%
+  summarize(accuracy = mean(accuracy, na.rm = TRUE)) %>%
+  filter(t_norm > -1000, t_norm < 2000) %>%
+  ggplot(aes(x = t_norm, y = accuracy, color = type_of_instance)) +
+  # geom_smooth(method = "gam") +
+  geom_line() +
+  geom_vline(xintercept = 0) +
+  geom_hline(yintercept = 0.5, linetype = "dashed") +
+  geom_vline(xintercept = 400, linetype = "dashed") +
+  theme_minimal() +
+  theme(legend.position = "bottom") + # facet_wrap(~dataset_name)+
+  labs(title = "1st and 2nd label pair instances (even dataset weighting)")
+```
 
 ## 4.2. Timecourse by type of instance and dataset
 
@@ -897,5 +3115,4 @@ rep_timecourse %>%
 #   geom_hline(yintercept=0.5,linetype="dashed") +
 #   theme_bw()
 ```
-
-
+-->

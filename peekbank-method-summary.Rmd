@@ -1,21 +1,392 @@
 ---
-title: "Accuracies"
-author: "Mike Frank"
-date: "2022-1-19 updated 2025-04-16"
+title: "Peekbank method summary"
 output: 
   html_document:
     toc: true
 ---
 
+```{r, echo=F, include=F}
+knitr::opts_chunk$set(warning=F, message=F, echo=F)
+source(here::here("helper/common.R"))
+library(metafor)
+```
+
+Here are (draft) recommendations and (draft) supporting figures for the peekbank methods paper. 
+
+# Summary of approach
+
+The goal of the peekbank-methods project is to give recommendations about the design and analysis of LWL studies. To do so, we need some criteria for what is a better outcome. Here, we take a "data-driven" approach to look at how different potential data-processing and study design factors affect reliability and validity. 
+
+All of these analyses are done on a subset of the peekbank database limited to "vanilla" trials (real word target, real word distractor, plain carrier phrase) in English with target words that are nouns. 
+
+Throughout we use three different metrics to assess reliabilty and validity. 
+
+1. An intra-class correlation (ICC) as a measure of reliability. Specifically, we use a measure of inter-rater reliability that measures (within a dataset) how much different items (target labels) are consistent with each other in "rating" the subjects (kid-administrations). 
+
+2. Test-retest reliability for measures on the same child at two different administrations within 1.5 months of each other. This measure is only possible on a subset of the datasets that have longitudinal data with some closely spaced repeat administrations. 
+
+3. Correlation with CDI measure for validity. We can check how well our metrics correlate with children's CDI sumscores from CDI administrations at roughly the same time. I also correlate with children's age, as a basic check. In general, correlating with production, comprehension, and age in the expected directions is desirable, although we also may expect that LWL measures are picking up on slightly different aspects of language learning. 
+
+In order to tell when numerical differences in ICC or correlations are How do we tell when numerical differences could be meaningful, I use bootstrapping which generates per-dataset confidence intervals around the point estimate. We then can use point-estimates and the bootstrapped CIs to calculate a variance-weighted meta-analytic estimate (and CI) to get an overall estimate.
+
+This project has a non-standard aim with the statistics. We are neither trying to do just estimation nor are we trying to do "traditional" inferential (p<.05) statistics. We are trying to make inferences as to what data practices to recommend (and how strongly)! 
+
+Often in our other statistical applications, we like to see differences. Here, we expect that some big changes in method should lead to differences in outcome (ex. if an accuracy window started really late at 1000 milliseconds, we expect it be bad), but that many small differences in approach might lead to minimal differences in outcome. It would be surprising and worrying if small differences in accuracy window start dramatically altered results! 
+
+
+Other factors may also influence what data practices to choose (and to recommend). In particular, we probably prefer parsimony -- given two processes with equivalent goodness of outcome, we should prefer the simpler one. There may also be theoretical commitments that lead to preferences over one measure or another (ex: log vs raw RT). 
+
+# Recommendations
+
+In drafting the recommendations, I've tried to focus on what leads to better reliability and validity. I've also assumed a preference for parsimony -- given two processes with equivalent goodness of outcome, we prefer the simpler one. There are cases where we might want to acknowledge how theoretical commitments might impact analytic and methodological preferences but I have not included recommendations based on them. 
+
+TODO prettier graphs!!!
+
+## Recommendation 1: Use long accuracy windows. 
+
+Longer accuracy windows that go to 4000ms post disambiguation, rather than to 2000ms, increase reliability (both ICC and test-retest). Short and long windows show comparable correlations with CDI production data, although shorter windows are somewhat more highly correlated with comprehension data. Together, this suggests that looking behaving between 2 and 4 seconds is a stable child-level property, although we cannot say how related it to to child language per se. 
+
+Exactly when the window starts is not important, although we recommend starting around 500ms to balance between reliability is numerically highest starting at 600 or 700 milliseconds and correlation with production is highest at 500ms. 
+
+While we are recommending accuracy be measured over the 500-4000ms window, we want to be clear that other accuracy windows also have reasonable reliability and validity properties. Strong effects are likely to show up in any reasonable window, but for eeking the most reliability out of data, we recommend long windows. 
+
+```{r}
+
+accs <- readRDS(here("cached_intermediates/3_accs.Rds"))
+
+accs_summary <- accs |>
+  filter(object == "administration") |>
+  group_by(t_start, t_end, object) |>
+  summarize(
+    N = n(),
+    mean_icc = mean(icc, na.rm = TRUE)
+  ) |>
+  mutate(window_size = t_end - t_start)
+
+ggplot(accs_summary, aes(x = t_start, y = t_end, fill = mean_icc)) +
+  geom_tile(color = "white") +
+  scale_fill_viridis(name = "Mean ICC", option = "inferno") +
+  scale_x_continuous(breaks = c(-1000, -500, 0, 500, 1000, 1500)) +
+  xlab("Window Start Time (in ms)") +
+  ylab("Window End Time (in ms)")
+```
+
+
+```{r}
+acc_boot <- readRDS(here("cached_intermediates", "3_acc_icc_boot.rds"))
+
+acc_boot_summary <- acc_boot |>
+  filter(!is.na(lower), !is.na(upper)) |>
+  mutate(
+    stdev = (upper - lower) / (1.96 * 2),
+    var = stdev**2
+  ) |>
+  group_by(t_start, t_end) |>
+  nest() |>
+  mutate(icc = map(data, \(d){
+    rma(d$est, d$var) |>
+      summary() |>
+      coef()
+  })) |>
+  select(-data) |>
+  unnest(icc)
+
+acc_boot_summary |> ggplot(aes(x = t_start, y = estimate, ymin = ci.lb, ymax = ci.ub, color = as.character(t_end))) +
+  geom_pointrange(position = position_dodge(width = 25))
+```
+
+```{r}
+accs_cdi_kid <- readRDS(here("cached_intermediates", "3_accs_kid_cdi.rds")) |> mutate(
+  prod_est = ifelse(dataset_name=="newman_genderdistractor", NA, prod_est),
+  prod_lower = ifelse(dataset_name=="newman_genderdistractor", NA, prod_lower),
+  prod_upper = ifelse(dataset_name=="newman_genderdistractor", NA, prod_upper),
+)
+
+library(metafor)
+
+accs_cdi_kid_summ <-  accs_cdi_kid |> 
+  mutate(
+    comp_stdev = (comp_upper - comp_lower) / (1.96 * 2),
+    comp_var = comp_stdev**2,
+    prod_stdev = (prod_upper - prod_lower) / (1.96 * 2),
+    prod_var = prod_stdev**2,
+    age_stdev = (age_upper - age_lower) / (1.96 * 2),
+    age_var = age_stdev**2
+  ) |>
+  group_by(t_start, t_end) |>
+  nest() |>
+  mutate(comp= map(data, \(d){
+    rma(d$comp_est, d$comp_var) |>
+      summary() |>
+      coef()
+  }),
+  prod= map(data, \(d){
+    rma(d$prod_est, d$prod_var) |>
+      summary() |>
+      coef()
+  }),
+  age= map(data, \(d){
+    rma(d$age_est, d$age_var) |>
+      summary() |>
+      coef()
+  })) |>
+  select(-data) |>
+  unnest(c(comp, prod, age), names_sep="_")
+
+accs_cdi_kid_summ |> ggplot(aes(x = t_start, y = prod_estimate, ymin=prod_ci.lb, ymax=prod_ci.ub, color=as.character(t_end))) +geom_pointrange(position=position_dodge(width=50))+coord_flip()
+
+accs_cdi_kid_summ |> ggplot(aes(x = t_start, y = comp_estimate, ymin=comp_ci.lb, ymax=comp_ci.ub, color=as.character(t_end))) +geom_pointrange(position=position_dodge(width=50))+coord_flip()
+
+View(accs_cdi_kid_summ)
+
+```
+
+```{r}
+
+accs_kid_test_retest <- readRDS(here("cached_intermediates", "3_accs_boot_kid_test_retest.rds"))
+
+accs_kid_test_retest_summ <-  accs_kid_test_retest |>
+  mutate(
+    stdev = (upper - lower) / (1.96 * 2),
+    var = stdev**2,
+  ) |>
+  group_by(t_start, t_end) |>
+  nest() |>
+  mutate(corr= map(data, \(d){
+    rma(d$est, d$var) |>
+      summary() |>
+      coef()
+  })) |> 
+  unnest(corr)
+accs_kid_test_retest_summ |> ggplot(aes(x=t_start, y=estimate, ymin=ci.lb, ymax=ci.ub, color=as.character(t_end)))+geom_pointrange(position = position_dodge(width=50))+geom_hline(yintercept=0)
+
+
+```
+
+
+## Recommendation 2: Don't do baseline correction. 
+
+Different images have varying levels of saliency to infants, which can drive uneven looking patterns at baseline, before auditory stimulus. Sometimes, researchers address this by using baseline-corrected accuracy, a difference between the looking fraction after the stimulus and the looking fraction before the stimulus. In general, we found that baseline correction led to 
+
+```{r}
+d_aoi <- readRDS(here("cached_intermediates", "1_d_aoi.Rds"))
+
+bc_boot <- readRDS(here("cached_intermediates", "7_bc_accs_icc_boot.rds")) 
+no_bc_boot <- readRDS(here("cached_intermediates", "3_acc_icc_boot.rds")) |> filter(t_start == 500, t_end == 4000)
+
+baseline_lengths <- d_aoi |>
+  group_by(dataset_name) |>
+  summarise(t_min = min(t_norm))
+boot_graph <- bc_boot |>
+  bind_rows(no_bc_boot) |>   inner_join(baseline_lengths |> filter(t_min < 0)) |>
+  mutate(b_start = ifelse(is.na(b_start), "none", as.character(b_start)))
+
+
+
+library(metafor)
+bc_boot_summ <- boot_graph |>
+  inner_join(baseline_lengths |> filter(t_min < 0)) |>
+  filter(!is.na(lower), !is.na(upper)) |>
+  mutate(
+    stdev = (upper - lower) / (1.96 * 2),
+    var = stdev**2
+  ) |>
+  group_by(b_start, b_end) |>
+  nest() |>
+  mutate(icc = map(data, \(d){
+    rma(d$est, d$var) |>
+      summary() |>
+      coef()
+  })) |>
+  select(-data) |>
+  unnest(icc)
+
+bc_boot_summ |> ggplot(aes(x = b_start, color = as.character(b_end), y = estimate, ymin = ci.lb, ymax = ci.ub)) +
+  geom_pointrange(position = position_dodge(width = .25))
+```
+
+
+```{r}
+bc_boot_early_summ <- boot_graph |>
+  inner_join(baseline_lengths |> filter(t_min <= -3000)) |>
+  filter(!is.na(lower), !is.na(upper)) |>
+  mutate(
+    stdev = (upper - lower) / (1.96 * 2),
+    var = stdev**2
+  ) |>
+  group_by(b_start, b_end) |>
+  nest() |>
+  mutate(icc = map(data, \(d){
+    rma(d$est, d$var) |>
+      summary() |>
+      coef()
+  })) |>
+  select(-data) |>
+  unnest(icc)
+
+bc_boot_early_summ |> ggplot(aes(x = b_start, color = as.character(b_end), y = estimate, ymin = ci.lb, ymax = ci.ub)) +
+  geom_pointrange(position = position_dodge(width = .25))
+```
+
+```{r}
+no_bc_accs_kid_cdi <- readRDS(here("cached_intermediates", "3_accs_kid_cdi.rds")) |> filter(t_start==500, t_end==4000)
+
+bc_accs_kid_cdi <- readRDS(here("cached_intermediates", "7_bc_accs_kid_cdi.rds")) |>bind_rows(no_bc_accs_kid_cdi) |> 
+  mutate(b_start=ifelse(is.na(b_start), "none", as.character(b_start)))
+
+library(metafor)
+
+  baseline_lengths <- d_aoi |>
+    group_by(dataset_name) |>
+    summarise(t_min = min(t_norm))
+  
+bc_accs_kid_cdi_summ <-  bc_accs_kid_cdi |>
+  left_join(baseline_lengths) |> filter(t_min< 0) |> 
+  mutate(
+    comp_stdev = (comp_upper - comp_lower) / (1.96 * 2),
+    comp_var = comp_stdev**2,
+    prod_stdev = (prod_upper - prod_lower) / (1.96 * 2),
+    prod_var = prod_stdev**2,
+    age_stdev = (age_upper - age_lower) / (1.96 * 2),
+    age_var = age_stdev**2
+  ) |>
+  group_by(t_start, t_end, b_start, b_end) |>
+  nest() |>
+  mutate(comp= map(data, \(d){
+    rma(d$comp_est, d$comp_var) |>
+      summary() |>
+      coef()
+  }),
+  prod= map(data, \(d){
+    rma(d$prod_est, d$prod_var) |>
+      summary() |>
+      coef()
+  }),
+  age= map(data, \(d){
+    rma(d$age_est, d$age_var) |>
+      summary() |>
+      coef()
+  })) |>
+  select(-data) |>
+  unnest(c(comp, prod, age), names_sep="_")
+
+  
+  bc_accs_kid_cdi_summ_early <-  bc_accs_kid_cdi |>
+    left_join(baseline_lengths) |> filter(t_min< -3000) |> 
+  mutate(
+    comp_stdev = (comp_upper - comp_lower) / (1.96 * 2),
+    comp_var = comp_stdev**2,
+    prod_stdev = (prod_upper - prod_lower) / (1.96 * 2),
+    prod_var = prod_stdev**2,
+    age_stdev = (age_upper - age_lower) / (1.96 * 2),
+    age_var = age_stdev**2
+  ) |>
+  group_by(t_start, t_end, b_start, b_end) |>
+  nest() |>
+  mutate(comp= map(data, \(d){
+    rma(d$comp_est, d$comp_var) |>
+      summary() |>
+      coef()
+  }),
+  prod= map(data, \(d){
+    rma(d$prod_est, d$prod_var) |>
+      summary() |>
+      coef()
+  }),
+  age= map(data, \(d){
+    rma(d$age_est, d$age_var) |>
+      summary() |>
+      coef()
+  })) |>
+  select(-data) |>
+  unnest(c(comp, prod, age), names_sep="_")
+  
+  bc_accs_kid_cdi_summ |> ggplot(aes(x = b_start, y = prod_estimate, ymin=prod_ci.lb, ymax=prod_ci.ub, color=as.character(b_end))) +geom_pointrange(position=position_dodge(width=.5))+coord_flip()
+
+  bc_accs_kid_cdi_summ_early |> ggplot(aes(x = b_start, y = prod_estimate, ymin=prod_ci.lb, ymax=prod_ci.ub, color=as.character(b_end))) +geom_pointrange(position=position_dodge(width=.5))+coord_flip()
+
+  bc_accs_kid_cdi_summ |> ggplot(aes(x = b_start, y = comp_estimate, ymin=comp_ci.lb, ymax=comp_ci.ub, color=as.character(b_end))) +geom_pointrange(position=position_dodge(width=.5))+coord_flip()
+
+  bc_accs_kid_cdi_summ_early |> ggplot(aes(x = b_start, y = comp_estimate, ymin=comp_ci.lb, ymax=comp_ci.ub, color=as.character(b_end))) +geom_pointrange(position=position_dodge(width=.5))+coord_flip()
+
+```
+
+For test-retest, there are a limited number of datasets where we have both pre-0 timepoints and longitudinal data. 
+
+```{r}
+no_bc_accs_kid_test_retest <- readRDS(here("cached_intermediates", "3_accs_boot_kid_test_retest.rds")) |> filter(t_start==500, t_end==4000)
+
+bc_accs_kid_test_retest <- readRDS(here("cached_intermediates", "7_bc_accs_boot_kid_test_retest.rds")) |> bind_rows(no_bc_accs_kid_test_retest) |> 
+  mutate(b_start=ifelse(is.na(b_start), "none", as.character(b_start)))
+
+library(metafor)
+
+  baseline_lengths <- d_aoi |>
+    group_by(dataset_name) |>
+    summarise(t_min = min(t_norm))
+
+bc_accs_kid_test_retest_summ <-  bc_accs_kid_test_retest |>
+    left_join(baseline_lengths) |> filter(t_min< 0) |> 
+  mutate(
+    stdev = (upper - lower) / (1.96 * 2),
+    var = stdev**2,
+  ) |>
+  group_by(b_start, b_end) |>
+  nest() |>
+  mutate(corr= map(data, \(d){
+    rma(d$est, d$var) |>
+      summary() |>
+      coef()
+  })) |> 
+  unnest(corr)
+  
+
+bc_accs_kid_test_retest_summ_early <-  bc_accs_kid_test_retest |>
+    left_join(baseline_lengths) |> filter(t_min< -3000) |> 
+  mutate(
+    stdev = (upper - lower) / (1.96 * 2),
+    var = stdev**2,
+  ) |>
+  group_by(b_start, b_end) |>
+  nest() |>
+  mutate(corr= map(data, \(d){
+    rma(d$est, d$var) |>
+      summary() |>
+      coef()
+  })) |> 
+  unnest(corr)
+
+bc_accs_kid_test_retest_summ |> ggplot(aes(x=b_start, y=estimate, ymin=ci.lb, ymax=ci.ub, color=as.character(b_end)))+geom_pointrange(position = position_dodge(width=.5))
+
+```
+
+
+## Recommendation 3: Use RT as it's reliability is generally high. For best outcome, use landing-based RT counting shifts starting at 400? ms. 
+
+While for accuracy there are relatively few dimensions of variability, RT can be measured in a number of ways. 
+One choice is whether to measure RT based on when a child's eyes launch from the distractor or when a child's eyes land on the target. 
+Launches could be a more precise index of the timing of intent to look at the target, but leaving from the distractor could also be done with intent to look elsewhere. Thus, launch based analyses sometimes exclude trials where it takes a child too long to go from distractor to target (shift-length cutoff). 
+Short RTs are often excluded because they were necessarily or likely to not be as a response to the stimulus. We explore a range of different potential cutoffs in at attempt to maximize at what point RTs shift from mostly being random to mostly being stimulus driven. 
+RTs can be anlaysed either on a log scale or a raw RT scale.
+Finally, trials are generally only included if the child is looking at the distractor at the point of disambiguation and continues looking at the distractor for the entire minimum RT period. In our initial exploration, we considered relaxing this in different ways in case excluding brief departures from the distractor to missing (i.e. from blinks, or tracker loss)
+## Recommendation 4: Don't bother with exclusions. 
+
+## Recommendation 5: For individual differences, try to get XX trials. 
+
+## Recommendation 6: Match target and distractor based on image saliency, in particular animacy. 
+[TODO Tarun is leading the image properties analysis.]
+
+## Recommendation 7: (possibly something about counterbalancing/repetition)
+[TODO]
+<!--
 # (Preamble) Overview of approach
 
-The goal of the peekbank-methods project is to give recommendations about the design and analysis of LWL studies. To do so, we need some criteria for what is a better outcome. Here, we take a "data-driven" approach to look at how different potential data-processing and (using simulation) study design factors affect reliability and validity. 
 
 We use "vanilla" (real word target, real word distractor, plain carrier phrase) trials from peekbank to explore how different look at different possible data-processing and methodological choices affect 3 outcomes measures. 
 
 * one outcome is ICC (intra-class correlation) which is a variance partition metric that is a generalization of correlation. This measures (within a dataset) how much different items (target labels) are consistent with each other in "rating" the subjects (kid-administrations). We think that LWL measures like accuracy and RT are getting at some kid-level properties of language processing speed (and receptive vocabulary). All else equal, we want to process the data (and design studies) in a way that maximizes the ability to get at this language knowledge. 
 
-* in addition to being reliable, we also want valid metrics. We don't want to just be measuring any kid-level-property, we want to be measuring something about kid *language*. For these datasets, we have CDI data (some production and some comprehension). We can check how well our metrics correlate with children's CDI sumscores from CDI administrations at roughly the same time. I also correlate with children's age, as a basic check. In general, correlating with production, comprehension, and age in the expected directions is desirable, although we also may expect that LWL measures are picking up on slightly different aspects of language learning. 
+* in addition to being reliable, we also want valid metrics. We don't want to just be measuring any kid-level-property, we want to be measuring something about kid *language*. For these datasets, we have CDI data (some production and some comprehension). 
 
 * another reliability measure is test-retest reliability. For a few longitudinal datasets, we have repeated administrations within a couple months of one another. For these, we can do test-retest correlations across the pair of administrations. 
 
