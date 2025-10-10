@@ -229,69 +229,225 @@ for RT
 ```{r}
 cutoffs <- expand_grid(min = c(1, 2, 3, 4, 5, 8, 10, 12, 15))
 
+do_boot <- function(data, indices)
+  {
+  df <- data |> slice(indices) |> 
+    summarise(
+    cor_rt = ifelse(sum(!is.na(mean_rt_1) & !is.na(mean_rt_2)) > 2, cor.test(mean_rt_1, mean_rt_2)$estimate, NA),
+    )
+return(df$cor_rt[1])
+}
+
 cutoff_rt <- all_wide |>
   group_by(dataset_name, age_bin) |>
   cross_join(cutoffs) |>
   filter(rt_trials_1 >= min, rt_trials_2 >= min) |>
   group_by(dataset_name, age_bin, min) |> 
-  summarise(
-    cor_rt = ifelse(sum(!is.na(mean_rt_1) & !is.na(mean_rt_2)) > 2, cor.test(mean_rt_1, mean_rt_2)$estimate, NA),
-    pairs = n()
-  )
+  mutate(pairs=n()) |> 
+  filter(pairs>4) |> 
+  select(-pairs) |> 
+    group_by(dataset_name, age_bin, min) |> 
+  nest() |> 
+  mutate(trt=map(data, \(d) {
+    print(dataset_name)
+      b <- boot::boot(d, do_boot, 2000)
+            ci <- boot::boot.ci(b, type = "basic")
+      tibble(est = b$t0, lower = ci$basic[4], upper = ci$basic[5])
+    })) |>
+    select(-data) |>
+    unnest(trt)
 
-cutoff_rt |> filter(pairs>4) |> ggplot(aes(x = min, y = cor_rt, col = age_bin)) +
-  scale_color_viridis(discrete = T) +
-  stat_summary(position = position_dodge(.5)) +
-  stat_summary(position = position_dodge(.5), geom = "line") +
-  geom_hline(yintercept = 0)
-
-cutoff_rt |> filter(pairs>4) |> ggplot(aes(x = min, y = cor_rt)) +
-    stat_summary(position = position_dodge(.5)) +
-  stat_summary(position = position_dodge(.5), geom = "line") +
-  geom_hline(yintercept = 0)
+saveRDS(cutoff_rt, here("cached_intermediates", "6_cutoff_rt_posthoc.rds"))
+```
 
 
-cutoff_rt |> filter(pairs>4) |> ggplot( aes(x = min, y = cor_rt, col = age_bin)) +
-  geom_point(position = position_dodge(.5)) +
+```{r}
+
+cutoffs <- expand_grid(min = c(1, 2, 3, 4, 5, 8, 10, 12, 15))
+
+data_loss <- all_wide |>
+  group_by(dataset_name, age_bin) |>
+  cross_join(cutoffs) |>
+  filter(rt_trials_1 >= min, rt_trials_2 >= min) |>
+  group_by(dataset_name, age_bin, min) |> 
+  mutate(pairs=n()) |> 
+  filter(pairs>4) |> 
+  group_by(dataset_name, age_bin, min) |> 
+  tally() |> 
+  group_by(dataset_name, age_bin) |> 
+  mutate(pct=n/max(n))
+
+data_loss |> filter(min<6) |> ggplot(aes(x=min, y=pct, col=age_bin))+geom_point()+  scale_color_viridis(discrete = T) +
+facet_wrap(~dataset_name)+geom_line()
+cutoff_rt <- readRDS(here("cached_intermediates", "6_cutoff_rt_posthoc.rds"))
+
+library(metafor)
+cutoff_rt_summ_age <-  cutoff_rt |>
+  mutate(
+    stdev = (upper - lower) / (1.96 * 2),
+    var = stdev**2,
+  ) |>
+  group_by(age_bin, min) |>
+  nest() |>
+  mutate(corr= map(data, \(d){
+    rma(d$est, d$var) |>
+      summary() |>
+      coef()
+  })) |> 
+  unnest(corr)
+  
+
+cutoff_rt_summ <-  cutoff_rt |>
+  mutate(
+    stdev = (upper - lower) / (1.96 * 2),
+    var = stdev**2,
+  ) |>
+  group_by(min) |>
+  nest() |>
+  mutate(corr= map(data, \(d){
+    rma(d$est, d$var) |>
+      summary() |>
+      coef()
+  })) |> 
+  unnest(corr)
+cutoff_rt|> ggplot(aes(x = min, y = est, ymin=lower, ymax=upper, col = age_bin)) +
+  geom_pointrange( position = position_dodge(.5)) +
   geom_line(position = position_dodge(.5)) +
   scale_color_viridis(discrete = T) +
   facet_wrap(~dataset_name) +
   geom_hline(yintercept = 0)
 
-  
+cutoff_rt_summ_age|> ggplot(aes(x = min, y = estimate, ymin=ci.lb, ymax=ci.ub, col = age_bin)) +
+  geom_pointrange( position = position_dodge(.5)) +
+  geom_line(position = position_dodge(.5)) +
+  scale_color_viridis(discrete = T) +
+  geom_hline(yintercept = 0)
+
+cutoff_rt_summ|> ggplot(aes(x = min, y = estimate, ymin=ci.lb, ymax=ci.ub)) +
+  geom_pointrange( position = position_dodge(.5)) +
+  geom_line(position = position_dodge(.5)) +
+  scale_color_viridis(discrete = T) +
+  geom_hline(yintercept = 0)
 ```
 something is weird with the 28-32 bin, 
 otherwise, seems like cutting out kids who don't have at least a few RT trials is reasonable (for few in the 2-5 range?)
 
+*should also check on # of datapoints left!
+
+Minimums in the 1-5 range seem justifiable. Seems reasonable to do 2 RT as a way to balance reliability and reducing # of kids, but will depend on how large the dataset is!
+
 for accuracy 
 ```{r}
+
+
+
 cutoffs <- expand_grid(min = c(1, 2, 3, 4, 5, 8, 10, 12, 15))
+
+do_boot <- function(data, indices)
+  {
+  df <- data |> slice(indices) |> 
+    summarise(
+    cor_acc = ifelse(sum(!is.na(acc_1) & !is.na(acc_2)) > 2, cor.test(acc_1, acc_2)$estimate, NA),
+    )
+return(df$cor_acc[1])
+}
 
 cutoff_acc <- all_wide |>
   group_by(dataset_name, age_bin) |>
   cross_join(cutoffs) |>
   filter(acc_trials_1 >= min, acc_trials_2 >= min) |>
-  group_by(dataset_name, age_bin, min) |>
-  summarise(
-    cor_acc = ifelse(sum(!is.na(acc_1) & !is.na(acc_2)) > 2, cor.test(acc_1, acc_2)$estimate, NA), pairs = n()
-  )
+  group_by(dataset_name, age_bin, min) |> 
+  mutate(pairs=n()) |> 
+  filter(pairs>4) |> 
+  select(-pairs) |> 
+    group_by(dataset_name, age_bin, min) |> 
+  nest() |> 
+  mutate(trt=map(data, \(d) {
+    print(dataset_name)
+      b <- boot::boot(d, do_boot, 2000)
+            ci <- boot::boot.ci(b, type = "basic")
+      tibble(est = b$t0, lower = ci$basic[4], upper = ci$basic[5])
+    })) |>
+    select(-data) |>
+    unnest(trt)
 
-ggplot(cutoff_acc |> filter(pairs>4), aes(x = min, y = cor_acc, col = age_bin)) +
-  scale_color_viridis(discrete = T) +
-  stat_summary(position = position_dodge(.5)) +
-  stat_summary(position = position_dodge(.5), geom = "line") +
-  geom_hline(yintercept = 0)
+saveRDS(cutoff_acc, here("cached_intermediates", "6_cutoff_acc_posthoc.rds"))
+```
 
 
-ggplot(cutoff_acc |> filter(pairs>4), aes(x = min, y = cor_acc, col = age_bin)) +
-  geom_point(position = position_dodge(.5)) +
+```{r}
+cutoffs <- expand_grid(min = c(1, 2, 3, 4, 5, 8, 10, 12, 15))
+
+data_loss <- all_wide |>
+  group_by(dataset_name, age_bin) |>
+  cross_join(cutoffs) |>
+  filter(acc_trials_1 >= min, acc_trials_2 >= min) |>
+  group_by(dataset_name, age_bin, min) |> 
+  mutate(pairs=n()) |> 
+  filter(pairs>4) |> 
+  group_by(dataset_name, age_bin, min) |> 
+  tally() |> 
+  group_by(dataset_name, age_bin) |> 
+  mutate(pct=n/max(n))
+
+data_loss |> filter(min<6) |> ggplot(aes(x=min, y=pct, col=age_bin))+geom_point()+  scale_color_viridis(discrete = T) +
+facet_wrap(~dataset_name)+geom_line()
+
+cutoff_acc <- readRDS(here("cached_intermediates", "6_cutoff_acc_posthoc.rds"))
+
+library(metafor)
+cutoff_acc_summ_age <-  cutoff_acc |>
+  mutate(
+    stdev = (upper - lower) / (1.96 * 2),
+    var = stdev**2,
+  ) |>
+  group_by(age_bin, min) |>
+  nest() |>
+  mutate(corr= map(data, \(d){
+    rma(d$est, d$var) |>
+      summary() |>
+      coef()
+  })) |> 
+  unnest(corr)
+  
+
+cutoff_acc_summ <-  cutoff_acc |>
+  mutate(
+    stdev = (upper - lower) / (1.96 * 2),
+    var = stdev**2,
+  ) |>
+  group_by(min) |>
+  nest() |>
+  mutate(corr= map(data, \(d){
+    rma(d$est, d$var) |>
+      summary() |>
+      coef()
+  })) |> 
+  unnest(corr)
+
+cutoff_acc|> ggplot(aes(x = min, y = est, ymin=lower, ymax=upper, col = age_bin)) +
+  geom_pointrange( position = position_dodge(.5)) +
   geom_line(position = position_dodge(.5)) +
   scale_color_viridis(discrete = T) +
   facet_wrap(~dataset_name) +
   geom_hline(yintercept = 0)
+
+cutoff_acc_summ_age|> ggplot(aes(x = min, y = estimate, ymin=ci.lb, ymax=ci.ub, col = age_bin)) +
+  geom_pointrange( position = position_dodge(.5)) +
+  geom_line(position = position_dodge(.5)) +
+  scale_color_viridis(discrete = T) +
+  geom_hline(yintercept = 0)
+
+cutoff_acc_summ|> ggplot(aes(x = min, y = estimate, ymin=ci.lb, ymax=ci.ub)) +
+  geom_pointrange( position = position_dodge(.5)) +
+  geom_line(position = position_dodge(.5)) +
+  scale_color_viridis(discrete = T) +
+  geom_hline(yintercept = 0)
 ```
 
 don't see as much for acc trials, but we expect that kids have like 3x the accuray trials as the RT trials, so scale might be off, but we're also not seeing differences up around 15 either
+
+Accuracy min of 3 seems reasonable, but there are also less likely to be data tradeoffs. 
 
 # simulate different trial counts
 

@@ -376,3 +376,56 @@ cdi_data |>
 # >>>>>>> 9f838ecc75c2df3fb4ca309e808fd360af8a6724
 ```
 
+# Units for ICC etc
+Here we have everything by "dataset", but in some cases datasets may contain multiple different item-banks/studies.
+
+things we can look for 
+```{r}
+d_aoi <- readRDS(here("cached_intermediates", "1_d_aoi.Rds"))
+
+trials <- d_aoi |> distinct(dataset_name, administration_id, subject_id, age, trial_id, target_label, distractor_label)
+```
+
+```{r}
+trials |> ggplot(aes(x=dataset_name, y=age))+geom_jitter(alpha=.1)+coord_flip()
+```
+```{r}
+ plots <- trials |> distinct(dataset_name) |> pull(dataset_name) |> map( \(d) {
+   trials |> filter(dataset_name==d) |> ggplot(aes(x=target_label, y=reorder(administration_id, age)))+geom_jitter(width=.2,height=.1, alpha=.5)+coord_flip()+labs(title=d)
+ })
+
+plots
+```
+Notes:
+
+homogenous:
+* ronfard
+* baumgartner
+* newman_genderdistractor
+* pomper_salient_me
+* ferguson_eyetrackingr
+* yurovsky
+* swingley-aslin
+* reflook
+* potter-remix
+* weaver-zettersten
+* mahr-coartic
+* bacon-gendercues
+* frank_tablet
+
+
+heterogenous:
+* perry_cowpig: either kids see 1 set of 3 pairs (6 items) or a different set of 3 pairs (6 items)
+* pomper_saffran_2016 -- something complicated where item co-occurrance isn't fully random, but not fully split into lists either
+*adams-marchman -- has 3 age groups with 2 lists/age -- 4 different list options, with some item overlaps between them
+* fernald totlot -- looks like 4 age groups, a different list option for each age group, some overlaps across them 
+* sander-montant -- 2 age groups with slightly overlapping lists
+* fmw -- 2 age groups , mostly overlapping lists
+* pomper_prime -- 2 sets of 2 item lists that also cross
+* potter_canine -- 2 mostly distinct lists
+* fernald marchman2012 -- 3 age mins with somewhat overlapping lists
+* garrison_bergelson -- just chaos
+
+Given this, I don't think it makes sense to make changes. We'll leave it as ICC/dataset. 
+
+

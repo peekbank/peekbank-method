@@ -12,7 +12,9 @@ library(metafor)
 library(ggthemes)
 ```
 
-Here are (draft) recommendations and (draft) supporting figures for the peekbank methods paper. 
+Here are (draft) recommendations and (draft) supporting figures for the peekbank methods paper. Obviously still some work on how to phase the recommendations. 
+
+Note that quality checks on the data may cause numbers to change, but we don't anticipate large changes in overall results. 
 
 # Summary of approach
 
@@ -26,20 +28,17 @@ Throughout we use three different metrics to assess reliabilty and validity.
 
 2. Test-retest reliability for measures on the same child at two different administrations within 1.5 months of each other. This measure is only possible on a subset of the datasets that have longitudinal data with some closely spaced repeat administrations. 
 
-3. Correlation with CDI measure for validity. We can check how well our metrics correlate with children's CDI sumscores from CDI administrations at roughly the same time. I also correlate with children's age, as a basic check. In general, correlating with production, comprehension, and age in the expected directions is desirable, although we also may expect that LWL measures are picking up on slightly different aspects of language learning. 
+3. Correlation with CDI measure for validity. We can check how well our metrics correlate with children's CDI sumscores from CDI administrations at roughly the same time. In general, correlating with production and comprehension in the expected directions is desirable, although we also may expect that LWL measures are picking up on slightly different aspects of language learning. 
 
-In order to tell when numerical differences in ICC or correlations are How do we tell when numerical differences could be meaningful, I use bootstrapping which generates per-dataset confidence intervals around the point estimate. We then can use point-estimates and the bootstrapped CIs to calculate a variance-weighted meta-analytic estimate (and CI) to get an overall estimate.
+In order to tell when numerical differences in ICC or correlations could be meaningful, I use bootstrapping which generates per-dataset confidence intervals around the point estimate. I then use point estimates and the bootstrapped CIs to calculate a variance-weighted meta-analytic estimate (and CI) for the correlation across datasets.
 
 This project has a non-standard aim with the statistics. We are neither trying to do just estimation nor are we trying to do "traditional" inferential (p<.05) statistics. We are trying to make inferences as to what data practices to recommend (and how strongly)! 
 
-Often in our other statistical applications, we like to see differences. Here, we expect that some big changes in method should lead to differences in outcome (ex. if an accuracy window started really late at 1000 milliseconds, we expect it be bad), but that many small differences in approach might lead to minimal differences in outcome. It would be surprising and worrying if small differences in accuracy window start dramatically altered results! 
-
+Often in our other statistical applications, we like to see differences. Here, we expect that some big changes in method should lead to differences in outcome (ex. if an accuracy window started really late at 1000 milliseconds, we expect it be bad), but we also expect that many small differences in approach might lead to minimal differences in outcome. It would be surprising and worrying if small differences in approach often dramatically altered results! 
 
 Other factors may also influence what data practices to choose (and to recommend). In particular, we probably prefer parsimony -- given two processes with equivalent goodness of outcome, we should prefer the simpler one. There may also be theoretical commitments that lead to preferences over one measure or another (ex: log vs raw RT). 
 
-# Recommendations
-
-In drafting the recommendations, I've tried to focus on what leads to better reliability and validity. I've also assumed a preference for parsimony -- given two processes with equivalent goodness of outcome, we prefer the simpler one. There are cases where we might want to acknowledge how theoretical commitments might impact analytic and methodological preferences but I have not included recommendations based on them. 
+# Data processing recommendations
 
 ## Recommendation 1: Use long accuracy windows. 
 
@@ -49,7 +48,8 @@ Exactly when the window starts is not important, although we recommend starting 
 
 While we are recommending accuracy be measured over the 500-4000ms window, we want to be clear that other accuracy windows also have reasonable reliability and validity properties. Strong effects are likely to show up in any reasonable window, but for eking the most reliability out of data, we recommend long windows. 
 
-```{r, fig.cap="A heatmap showing ICC (a measure of reliability) for different start and end times for accuracy windows. }
+A heatmap showing ICC (a measure of reliability) for different start and end times for accuracy windows.
+```{r}
 
 accs <- readRDS(here("cached_intermediates/3_accs.Rds"))
 
@@ -146,8 +146,8 @@ accs_kid_test_retest_summ <-  accs_kid_test_retest |>
   unnest(corr)
 ```
 
-
-```{r, fig.cap="Reliability and validity measures for different accuracy windows. Ranges are bootstrapped 95% CIs.}
+Reliability and validity measures for different accuracy windows. Ranges are bootstrapped 95% CIs.
+```{r}
 acc_all <- acc_boot_summary |> mutate(Type="ICC reliability") |> bind_rows(accs_cdi_kid_summ |> rename(estimate=prod_estimate, ci.lb=prod_ci.lb, ci.ub=prod_ci.ub) |> mutate(Type="Corr. with CDI Production")) |> bind_rows(accs_cdi_kid_summ |> rename(estimate=comp_estimate, ci.lb=comp_ci.lb, ci.ub=comp_ci.ub) |> mutate(Type="Corr. with CDI Comprehension")) |> 
   bind_rows(accs_kid_test_retest_summ |> mutate(Type="Test-retest reliability"))
 
@@ -157,9 +157,11 @@ acc_all |> ggplot(aes(x=t_start, col=as.character(t_end), y=estimate, ymin=ci.lb
 
 ## Recommendation 2: Don't do baseline correction. 
 
-Different images have varying levels of saliency to infants, which can drive uneven looking patterns at baseline, before auditory stimulus. Sometimes, researchers address this by using baseline-corrected accuracy, a difference between the looking fraction after the stimulus and the looking fraction before the stimulus. In general, we found that baseline correction led to worse reliability and validity. For datasets where there was looking data for a long pre-stimulus period (at least 3 seconds), baseline correlation using a long pre-stimulus period was as reliable as accuracy without baseline-correction, but still had marginally worse validity.
+Different images have varying levels of saliency to infants, which can drive uneven looking patterns at baseline, before auditory stimulus. Sometimes, researchers address this by using baseline-corrected accuracy, a difference between the looking fraction after the stimulus and the looking fraction before the stimulus. In general, we found that baseline-corrected accuracy led to worse reliability and validity than accuracy. For datasets where there was looking data for a long pre-stimulus period (at least 3 seconds), baseline correction using a long pre-stimulus period was as reliable as accuracy without baseline-correction, but still had marginally worse validity.
 
-As alternatives to baseline correction, there are other ways to account for item-level variability, including TODO. Additionally, better matching of stimulus properties between the target and distractor pairs may reduce ... (see section TODO). 
+[TODO we could therorize on why baseline-correction is worse -- difference measures are generally high variance]
+
+As alternatives to baseline correction, researchers could account for item-level variability in their statistical models. Additionally, better matching of stimulus properties between the target and distractor pairs may reduce unequal looking before stimulus onset (see Recommendation TODO). 
 
 ```{r}
 d_aoi <- readRDS(here("cached_intermediates", "1_d_aoi.Rds"))
@@ -324,9 +326,9 @@ bc_accs_kid_test_retest_summ_early <-  bc_accs_kid_test_retest |>
 
 ```
 
+Comparison between baseline-corrected accuracy with different baseline windows and accuracy with no baseline-correction. All datsets with data before time 0 were included.
 
-```{r, fig.cap="Comparison between baseline-corrected accuracy with different baseline windows and accuracy with no baseline-correction. All datsets with data before time 0 were included. }
-
+```{r}
 bc_acc_all <- bc_boot_summ |> mutate(Type="ICC reliability") |> 
   bind_rows(bc_accs_kid_cdi_summ |> rename(estimate=prod_estimate, ci.lb=prod_ci.lb, ci.ub=prod_ci.ub) |> mutate(Type="Corr. with CDI Production")) |> 
   bind_rows(bc_accs_kid_cdi_summ |> rename(estimate=comp_estimate, ci.lb=comp_ci.lb, ci.ub=comp_ci.ub) |> mutate(Type="Corr. with CDI Comprehension")) |> 
@@ -337,8 +339,8 @@ bc_acc_all <- bc_boot_summ |> mutate(Type="ICC reliability") |>
 bc_acc_all |> ggplot(aes(x=b_start, col=b_end, y=estimate, ymin=ci.lb, group=t_end, ymax=ci.ub))+geom_pointrange(position=position_dodge2(width=.5))+coord_flip()+facet_wrap(~Type, scales="free_x", nrow=1)+theme(legend.position = "bottom", )+labs(y="Correlation", x="Baseline start time (ms)", color="Baseline end time (ms)")+scale_color_solarized()
 ```
 
-
-```{r, fig.cap="Comparison between baseline-corrected accuracy with different baseline windows and accuracy with no baseline-correction on the subset of datasets with at least 3 seconds of pre-stimulus onset looking data.  }
+Comparison between baseline-corrected accuracy with different baseline windows and accuracy with no baseline-correction on the subset of datasets with at least 3 seconds of pre-stimulus onset looking data.
+```{r}
 bc_acc_early <- bc_boot_early_summ |> mutate(Type="ICC reliability") |> 
   bind_rows(bc_accs_kid_cdi_summ_early |> rename(estimate=prod_estimate, ci.lb=prod_ci.lb, ci.ub=prod_ci.ub) |> mutate(Type="Corr. with CDI Production")) |> 
   bind_rows(bc_accs_kid_cdi_summ_early |> rename(estimate=comp_estimate, ci.lb=comp_ci.lb, ci.ub=comp_ci.ub) |> mutate(Type="Corr. with CDI Comprehension")) |> 
@@ -352,17 +354,26 @@ bc_acc_early |> ggplot(aes(x=b_start, col=b_end, y=estimate, ymin=ci.lb, group=t
 ## Recommendation 3: Use RT with a minimum RT of around 400 ms. 
 
 While for accuracy there are relatively few dimensions of variability, RT can be measured in a number of ways. 
-One choice is whether to measure RT based on when a child's eyes launch from the distractor or when a child's eyes land on the target. 
-Launches could be a more precise index of the timing of intent to look at the target, but leaving from the distractor could also be done with intent to look elsewhere. Thus, launch based analyses sometimes exclude trials where it takes a child too long to go from distractor to target (shift-length cutoff). 
+
+One choice is whether to measure RT based on when a child's eyes launch from the distractor or when a child's eyes land on the target. Launches could be a more precise index of the timing of intent to look at the target, but leaving from the distractor could also be done with intent to look elsewhere. Thus, launch based analyses sometimes exclude trials where it takes a child too long to go from distractor to target (shift-length cutoff).
+
 Short RTs are often excluded because they were necessarily or likely to not be as a response to the stimulus. We explore a range of different potential cutoffs in at attempt to maximize at what point RTs shift from mostly being random to mostly being stimulus driven. 
+
 RTs can be analysed either on a log scale or a raw RT scale.
-Finally, trials are generally only included if the child is looking at the distractor at the point of disambiguation and continues looking at the distractor for the entire minimum RT period. In our initial exploration, we considered relaxing this in different ways in case excluding brief departures from the distractor to missing (i.e. from blinks, or tracker loss) was not a problem. 
 
-Our initial exploration suggested that ICC reliability was maximized for landing-based RT without any shift-length cutoff and with log and with minimum RTs around 400-500ms. We found that it was not necessary to exclude children who had a little bit of missing data during the 0-400 window; it was sufficient for children to be looking at the distractor at time 0 and time 400 and not looking at the target at all before 400ms. However, little bits of missing data were rare, and is likely to be very dataset specific depending on the tracking and imputation process. 
+Our initial exploration suggested that ICC reliability was maximized for log-scale landing-based RT without any shift-length cutoff with minimum RTs around 400-500ms.  
 
-For the main validity and reliability measures, we compare a launch-based RT with a shift-length cutoff (as used in XX) and a land-based RT without a shift-length cutoff. We vary the minimum RT and whether the RTs are logged or not. 
+For the main validity and reliability measures, we compare a launch-based RT with a 600ms shift-length cutoff (as used in XX) and a land-based RT without a shift-length cutoff. We vary the minimum RT and whether the RTs are logged or not. 
 
 ```{r}
+
+# we require 10 trials and 5 kids 
+rt_dist <- readRDS(here("cached_intermediates", "4_rts.rds")) |> filter(shift_type=="D-T") |> 
+  group_by(time_0, time_end, during, frac, dataset_name, window) |> summarize(trials=n(), admins=administration_id |> unique() |> length()) 
+  
+icc_cutoff <- rt_dist |> filter(trials>9, admins>4) |> select(dataset_name, time_0, time_end, during, frac, window)
+
+
 rt_boot <- readRDS(here("cached_intermediates", "4_rt_iccs_boot.rds")) |> inner_join(icc_cutoff) |> 
     mutate(
     type = case_when(
@@ -459,26 +470,8 @@ rt_kid_test_retest_summ <-  rt_kid_test_retest |>
   unnest(corr)
 ```
 
+Reliability and validity measures for different accuracy windows. Ranges are bootstrapped 95% CIs.
 ```{r}
-rt_boot_summ |> ggplot(aes(x = approach, color = as.character(window), y = estimate, ymin = ci.lb, ymax = ci.ub)) +
-  geom_pointrange(position = position_dodge(width = .5)) +
-  coord_flip() +
-  geom_hline(yintercept=.7)+
-  facet_wrap(~logged) +
-  scale_color_viridis(discrete = T)
-
-rt_kid_cdi_summ |> ggplot(aes(x = str_c(approach, "_", logged), y = prod_estimate, ymin=prod_ci.lb, ymax=prod_ci.ub, color=as.character(window))) +geom_pointrange(position=position_dodge(width=.5))+
-  scale_color_viridis(discrete=T)+
-  coord_flip()
-
-rt_kid_cdi_summ |> ggplot(aes(x = str_c(approach, "_", logged), y = comp_estimate, ymin=comp_ci.lb, ymax=comp_ci.ub, color=as.character(window))) +geom_pointrange(position=position_dodge(width=.5))+
-  scale_color_viridis(discrete=T)+
-  coord_flip()
-
-rt_kid_test_retest |> filter(window==400) |> ggplot(aes(x=str_c(approach, "_", logged), y=est, ymin=lower, ymax=upper, color=as.character(approach)))+geom_pointrange(position = position_dodge(width=.5))+facet_wrap(~dataset_name)+coord_flip()+geom_hline(yintercept=0)
-```
-
-```{r, fig.cap="Reliability and validity measures for different accuracy windows. Ranges are bootstrapped 95% CIs.}
 rt_all <- rt_boot_summ |> mutate(Type="ICC reliability") |> 
   bind_rows(rt_kid_cdi_summ |> rename(estimate=prod_estimate, ci.lb=prod_ci.lb, ci.ub=prod_ci.ub) |> mutate(Type="Corr. with CDI Production")) |> 
   bind_rows(rt_kid_cdi_summ |> rename(estimate=comp_estimate, ci.lb=comp_ci.lb, ci.ub=comp_ci.ub) |> mutate(Type="Corr. with CDI Comprehension")) |> 
@@ -490,33 +483,122 @@ rt_all <- rt_boot_summ |> mutate(Type="ICC reliability") |>
 
 rt_all |> mutate(type=str_c(logged, " ", approach, " RT") |> factor(levels=c("raw launch-based RT", "log launch-based RT", "raw land-based RT", "log land-based RT"))) |> ggplot(aes(col=type, x=as.character(window), y=estimate, ymin=ci.lb, ymax=ci.ub))+geom_pointrange(position=position_dodge(.5))+coord_flip()+facet_wrap(~Type, scales="free_x", nrow=1)+theme(legend.position = "bottom", )+labs(y="Correlation", x="Minimum RT", color="Type of RT")+scale_color_brewer(palette="Paired")
 ```
-Among the 4 types of RT we consider in more detail (log v raw x launch-based v land-based), all have similar correlations with CDI comprehension, and correlations are negative as smaller (faster) RT is associated with larger CDI scores. Log RT has a slightly stronger (more negative) correlation with CDI production than raw RT especially for minimum RTs in the 400-450 range. The highest ICC reliabilities occur around 400 ms. ICC reliability is consistently slightly higher for land-based than launch-based although the scale of difference varies with minimum RT. Test-retest reliability is reasonable for all measures, and marginally higher for raw (not log) RT. 
+Among the 4 types of RT we considered in more detail (log v raw x launch-based v land-based), all have similar correlations with CDI comprehension, and correlations are negative as smaller (faster) RT is associated with larger CDI scores. Log RT has a slightly stronger (more negative) correlation with CDI production than raw RT especially for minimum RTs in the 400-450 range. The highest ICC reliabilities occur around 400 ms. ICC reliability is consistently slightly higher for land-based than launch-based although the scale of difference varies with minimum RT. Test-retest reliability is reasonable for all measures. 
 
 We recommend that researchers use minimum RT cutoffs around 400 ms as these increase reliability compared to shorter 200 ms cutoffs. While the differences between different methods are small, we recommend using log landing-based RT to maximize overall reliability and validity. 
 
-If there are short periods of missing data during the 0-400ms window, a more lax threshold of looking at the distractor and 0 and 400ms and not looking at the target between 0 and 400ms can be used for landing-based RT instead of requiring children to be continuously on the distractor, with no loss of reliability or validity. 
+Finally, trials are generally only included if the child is looking at the distractor at the point of disambiguation and continues looking at the distractor for the entire minimum RT period. We found that a more lax threshold of looking at the distractor and 0 and 400ms and not looking at the target between 0 and 400ms can be used for landing-based RT instead of requiring children to be continuously on the distractor, with no loss of reliability or validity. However, little bits of missing data were rare, and is likely to be very dataset specific depending on the tracking and imputation process. 
 
-## Recommendation 4: Don't bother with exclusions. There is no need to impose thresholds for inclusion. 
+## Recommendation 4: Excluding trials or children for "zoning" or low numbers of trials is generally unnecessary.
 
 Children may engage in various behavior that seems to not be responsive to the trials, including "zoning", contributing few valid looking points on a trial, or contributing few trials overall. One question is whether excluding these types of trials improves overall validity and reliability. 
 
 On a trial-by-trial basis, excluding trials where kids don't look at both target and distractor (either during a pre-window, or ever) does not improve ICC reliability or the correlation with CDI measures. Additionally, excluding trials with looks away from the target and distractor also does not improve ICC reliability or correlation with CDI measures. We do not recommend any trial-level exclusions to accuracy data. 
 
-On a administration basis, common exclusions are for cross-trial side-bias and minimum number of trials contributed. Very few children show strong side bias; in this dataset around 1% children who contributed .5% of trials looked to one side more than 90% of the time. Thus, exclusions for side bias have minimum impact on reliability and we do not recommend them. We also do not find that setting a minimum number of trials for inclusion improves ICC or CDI validity. 
+On a administration basis, common exclusions are for cross-trial side-bias and minimum number of trials contributed. Very few children show strong side bias; in this dataset around 1% children who contributed .5% of trials looked to one side more than 90% of the time.
+
+Thus, exclusions for side bias have minimum impact on reliability and we do not recommend them. We also do not find that setting a minimum number of trials for inclusion improves ICC or CDI validity. 
 
 For RTs, exclusions based on number of trials does not improve ICC or correlations with CDI. 
 
+## Recommendation 5: When measuring individual differences, excluding children with fewer than 2 RT measures or 3 accuracy measures may be reasonable. 
+The one case where exclusions based on minimum trial count may be helpful is for individual difference measures where high test-retest reliability is desired. However, the children who contribute fewer trials might vary in other ways from kids who contribute more so exclusions may hurt generalizability in addition to decreasing effective sample size. 
 
-The one case where exclusions based on minimum trial count may be helpful is for individual difference measures where high test-retest reliability is desired. However, need to consider that the children who contribute fewer trials might vary in other ways from kids who contribute more so exclusions may hurt generalizability. 
-For test-retest reliability for individual differences, cutoffs may help, although there is high heterogeneity across datasets. Researchers will need to weigh how fewer children compares with better estimates for each child, but minimums of 2-5 RT trials may be reasonable. (so noisy and needs bootstrapping)
+While our results are uncertain, it appears that test-retest reliability is higher when children have to have 2 RTs from each testing session. Reliability may also increase slightly over the 2-5 RT minimum, but the data loss is substantial. For analysis of archival datasets, tradeoffs between better measurement of each child and fewer children must be considered. 
 
-For accuracy, 1 trial is probably fine, but again minimums of 2-5 accuracy trials may be reasonable. (Need to figure out how to bound this!)
+For accuracy, results were again uncertain, but a minimum of 3 accuracy trials had slightly better test-retest reliability than 2 trials (which in turn was better than 1). Most children had plenty of accuracy trials, so data loss is unlikely to be a concern. 
+
+[TODO possible figure for these]
+
+# Design recommendations 
 
 ## Recommendation 5: For individual differences, plan for at least 10 trials and ideally closer to 30 trials per child. 
 
-While it is difficult to tell whether post-hoc exclusion of children who contributed too few data points makes sense for individual difference work, it is much clearer that it is better to design experiments to increase the liklihood of having more than 1 trial. 
+While it is difficult to tell whether post-hoc exclusion of children who contributed too few data points makes sense for individual difference work, it is much clearer that it is better to design experiments to increase the likelihood of having more valid trials.  
 
 To understand how different numbers of trials would impact test-retest reliability, we sampled trials from each administration with replacement. This allows for up-sampling of children with low numbers of trials, simulating what might have happened in a longer experiment. 
+
+```{r}
+admins <- d_aoi |>
+  select(dataset_name, subject_id, administration_id, age) |>
+  distinct()
+repeated <- admins |>
+  group_by(dataset_name, subject_id) |>
+  tally() |>
+  filter(n > 1)
+
+repeated_subjects <- admins |> inner_join(repeated)
+
+# identify pairs
+# hmm, sometimes we have times with 3+ 1 month apart,
+# for now allow all the pairs that result so like 14-15 and 15-16 for the same kid
+
+pairs <- repeated_subjects |>
+  group_by(dataset_name, subject_id) |>
+  mutate(
+    forward_age = lead(age),
+    forward_diff = forward_age - age,
+    test_num = case_when(
+      forward_diff < 1.5 ~ 1,
+    ),
+    mean_age = case_when(
+      test_num == 1 ~ (age + forward_age) / 2,
+    ),
+    second_admin = case_when(
+      test_num == 1 ~ lead(administration_id)
+    )
+  ) |>
+  filter(!is.na(test_num)) |>
+  rename(first_admin = administration_id) |>
+  select(-n, -age) |>
+  left_join(repeated_subjects |> select(-age, -n), by = c("dataset_name", "subject_id", "second_admin" = "administration_id")) |>
+  ungroup() |>
+  mutate(pair_number = row_number()) |>
+  filter(!(dataset_name=="adams_marchman_2018" & mean_age>28)) |> # these do have multiple sessions but with very different items banks for the two sessions!
+  select(-forward_age, -forward_diff, -test_num)
+
+pairs_long <- pairs |> pivot_longer(c("first_admin", "second_admin"), names_to = "session_num", values_to = "administration_id")
+
+
+acc <- d_aoi |>
+  inner_join(pairs_long |> select(dataset_name, administration_id, subject_id) |> distinct()) |>
+  filter(t_norm >= 500) |>
+  filter(t_norm <= 4000) |>
+  group_by(dataset_name, subject_id, administration_id, trial_id, trial_order, target_label) |>
+  summarize(acc = mean(correct, na.rm = T)) |>
+  filter(!is.na(acc))
+
+acc_mean <- acc |>
+  group_by(dataset_name, subject_id, administration_id) |>
+  summarize(acc_trials = sum(!is.na(acc)), acc = mean(acc, na.rm = T))
+
+rt <- readRDS(here("cached_intermediates", "4_rt_canonical.rds")) |>
+  inner_join(pairs_long |> select(dataset_name, administration_id, subject_id) |> distinct()) |>
+  filter(shift_type == "D-T") |> filter(approach=="trad_launch") |> filter(logged=="raw") |> filter(!is.na(rt))
+
+rt_mean <- rt |>
+  group_by(dataset_name, subject_id, administration_id) |>
+  summarize(rt_trials = n(), mean_rt = mean(rt))
+```
+
+```{r}
+all <- pairs_long |>
+  left_join(acc_mean) |>
+  left_join(rt_mean)
+
+all_wide <- all |>
+  mutate(session_num = ifelse(session_num == "first_admin", 1, 2)) |>
+  pivot_wider(values_from = c("administration_id", "acc", "acc_trials", "rt_trials", "mean_rt"), names_from = session_num) |>
+  mutate(age_bin = case_when(
+    mean_age < 18 ~ "12-17",
+    mean_age < 21 ~ "18-20",
+    mean_age < 28 ~ "21-27",
+    mean_age < 33 ~ "28-32",
+    mean_age >= 33 ~ "33+"
+  ))
+```
+
+Simulations of test-retest reliability from down- and up-sampling accuracy trials. 
 
 ```{r}
 
@@ -555,21 +637,15 @@ acc_corr_resample <- pairs_long |>
   summarise(
     cor_acc = ifelse(sum(!is.na(mean_acc_1) & !is.na(mean_acc_2)) > 2, cor.test(mean_acc_1, mean_acc_2)$estimate, NA)  )
 
-ggplot(acc_corr_resample, aes(x = num_samples, y = cor_acc, col = age_bin)) +
-  stat_summary(position = position_dodge(.5))+
-  stat_summary(position = position_dodge(.5),geom="line")+
-
-    scale_color_viridis(discrete = T) +
-  facet_wrap(~dataset_name) +
-  geom_hline(yintercept = 0)+geom_vline(xintercept=10, lty="dashed")+geom_vline(xintercept=15, lty="dashed")
-
-ggplot(acc_corr_resample, aes(x = num_samples, y = cor_acc, col = age_bin)) +
-  scale_color_viridis(discrete = T) +
+ggplot(acc_corr_resample, aes(x = num_samples, y = cor_acc)) +
+  #scale_color_viridis(discrete = T) +
   stat_summary(position = position_dodge(.5)) +
   geom_smooth()+
   stat_summary(position = position_dodge(.5), geom = "line") +
   geom_hline(yintercept = 0)+geom_vline(xintercept=10, lty="dashed")+geom_vline(xintercept=15, lty="dashed")
 ```
+
+Simulations of test-retest reliability from down- and up-sampling accuracy trials. 
 
 ```{r}
 
@@ -608,27 +684,6 @@ rt_corr_resample <- pairs_long |>
   summarise(
     cor_rt = ifelse(sum(!is.na(mean_rt_1) & !is.na(mean_rt_2)) > 2, cor.test(mean_rt_1, mean_rt_2)$estimate, NA)  )
 
-ggplot(rt_corr_resample, aes(x = num_samples, y = cor_rt, col = age_bin)) +
-  stat_summary(position = position_dodge(.5))+
-  stat_summary(position = position_dodge(.5),geom="line")+
-    scale_color_viridis(discrete = T) +
-  facet_wrap(~dataset_name) +
-  geom_hline(yintercept = 0)+geom_vline(xintercept=5, lty="dashed")+geom_vline(xintercept=10, lty="dashed")
-
-ggplot(rt_corr_resample, aes(x = num_samples, y = cor_rt)) +
-  stat_summary(position = position_dodge(.5))+
-  stat_summary(position = position_dodge(.5),geom="line")+
-    scale_color_viridis(discrete = T) +
-  facet_wrap(~dataset_name) +
-  geom_hline(yintercept = 0)+geom_vline(xintercept=5, lty="dashed")+geom_vline(xintercept=10, lty="dashed")
-
-ggplot(rt_corr_resample, aes(x = num_samples, y = cor_rt, col = age_bin)) +
-  scale_color_viridis(discrete = T) +
-  stat_summary(position = position_dodge(.5)) +
-  geom_smooth(se=F)+
-  stat_summary(position = position_dodge(.5), geom = "line") +
-  geom_hline(yintercept = 0)+geom_vline(xintercept=5, lty="dashed")+geom_vline(xintercept=10, lty="dashed")
-
 ggplot(rt_corr_resample, aes(x = num_samples, y = cor_rt)) +
   scale_color_viridis(discrete = T) +
   stat_summary(position = position_dodge(.5)) +
@@ -636,1415 +691,45 @@ ggplot(rt_corr_resample, aes(x = num_samples, y = cor_rt)) +
   stat_summary(position = position_dodge(.5), geom = "line") +
   geom_hline(yintercept = 0)+geom_vline(xintercept=5, lty="dashed")+geom_vline(xintercept=10, lty="dashed")
 ```
+For accuracy, the benefits of increasing numbers of trials seems to flatten out around 10-15 trials. As nearly all trials produce useable accuracy data, this suggests a target minimum of 10-15 trials. 
 
+For RT, it seems much better to have 2 RTs rather than just 1 whenever possible. On average, 1/3 of trials result in useable RT data, but this varies per child, so having 10 trials is recommended to ensure that most children have at least 2 valid RT trials. Test-retest reliability for RT does seem to increase with more trials, with benefits diminishing after 10 trials. Thus, for individual-differences studies where consistent measures of individual language processing speed are desired, we recommend 30 trials, to end up with an average of 10 RT trials per child. 
 
-recs: definitely is better to have more than 1 RT. Doing 10 trials total will likely get 2 RTs from nearly all kids. 
-
-Aim for 5-10 RT trials for test-retest reliability. (Meaning 15-30 overall trials presented)
-
-for accuracy probably 10-15 trials is enough.
-
-At least 10 trials which should get decent accuracy and multiple RT's 
-
-10 minimum, reliability (at least for RT) is probably increasing up to 30 total trials.
+10 trials should result in multiple RT measures for each child and a fairly reliable measure of accuracy; however, for individual differences in processing speed, 30 trials is recommended where possible. 
 
 ## Recommendation 6: Match target and distractor based on image saliency, in particular animacy. 
-[TODO Tarun is leading the image properties analysis.]
+[TODO Tarun is leading the image properties analysis so I haven't looked at this part yet.]
 
 Repeating the same image pairs does not have a substantial effect on looking patterns overall. 
-<!--
-# (Preamble) Overview of approach
 
+# Paper outline
 
-We use "vanilla" (real word target, real word distractor, plain carrier phrase) trials from peekbank to explore how different look at different possible data-processing and methodological choices affect 3 outcomes measures. 
+Introduction:
 
-* one outcome is ICC (intra-class correlation) which is a variance partition metric that is a generalization of correlation. This measures (within a dataset) how much different items (target labels) are consistent with each other in "rating" the subjects (kid-administrations). We think that LWL measures like accuracy and RT are getting at some kid-level properties of language processing speed (and receptive vocabulary). All else equal, we want to process the data (and design studies) in a way that maximizes the ability to get at this language knowledge. 
+ * Early language is important.
+ * LWL is a good method/measure for early language. (what LWL is)
+ * LWL is widely used in various paradigms (both longitudinal indiv-differences & experimental paradigms)
+ * Reliability and validity are important, but many early childhood measures have lower-than-desired reliability and validity. 
+ * LWL has rich time course data that can be cleaned and analysed in different ways. We want to figure out the best practices to maximize reliability and validity to get the most out of the data. 
+ * Two main measures -- accuracy and RT. 
+ * We leverage peekbank to get broad coverage of vanilla trials often with corresponding CDI data, and look at 2 types of reliability and 2 types of validity. 
+ * Contribution: data-driven recommendations based on peekbank for practices to get the most reliability and validity out of LWL data. 
+ 
+Methods: (where are we submitting this -- is it a methods first paper)
 
-* in addition to being reliable, we also want valid metrics. We don't want to just be measuring any kid-level-property, we want to be measuring something about kid *language*. For these datasets, we have CDI data (some production and some comprehension). 
+ * dataset description of peekbank & of the subset of data used here
+ * explanation of 4 reliability and validity metrics, general search strategy, bootstrapping/errorbars as needed
+ 
+Results:
 
-* another reliability measure is test-retest reliability. For a few longitudinal datasets, we have repeated administrations within a couple months of one another. For these, we can do test-retest correlations across the pair of administrations. 
+= recommendations above
 
-For all these measures, we have to do them within each dataset, due to cross-dataset variability, but we can look at the mean correlations across the datasets. 
+Discussion:
 
-## Rabbit hole 1: A digression on ICC
-There are a *ton* of different ICC measures, that vary in what assumptions they make and what sources of variance they compare. And different references list different subsets and label them differently (fun!).
+* summary
+* focused on "vanilla" trials, where it's clear what reliability and validity would mean; we don't know how practices would generalize to experimental settings
+* limited by datasets which are heterogenous by age/length/items
+* often a smooth, wide range of options with similar metrics -- we focus on "best" to inform future practice where one wants to know what is necessary or what (otherwise arbitrary) cutoff to choose, but robust findings will show up robustly over a range of data practices. 
 
-We are using the ICC for *inter*-rater reliability for a "random factorial model without interaction" measuring consistency and looking for the reliability of an average of raters. This is provided by the "agreement" package we use, but I don't think it is fully documented anywhere. 
-
-Basically, this ICC looks at the ratio between by-subject variance (by-subject variance + by-rater variance + error variance) 
-
-* inter-rater reliability means we want to know how well raters (i.e.) items correlate with each other (as opposed to with themselves)
-* the "random factorial model" (type 2 in standard ICC classification) is for when all raters rate all subjects (not quite true for us), but may have varying numbers of measures on each combination. Both raters and subjects are assumed to be sampled from a larger population of interest. 
-* the "without interaction" is a variant for when there are (or may frequently be) single ratings per subject and per rater and/or when subject-rater interactions are not of interest (and can be lumped into the overall error). (Using interaction or not can be a bias-variance trade-off; adding the interactions decreases bias but increases variance.) This version is documented in Gwet 2014 (Handbook of Inter-Rater Reliability, page 256) This measures the ratio of by-subject variance / (by-subject variance + by-rater variance + error variance) 
-* consistency. We aren't interested in exact agreement between raters but rather whether the slopes across raters for different subjects are the same, so it's okay if one rater is consistently lower (i.e. a later-learned word). This omits the by-rater variance from the denominator (I don't know that this is ever explicitly documented for the random factorial model, but it sort of aligns with later discussion of consistency on 272 of Gwet 2014 and is somewhat consistent with https://pmc.ncbi.nlm.nih.gov/articles/PMC4913118/ 's pattern of formulae for different types of ICC)
-* average across raters divides the error term by the number of raters (seems vaguely consistent with https://pmc.ncbi.nlm.nih.gov/articles/PMC4913118/)
-
-so, the overall formula for ICC is then by-subject variance / (by-subject variance + error variance / number of raters) 
-
-The package "agreement" that we use seems to be one of few that (by using Gwet's formulation) handles cases where there is missing or uneven data (very common in peekbank, especially for post-exclusion or RT data).
-
-The main point is to have an ICC measure can be used for comparison across the same datasets for different methodological questions. We don't try to interpret the ICC against external cutoffs for reliability. 
-
-## Handling uncertainty
-
-How do we tell what numerical differences in ICC or in correlations are substantial? The approach we take here is to use bootstrapping which lets us generate per-dataset confidence intervals around the point estimate. We then can use point-estimates and the bootstrapped CIs to calculate a variance-weighted meta-analytic estimate (and CI) to get an overall estimate. 
-
-### Rabbit hole 2: a digression on bootstrapping
-For ICC which is a trial-level measure, we do the bootstrap resampling over trials. For the test-retest and CDI correlations, the correlation used is between the mean value for that administration and another administration/the external CDI. 
-
-It turns out that "take the mean across trials then correlate" is a very biased statistic. So, if you do trial-wise bootstrapping on this statistic, the results from the bootstrap samples are not evenly distributed around the sample value, and in fact often are all lower than the sample mean. The easy way to think about this is that sampling trials from the population (bootstrapping) increases the noise on the means-across-trials, and with a noisier measure, the correlation will go down.
-
-Because of this, we do administration-level bootstrapping for the CDI and age correlations and pair-of-admins-level bootstrapping for the test-retest.
-
-In some cases, the ICC values also are somewhat biased (judging from the bootstrapped CIs), but this seems less severe. 
-
-(While bias sounds bad and makes for wonky plots, our main purpose for bootstrapping is to get measures of variance which we can use for meta-analytic CIs, which should work, biased estimators or not. )
-
-## Turning this into recommendations
-
-This project has a non-standard aim with the statistics. We are neither trying to do just estimation nor are we trying to do "traditional" inferential (p<.05) statistics. We are trying to make inferences as to what data practices to recommend (and how strongly). 
-
-Often in our other statistical applications, we like to see differences. Here, though, it's not a bad thing, if say, exactly where one starts an accuracy window doesn't make a difference. It would be surprising and worrying if small differences in window start dramatically altered results! 
-
-Other factors may also influence what data practices to choose (and to recommend). In particular, we probably prefer parsimony -- given two processes with equivalent goodness of outcome, we should prefer the simpler one. There may also be theoretical commitments that lead to preferences over one measure or another (ex: log vs raw RT). 
-
-## Structure of analyses
-
-There are two classes of decisions we're hoping to give recommendations about: ones that apply after the data has been collected and ones that apply before the data is collected. 
-
-For the "analytic" (really data-processing) decisions, how many trials are useable is probably correlated with various kid factors (maybe squirmy kids know fewer words because they're younger). 
-
-For the "design" decisions, we're simulating hypotheticals about what the data would look like with fewer or more (or differently structured) trials.
-
-# Accuracy options
-
-One common measure from LWL times is accuracy which is measured as the proportion of the time the child is looking at the target out of the time they are looking at either the distractor or the target. 
-
-The data-processing decision is what that window should be -- when should it start and when should it end. (Other questions about whether to baseline-correct and whether to do exclusions based on amount of data covered in later notebooks). 
-
-```{r, echo=F, include=F}
-knitr::opts_chunk$set(warning=F, message=F, echo=F)
-source(here::here("helper/common.R"))
-
-d_aoi <- readRDS(here("cached_intermediates", "1_d_aoi.Rds"))
-t_increment <- 200
-```
-
-how much data do we have?
-
-```{r}
-#looks like all datasets have lots of trials
-d_aoi |> filter(!is.na(correct)) |> group_by(dataset_name, t_norm)|> tally() |>  ggplot(aes(x=t_norm, y=n, fill=dataset_name, color=dataset_name))+geom_col()+facet_wrap(~dataset_name, scales="free_y")+theme(legend.position = "none")
-
-```
-
-
-```{r, eval=F}
-icc_window_sim <- function(t_start = -500, t_end = 4000, object) {
-  print(paste(t_start, t_end))
-
-  df <- d_aoi |>
-    filter(t_norm > t_start, t_norm < t_end) |>
-    group_by(dataset_name, dataset_id, administration_id, target_label, trial_id) |>
-    summarise(
-      accuracy = mean(correct, na.rm = TRUE),
-      prop_data = mean(!is.na(correct))
-    ) |>
-    filter(!is.na(accuracy)) |> 
-    group_by(dataset_name, dataset_id, administration_id, target_label) |>
-    mutate(repetition = row_number())
-
-  # compute ICCs
-  df |>
-    group_by(dataset_name) |>
-    nest() |>
-    mutate(icc = unlist(map(data, ~ get_icc(., "accuracy", object)))) |>
-    select(-data) |>
-    unnest(cols = c())
-}
-```
-
-```{r, eval=F}
-acc_params <- expand_grid(
-  t_start = seq(-1000, 1500, t_increment),
-  t_end = seq(2000, 4000, t_increment),
-  object = c("administration")
-)
-
-# multidyplr attempt
-cluster <- new_cluster(14)
-cluster_library(cluster, "tidyverse")
-cluster_library(cluster, "agreement")
-cluster_copy(cluster, "icc_window_sim")
-cluster_copy(cluster, "get_icc")
-cluster_copy(cluster, "d_aoi")
-
-tic()
-accs <- acc_params |>
-  # partition(cluster) |>
-  mutate(icc = pmap(list(t_start, t_end, object), icc_window_sim)) |>
-  # collect() |>
-  unnest(col = icc)
-toc()
-
-saveRDS(accs, here("cached_intermediates", "3_accs.Rds"))
-```
-
-# ICC Reliability
-
-To start with, we consider a range of window starts from -1000ms to 1500ms (0 is point of disambiguation), and window ends from 2000 to 4000ms. 
-
-```{r}
-accs <- readRDS(here("cached_intermediates/3_accs.Rds"))
-
-accs_summary <- accs |>
-  filter(object == "administration") |>
-  group_by(t_start, t_end, object) |>
-  summarize(
-    N = n(),
-    mean_icc = mean(icc, na.rm = TRUE)
-  ) |>
-  mutate(window_size = t_end - t_start)
-```
-
-
-Descriptive heatmap. 
-
-
-```{r}
-ggplot(accs_summary, aes(x = t_start, y = t_end, fill = mean_icc)) +
-  geom_tile(color = "white") +
-  scale_fill_viridis(name = "Mean ICC", option = "inferno") +
-  scale_x_continuous(breaks = c(-1000, -500, 0, 500, 1000, 1500)) +
-  xlab("Window Start Time (in ms)") +
-  ylab("Window End Time (in ms)")
-```
-The best ICC seems to be starting at 500-1000 and ending at 3000-4000ms. 
-
-Window-by-window. 
-
-
-```{r}
-ggplot(
-  accs_summary,
-  aes(color = mean_icc)
-) +
-  geom_vline(xintercept = 0, linetype = "dashed") +
-  geom_segment(aes(x = t_start, xend = t_end, y = mean_icc, yend = mean_icc)) +
-  geom_segment(aes(x = t_start, xend = t_start, y = mean_icc - 0.005, yend = mean_icc + 0.005)) +
-  geom_segment(aes(x = t_end, xend = t_end, y = mean_icc - 0.005, yend = mean_icc + 0.005)) +
-  scale_color_viridis(name = "Mean ICC", direction = -1) +
-  theme(legend.position = "none") +
-  ylab("Mean ICC") +
-  xlab("Analysis Window (in ms)")
-```
-
-
-
-## by age
-
-Let's do one more simulation where we check if this result holds across two ages. We'll break down age into > 24 months and < 24 months, which roughly splits the dataset. There are `r  length(unique(d_aoi$administration_id[d_aoi$age < 24]))` younger kids and `r length(unique(d_aoi$administration_id[d_aoi$age >= 24]))` older kids. 
-
-```{r, eval=F}
-#trials/dataset in each agebin
-d_aoi |> filter(!is.na(correct)) |> distinct(trial_id, age, dataset_name) |>    mutate(younger = age < 24) |>
-group_by(dataset_name, younger) |> tally() |> arrange(n)
-
-# bacon_gendercues only has 20 trials in older, ronfard_2021 only has 34 trials in older
-
-#admins/dataset in each agebin
-d_aoi |> filter(!is.na(correct)) |> distinct(administration_id, age, dataset_name) |>    mutate(younger = age < 24) |>
-group_by(dataset_name, younger) |> tally() |> arrange(n)
-
-# yep bacon_gendercues has 1 kid and ronfard_2021 has 2 kids  in the older bin
-```
-
-
-```{r, eval=F}
-icc_window_sim_age <- function(t_start = -1000, t_end = 4000, object) {
-  df <- d_aoi |>
-    mutate(younger = age < 24) |>
-    filter(t_norm > t_start, t_norm < t_end) |>
-    group_by(
-      dataset_name, dataset_id, younger, administration_id,
-      target_label, trial_id
-    ) |>
-    summarise(
-      accuracy = mean(correct, na.rm = TRUE),
-      prop_data = mean(!is.na(correct))
-    ) |> 
-    filter(!is.na(accuracy)) |> 
-    group_by(dataset_name, younger, dataset_id, administration_id, target_label) |>
-    mutate(repetition = row_number())
-
-  # compute ICCs
-  df |>
-    group_by(dataset_name, younger) |>
-    nest() |>
-    mutate(icc = unlist(map(data, ~ get_icc(., "accuracy", object)))) |>
-    select(-data) |>
-    unnest(cols = c())
-}
-
-t_increment <- 200
-
-acc_params <- expand_grid(
-  t_start = seq(-1000, 1500, t_increment),
-  t_end = seq(2000, 4000, t_increment),
-  object = c("administration")
-)
-
-library(multidplyr)
-cluster <- new_cluster(16)
-cluster_library(cluster, "dplyr")
-cluster_library(cluster, "tidyr")
-cluster_library(cluster, "purrr")
-cluster_library(cluster, "agreement")
-cluster_copy(cluster, "get_icc")
-cluster_copy(cluster, "d_aoi")
-cluster_copy(cluster, "icc_window_sim_age")
-
-accs_byage <- acc_params |>
-  #partition(cluster) |>
-  mutate(icc = pmap(list(t_start, t_end, object), icc_window_sim_age)) |>
-  #collect() |>
-  unnest(col = icc)
-
-saveRDS(accs_byage, here("cached_intermediates", "3_accs_byage.rds"))
-
-# note there are NAs for bacon_gendercues in the 24+ b/c they have exactly one child with age >=24mo
-```
-
-```{r}
-accs_byage <- readRDS(here("cached_intermediates", "3_accs_byage.rds")) |> filter(!(dataset_name%in% c("bacon_gendercues", "ronfard_2021") & younger==F))
-accs_byage_summary <- accs_byage |>
-  group_by(younger, t_start, t_end, object) |>
-  summarize(
-    N = n(),
-    mean_icc = mean(icc, na.rm = TRUE)
-  ) |>
-  mutate(window_size = t_end - t_start) |>
-  mutate(age = ifelse(younger, ">=24 months", "<24 months"))
-```
-
-Heatmap split by age. 
-
-```{r}
-ggplot(accs_byage_summary, aes(x = t_start, y = t_end, fill = mean_icc)) +
-  geom_tile(color = "white") +
-  scale_fill_viridis(name = "Mean ICC", option = "inferno") +
-  scale_x_continuous(breaks = c(-1000, -500, 0, 500, 1000, 1500)) +
-  xlab("Window Start Time (in ms)") +
-  ylab("Window End Time (in ms)") +
-  facet_wrap(~age)
-```
-Overall, the ICC for older kids is lower, but the "best" spots are still in a start at 500-1000 and go long. 
-
-```{r}
-ggplot(
-  accs_byage_summary,
-  aes(color = mean_icc)
-) +
-  geom_vline(xintercept = 0, linetype = "dashed") +
-  geom_segment(aes(x = t_start, xend = t_end, y = mean_icc, yend = mean_icc)) +
-  geom_segment(aes(x = t_start, xend = t_start, y = mean_icc - 0.005, yend = mean_icc + 0.005)) +
-  geom_segment(aes(x = t_end, xend = t_end, y = mean_icc - 0.005, yend = mean_icc + 0.005)) +
-  scale_color_viridis(name = "Mean ICC", direction = -1) +
-  theme(legend.position = "none") +
-  ylab("Mean ICC") +
-  xlab("Analysis Window (in ms)") 
-```
-Here we see that the younger kids lose more reliability when the window is short, but otherwise the conclusions remain unchanged. 
-
-## Fine grained start time
-
-From the above, it looks like long windows are preferable, so let's set the window end to 4000 and explore the start time region more closely. It's typical to start windows pretty early, based on how short it takes someone to respond to a stimulus, so let's look more closely at the 200-600ms start times. 
-
-```{r, eval=F}
-icc_window_sim <- function(t_start = -500, t_end = 4000, object) {
-  print(paste(t_start, t_end))
-
-  df <- d_aoi |>
-    filter(t_norm > t_start, t_norm < t_end) |>
-    group_by(dataset_name, dataset_id, administration_id, target_label, trial_id) |>
-    summarise(
-      accuracy = mean(correct, na.rm = TRUE),
-      prop_data = mean(!is.na(correct))
-    ) |>
-    filter(!is.na(accuracy)) |> 
-    group_by(dataset_name, dataset_id, administration_id, target_label) |>
-    mutate(repetition = row_number())
-
-  # compute ICCs
-  df |>
-    group_by(dataset_name) |>
-    nest() |>
-    mutate(icc = unlist(map(data, ~ get_icc(., "accuracy", object)))) |>
-    select(-data) |>
-    unnest(cols = c())
-}
-acc_params <- expand_grid(
-  t_start = c(200, 250, 300, 350, 400, 450, 500, 550, 600),
-  t_end = 4000,
-  object = c("administration")
-)
-library(multidplyr)
-# multidyplr attempt
-cluster <- new_cluster(14)
-cluster_library(cluster, "dplyr")
-cluster_library(cluster, "tidyr")
-cluster_library(cluster, "purrr")
-cluster_library(cluster, "agreement")
-cluster_copy(cluster, "icc_window_sim")
-cluster_copy(cluster, "get_icc")
-cluster_copy(cluster, "d_aoi")
-
-
-accs <- acc_params |>
-  #partition(cluster) |>
-  mutate(icc = pmap(list(t_start, t_end, object), icc_window_sim)) |>
-  #collect() |>
-  unnest(col = icc)
-
-
-saveRDS(accs, here("cached_intermediates", "3_acc_icc_finegrain.rds"))
-```
-
-```{r}
-accs_finegrain <- readRDS(here("cached_intermediates", "3_acc_icc_finegrain.rds"))
-```
-
-
-```{r}
-accs_finegrain |> ggplot(aes(x = t_start, y = icc)) +
-  geom_line(aes(col = dataset_name)) +
-  stat_summary()+
-  stat_summary(geom="line", size=1)+
-  theme(legend.position = "none")
-```
-Datasets vary a lot in what the ICC generally is, but in aggregate, the ICC doesn't seem sensitive to exactly when the window starts. 
-
-```{r}
-accs_finegrain |> ggplot(aes(x = t_start, y = icc)) +
-  geom_point(aes(col = dataset_name)) +
-  facet_wrap(~dataset_name) +
-  theme(legend.position = "none")
-```
-There is not a consistent pattern in which starting point in this range is best across datasets. 
-
-
-
-# Bootstrapped ICC
-
-From the wide survey of values above, we now want to check more closely on short versus long window, and a range of window starting values spanning commonly used values. 
-
-We look at ends of 2000 and 4000 and starts in 0-1000 by each 100 ms increment. 
-
-```{r, eval=F}
-icc_window_sim_age_bootstrap <- function(t_start = -500, t_end = 4000, object) {
-  print(paste(t_start, t_end))
-
-  df <- d_aoi |>
-    filter(t_norm > t_start, t_norm < t_end) |>
-    mutate(younger = age < 24) |>
-    group_by(dataset_name, dataset_id, administration_id, target_label, trial_id, younger) |>
-    summarise(
-      accuracy = mean(correct, na.rm = TRUE),
-      prop_data = mean(!is.na(correct))
-    ) |>
-    filter(!is.na(accuracy)) |>
-    group_by(dataset_name, dataset_id, administration_id, target_label, younger) |>
-    mutate(repetition = row_number())
-
-  # compute ICCs
-  df |>
-    group_by(dataset_name, younger) |>
-    nest() |>
-    mutate(icc = map(data, \(d) bootstrap_icc(d, "accuracy", 2000))) |>
-    select(-data) |>
-    unnest(icc)
-}
-
-icc_window_sim_bootstrap <- function(t_start = -500, t_end = 4000, object) {
-  print(paste(t_start, t_end))
-
-  df <- d_aoi |>
-    filter(t_norm > t_start, t_norm < t_end) |>
-    group_by(dataset_name, dataset_id, administration_id, target_label, trial_id) |>
-    summarise(
-      accuracy = mean(correct, na.rm = TRUE),
-      prop_data = mean(!is.na(correct))
-    ) |>
-    filter(!is.na(accuracy)) |>
-    group_by(dataset_name, dataset_id, administration_id, target_label) |>
-    mutate(repetition = row_number())
-
-  # compute ICCs
-  df |>
-    group_by(dataset_name) |>
-    nest() |>
-    mutate(icc = map(data, \(d) bootstrap_icc(d, "accuracy", 2000))) |>
-    select(-data) |>
-    unnest(icc)
-}
-
-acc_params <- expand_grid(
-  t_start = c(0, 100, 200, 300, 400, 500, 600, 700, 800, 900, 1000),
-  t_end = c(2000, 4000),
-  object = c("administration")
-)
-library(multidplyr)
-# multidyplr attempt
-cluster <- new_cluster(16)
-cluster_library(cluster, "dplyr")
-cluster_library(cluster, "tidyr")
-cluster_library(cluster, "purrr")
-cluster_library(cluster, "agreement")
-cluster_copy(cluster, "icc_window_sim_age_bootstrap")
-cluster_copy(cluster, "icc_window_sim_bootstrap")
-cluster_copy(cluster, "bootstrap_icc")
-cluster_copy(cluster, "d_aoi")
-
-
-accs_boot <- acc_params |>
-  partition(cluster) |>
-  # head(1) |>
-  mutate(icc = pmap(list(t_start, t_end, object), \(t_s, t_e, o) icc_window_sim_bootstrap(t_s, t_e, o))) |>
-  collect() |>
-  unnest(col = icc)
-
-
-saveRDS(accs_boot, here("cached_intermediates", "3_acc_icc_boot.rds"))
-
-accs_boot_age <- acc_params |>
-  partition(cluster) |>
-  # head(1) |>
-  mutate(icc = pmap(list(t_start, t_end, object), \(t_s, t_e, o) icc_window_sim_age_bootstrap(t_s, t_e, o))) |>
-  collect() |>
-  unnest(col = icc)
-
-saveRDS(accs_boot_age, here("cached_intermediates", "3_acc_icc_boot_age.rds"))
-
-```
-
-```{r}
-acc_boot <- readRDS(here("cached_intermediates", "3_acc_icc_boot.rds"))
-
-acc_boot_age <- readRDS(here("cached_intermediates", "3_acc_icc_boot_age.rds")) |> filter(!(dataset_name%in% c("bacon_gendercues", "ronfard_2021") & younger==F))
-```
-
-
-here are the per individual dataset results
-
-```{r}
-acc_boot |> ggplot(aes(x = t_start, y = est, ymin = lower, ymax = upper, color = as.character(t_end))) +
-  geom_pointrange(position = position_dodge(width = 25)) +
-  facet_wrap(~dataset_name)
-```
-this is pretty hard to interpret, so we calculate meta-analytic means and ranges for each condition. 
-
-```{r}
-library(metafor)
-acc_boot_summary <- acc_boot |>
-  filter(!is.na(lower), !is.na(upper)) |>
-  mutate(
-    stdev = (upper - lower) / (1.96 * 2),
-    var = stdev**2
-  ) |>
-  group_by(t_start, t_end) |>
-  nest() |>
-  mutate(icc = map(data, \(d){
-    rma(d$est, d$var) |>
-      summary() |>
-      coef()
-  })) |>
-  select(-data) |>
-  unnest(icc)
-
-
-acc_boot_age_summary <- acc_boot_age |> 
-  filter(!is.na(lower), !is.na(upper)) |>
-  mutate(
-    stdev = (upper - lower) / (1.96 * 2),
-    var = stdev**2
-  ) |>
-  group_by(t_start, t_end, younger) |>
-  nest() |>
-  mutate(icc = map(data, \(d){
-    rma(d$est, d$var) |>
-      summary() |>
-      coef()
-  })) |>
-  select(-data) |>
-  unnest(icc) |> 
-  mutate(younger=ifelse(younger, "<24months", ">=24months"))
-
-```
-
-Looking overall
-
-```{r}
-acc_boot_summary |> ggplot(aes(x = t_start, y = estimate, ymin = ci.lb, ymax = ci.ub, color = as.character(t_end))) +
-  geom_pointrange(position = position_dodge(width = 25))
-```
-Long windows are generally higher for ICC by a fairly substantial amount. The best starting point seems to be around 600ms, but we can at least confirm that ICC increases as one gets away from 0, but also decreases by 1000ms. This is consistent with the theoretical expectation that stimulus-driven behavior starts sometime around a few hundred milliseconds. 
-
-Checking for each age range
-
-```{r}
-acc_boot_age_summary |> ggplot(aes(x = t_start, y = estimate, ymin = ci.lb, ymax = ci.ub, color = as.character(t_end))) +
-  geom_pointrange(position = position_dodge(width = 50))+facet_wrap(~younger)
-
-```
-So, the benefit to longer windows is more pronounced for the older kids, but it's true for both younger and older. 
-
-ICC wise, best start time is like 600-700, but that may be different for validity. 
-
-# CDI Validity
-
-Reliability measures like ICC tell us how consistently we're measuring *something*, but they don't tell us what the *something* we're measuring is. For that, we want a check on validity, so we look at the correlation between accuracy (measured on different windows) with each of CDI production measures, CDI comprehension measures, and age. 
-
-```{r, eval=F}
-cdi_data <- readRDS(here("cached_intermediates", "1_cdi_subjects.Rds"))
-
-relevant <- d_aoi |> distinct(dataset_name)
-cdi_data |> inner_join(relevant) |> group_by(dataset_name) |> summarize(across(c(comp, prod, age), \(c) sum(!is.na(c)))) |> arrange(age)
-
-#comp, either 0 or 34+
-
-#prod -- we should exclude newman_genderdistractor, only 4 prod!!! (others either 0 or 28+)
-
-cdi_data |> inner_join(relevant) |> group_by(dataset_name) |> summarize(min_age=min(age, na.rm=T), max_age=max(age, na.rm=T), range=max_age-min_age) |> arrange(range) |> View()
-```
-
-```{r, eval=F}
-source("cl_helper.R")
-
-d_aoi <- readRDS("d_aoi.Rds")
-
-cdi_data <- readRDS("cdi.rds")
-
-do_cdi <- function(data, indices) {
-  summ <- data |>
-    slice(indices) |>
-    left_join(cdi_data) |>
-    ungroup() |>
-    summarise(
-      cor_comp = ifelse(sum(!is.na(comp) & !is.na(mean_var)) > 2, cor.test(mean_var, comp)$estimate, as.numeric(NA)),
-      cor_prod = ifelse(sum(!is.na(prod) & !is.na(mean_var)) > 2, cor.test(mean_var, prod)$estimate, as.numeric(NA)),
-      cor_age = ifelse(sum(!is.na(age) & !is.na(mean_var)) > 2, cor.test(mean_var, age)$estimate, as.numeric(NA))
-    )
-  cors <- c(summ$cor_comp[1], summ$cor_prod[1], summ$cor_age[1])
-  names(cors) <- c("cor_comp", "cor_prod", "cor_age")
-
-  return(cors)
-}
-
-boot_cdi <- function(data) {
-  data |>
-    group_by(dataset_name) |>
-    nest() |>
-    mutate(corr = map(data, \(d) {
-      b <- boot::boot(d, do_cdi, 2000)
-      if (is.na(b$t0[1])) {
-        comp_lower <- NA
-        comp_upper <- NA
-      } else {
-        ci_comp <- boot::boot.ci(b, index = 1, type = "basic")
-        comp_lower <- ci_comp$basic[4]
-        comp_upper <- ci_comp$basic[5]
-      }
-      if (is.na(b$t0[2])) {
-        prod_lower <- NA
-        prod_upper <- NA
-      } else {
-        ci_prod <- boot::boot.ci(b, index = 2, type = "basic")
-        prod_lower <- ci_prod$basic[4]
-        prod_upper <- ci_prod$basic[5]
-      }
-      if (is.na(b$t0[3])) {
-        age_lower <- NA
-        age_upper <- NA
-      } else {
-        ci_age <- boot::boot.ci(b, index = 3, type = "basic")
-        age_lower <- ci_age$basic[4]
-        age_upper <- ci_age$basic[5]
-      }
-      tibble(
-        comp_est = b$t0[1], comp_lower = comp_lower, comp_upper = comp_upper,
-        prod_est = b$t0[2], prod_lower = prod_lower, prod_upper = prod_upper,
-        age_est = b$t0[3], age_lower = age_lower, age_upper = age_upper,
-      )
-    })) |>
-    select(-data) |>
-    unnest(corr)
-}
-acc_cdi <- function(t_start = -500, t_end = 4000) {
-  d_aoi |>
-    filter(t_norm > t_start, t_norm < t_end) |>
-    group_by(dataset_name, dataset_id, administration_id, target_label, trial_id) |>
-    summarise(
-      accuracy = mean(correct, na.rm = TRUE),
-      prop_data = mean(!is.na(correct))
-    ) |>
-    group_by(dataset_name, dataset_id, administration_id, target_label) |>
-    filter(!is.na(accuracy)) |>
-    group_by(administration_id, dataset_name) |>
-    summarize(mean_var = mean(accuracy, na.rm = T)) |>
-    boot_cdi()
-}
-
-cluster <- new_cluster(16)
-cluster_library(cluster, "dplyr")
-cluster_library(cluster, "stringr")
-cluster_library(cluster, "purrr")
-cluster_library(cluster, "tidyr")
-cluster_library(cluster, "stats")
-cluster_library(cluster, "tibble")
-cluster_copy(cluster, "do_cdi")
-cluster_copy(cluster, "d_aoi")
-cluster_copy(cluster, "cdi_data")
-cluster_copy(cluster, "boot_cdi")
-cluster_copy(cluster, "acc_cdi")
-cluster_copy(cluster, "bc_acc_cdi")
-
-
-acc_params <- expand_grid(
-  t_start = c(0, 100, 200, 300, 400, 500, 600, 700, 800, 900, 1000),
-  t_end = c(2000, 4000),
-)
-
-
-accs_boot_cdi <- acc_params |>
-  partition(cluster) |>
-  mutate(cdi = pmap(list(t_start, t_end), \(t_s, t_e) acc_cdi(t_s, t_e))) |>
-  collect() |>
-  unnest(cdi)
-
-saveRDS(accs_boot_cdi, here("cached_intermediates", "3_accs_kid_cdi.rds"))
-
-```
-
-```{r}
-#newman_genderdistractor only has 4 kids with prod! all others have either 0 or  28+
-accs_cdi_kid <- readRDS(here("cached_intermediates", "3_accs_kid_cdi.rds")) |> mutate(
-  prod_est = ifelse(dataset_name=="newman_genderdistractor", NA, prod_est),
-  prod_lower = ifelse(dataset_name=="newman_genderdistractor", NA, prod_lower),
-  prod_upper = ifelse(dataset_name=="newman_genderdistractor", NA, prod_upper),
-)
-
-library(metafor)
-
-accs_cdi_kid_summ <-  accs_cdi_kid |> 
-  mutate(
-    comp_stdev = (comp_upper - comp_lower) / (1.96 * 2),
-    comp_var = comp_stdev**2,
-    prod_stdev = (prod_upper - prod_lower) / (1.96 * 2),
-    prod_var = prod_stdev**2,
-    age_stdev = (age_upper - age_lower) / (1.96 * 2),
-    age_var = age_stdev**2
-  ) |>
-  group_by(t_start, t_end) |>
-  nest() |>
-  mutate(comp= map(data, \(d){
-    rma(d$comp_est, d$comp_var) |>
-      summary() |>
-      coef()
-  }),
-  prod= map(data, \(d){
-    rma(d$prod_est, d$prod_var) |>
-      summary() |>
-      coef()
-  }),
-  age= map(data, \(d){
-    rma(d$age_est, d$age_var) |>
-      summary() |>
-      coef()
-  })) |>
-  select(-data) |>
-  unnest(c(comp, prod, age), names_sep="_")
-```
-
-
-Correlation with production
-
-```{r}
-accs_cdi_kid_summ |> ggplot(aes(x = t_start, y = prod_estimate, ymin=prod_ci.lb, ymax=prod_ci.ub, color=as.character(t_end))) +geom_pointrange(position=position_dodge(width=50))+coord_flip()
-
-
-accs_cdi_kid |> filter(!is.na(prod_est)) |>  ggplot(aes(x = t_start, y = prod_est, ymin=prod_lower, ymax=prod_upper,  col=as.character(t_end))) +
-  geom_pointrange() +
-  coord_flip() +
-  theme(legend.position = "none") +
-  facet_wrap(~dataset_name)
-```
-All of these show the expected positive correlation between CDI production and accuracy. Kids who say more words are more accurate. We don't seem much difference at all based on windowing decisions, but if we had to say what's best, it's a long window with a moderate start (400ms?). 
-
-Correlation with comprehension
-
-```{r}
-accs_cdi_kid_summ |> ggplot(aes(x = t_start, y = comp_estimate, ymin=comp_ci.lb, ymax=comp_ci.ub, color=as.character(t_end))) +geom_pointrange(position=position_dodge(width=50))+coord_flip()
-
-
-accs_cdi_kid |> filter(!is.na(comp_est)) |>  ggplot(aes(x = t_start, y = comp_est, ymin=comp_lower, ymax=comp_upper,  col=as.character(t_end))) +
-  geom_pointrange() +
-  coord_flip() +
-  theme(legend.position = "none") +
-  facet_wrap(~dataset_name)
-```
-Looking at comprehension, there aren't big differences, but we see higher correlations with shorter windows (peaking starting at 400ms). For long windows, peak seems to be for really long like 0-4000ms. 
-Again, correlation is positive, as expected!
-
-
-Correlation with age
-
-Correlating with age isn't a validity check per se, so much as a "if it doesn't correlate with age, we worry" check. 
-
-```{r}
-accs_cdi_kid_summ |> ggplot(aes(x = t_start, y = age_estimate, ymin=age_ci.lb, ymax=age_ci.ub, color=as.character(t_end))) +geom_pointrange(position=position_dodge(width=50))+coord_flip()
-
-
-accs_cdi_kid|> filter(!is.na(age_est)) |>  ggplot(aes(x = t_start, y = age_est, ymin=age_lower, ymax=age_upper,  col=as.character(t_end))) +
-  geom_pointrange() +
-  coord_flip() +
-  geom_hline(yintercept=0)+
-  theme(legend.position = "none") +
-  facet_wrap(~dataset_name)
-```
-Overall, there is a positive correlation with age that is not very effected by windowing choices. 
-
-Some of the variation in the extent of the age correlation in the dataset may be due to how much age variability the dataset has, but it's a bit strange that ferguson_eyetrackingr is negative (3 month range) and newman_genderdistractor is negative (15 month range). Perry and pomper_* datasets have 3-5 month ranges, so correlations may be less surprising there. 
-
-# Test-retest reliability
-
-Here, we consider all pairs of admins on the same child within 1.5 months for test-retest. In a few cases, this double-counts an administration -- when children had admins at 17, 18, and 19 months, we look at the test-retest of the 17 and 18 month admins and of the 18 and 19 month admins. 
-
-```{r, eval=F}
-source("cl_helper.R")
-
-d_aoi <- readRDS("d_aoi.Rds")
-library(tibble)
-library(multidplyr)
-
-admins <- d_aoi |>
-  select(dataset_name, subject_id, administration_id, age) |>
-  distinct()
-repeated <- admins |>
-  group_by(dataset_name, subject_id) |>
-  tally() |>
-  filter(n > 1)
-
-repeated_subjects <- admins |> inner_join(repeated)
-
-pairs <- repeated_subjects |>
-  group_by(dataset_name, subject_id) |>
-  mutate(
-    forward_age = lead(age),
-    forward_diff = forward_age - age,
-    test_num = case_when(
-      forward_diff < 1.5 ~ 1,
-    ),
-    mean_age = case_when(
-      test_num == 1 ~ (age + forward_age) / 2,
-    ),
-    second_admin = case_when(
-      test_num == 1 ~ lead(administration_id)
-    )
-  ) |>
-  filter(!is.na(test_num)) |>
-  rename(first_admin = administration_id) |>
-  select(-n, -age) |>
-  left_join(repeated_subjects |> select(-age, -n), by = c("dataset_name", "subject_id", "second_admin" = "administration_id")) |>
-  ungroup() |>
-  mutate(pair_number = row_number()) |>
-  select(-forward_age, -forward_diff, -test_num)
-
-pairs_long <- pairs |> pivot_longer(c("first_admin", "second_admin"), names_to = "session_num", values_to = "administration_id")
-
-pairs_aoi_data <- pairs_long |> left_join(d_aoi)
-
-
-test_retest_corr <- function(data, indices) {
-  summ <- data |>
-    slice(indices) |>
-    summarise(cor_test_retest = ifelse(sum(!is.na(first_admin) & !is.na(second_admin)) > 2, cor.test(first_admin, second_admin)$estimate, NA))
-  return(summ$cor_test_retest[1])
-}
-
-boot_test_retest <- function(data) {
-  data |>
-    select(-administration_id) |>
-    pivot_wider(names_from = session_num, values_from = mean_var) |>
-    group_by(dataset_name) |>
-    nest() |>
-    # head(1) |>
-    mutate(corr = map(data, \(d) {
-      b <- boot::boot(d, test_retest_corr, 2000)
-      ci <- boot::boot.ci(b, type = "basic")
-      print(ci)
-      tibble(est = b$t0, lower = ci$basic[4], upper = ci$basic[5])
-    })) |>
-    select(-data) |>
-    unnest(corr)
-}
-
-
-acc_test_retest <- function(t_start = -500, t_end = 4000) {
-  print(paste(t_start, t_end))
-
-  pairs_aoi_data |>
-    filter(t_norm > t_start, t_norm < t_end) |>
-    group_by(administration_id, dataset_name, subject_id, pair_number, session_num, target_label, trial_id) |>
-    summarise(
-      accuracy = mean(correct, na.rm = TRUE),
-      prop_data = mean(!is.na(correct)),
-      .groups = "drop"
-    ) |>
-    filter(!is.na(accuracy)) |>
-    group_by(administration_id, dataset_name, subject_id, pair_number, session_num) |>
-    summarize(mean_var = mean(accuracy, na.rm = T), .groups = "drop") |>
-    boot_test_retest()
-}
-
-library(multidplyr)
-library(boot)
-cluster <- new_cluster(16)
-cluster_library(cluster, "dplyr")
-cluster_library(cluster, "stringr")
-cluster_library(cluster, "purrr")
-cluster_library(cluster, "tidyr")
-cluster_library(cluster, "stats")
-cluster_library(cluster, "tibble")
-cluster_library(cluster, "boot")
-
-cluster_copy(cluster, "test_retest_corr")
-cluster_copy(cluster, "boot_test_retest")
-
-cluster_copy(cluster, "pairs_aoi_data")
-cluster_copy(cluster, "acc_test_retest")
-cluster_copy(cluster, "bc_acc_test_retest")
-
-
-acc_params <- expand_grid(
-  t_start = c(0, 100, 200, 300, 400, 500, 600, 700, 800, 900, 1000),
-  t_end = c(2000, 4000),
-)
-
-accs_boot_test_retest <- acc_params |>
-  partition(cluster) |>
-  # head(1) |>
-  mutate(corr = pmap(list(t_start, t_end), \(t_s, t_e) acc_test_retest(t_s, t_e))) |>
-  collect() |>
-  unnest(corr)
-
-saveRDS(accs_boot_test_retest, here("cached_intermediates", "3_accs_boot_kid_test_retest.rds"))
-
-```
-
-
-```{r}
-accs_kid_test_retest <- readRDS(here("cached_intermediates", "3_accs_boot_kid_test_retest.rds"))
-
-library(metafor)
-accs_kid_test_retest_summ <-  accs_kid_test_retest |>
-  mutate(
-    stdev = (upper - lower) / (1.96 * 2),
-    var = stdev**2,
-  ) |>
-  group_by(t_start, t_end) |>
-  nest() |>
-  mutate(corr= map(data, \(d){
-    rma(d$est, d$var) |>
-      summary() |>
-      coef()
-  })) |> 
-  unnest(corr)
-```
-
-
-```{r}
-accs_kid_test_retest |> ggplot(aes(x=t_start, y=est, ymin=lower, ymax=upper, color=as.character(t_end)))+geom_pointrange(position = position_dodge(width=50))+facet_wrap(~dataset_name)+geom_hline(yintercept=0)
-```
-
-
-```{r}
-accs_kid_test_retest_summ |> ggplot(aes(x=t_start, y=estimate, ymin=ci.lb, ymax=ci.ub, color=as.character(t_end)))+geom_pointrange(position = position_dodge(width=50))+geom_hline(yintercept=0)
-
-```
-Overall, test-retest reliability is higher for the longer window, but this is primarily driven by the adams-marchman dataset; other datasets don't show a big difference in either direction. No big differences based on onset window time. 
-
-# Summary
-
-Accuracy measures have reasonable ICC, reasonable correlation with CDI measures, and reasonable test-retest reliability. 
-
-* ICC measures favor long windows in the roughly 600-4000. We are fairly confident that 4000 is better than 2000, the exact window start point doesn't matter much.
-* Production CDI doesn't distinguish. Comprehension CDI correlates a little better with shorter windows (but not by much). 
-* Test-retest favors long windows a little. 
-
-A possible interpretation is that longer windows apparently index information about the child beyond what's captured by parent report. This could be language-related but not captured by CDIs - for example, late emerging or more fragmentary word knowledge, or it could be something like attention or memory or sticky fixation. Some users might want to get this information, while others might not. 
-
-Possible recommendation: roughly 500-4000, but other reasonable measures also have reasonable outcomes. 
-<!--
-
-(Old -- to update) Validity via experimental effect
-
-We're going to use the size and significance of the Swingley & Aslin (2002) mispronunciation effect as our simulation target instead of ICCs. 
-
-This is with younger kids. 
-
-We have to reload data because our working dataframe is only "vanilla" familiar word trials. 
-
-
-```{r, eval=F}
-library(peekbankr)
-subjects <- get_subjects()
-sa_administrations <- get_administrations(dataset_name = "swingley_aslin_2002")
-sa_trial_types <- get_trial_types(dataset_name = "swingley_aslin_2002")
-sa_trials <- get_trials(dataset_name = "swingley_aslin_2002")
-sa_aoi_timepoints <- get_aoi_timepoints(dataset_name = "swingley_aslin_2002")
-
-sa_data <- sa_aoi_timepoints |>
-  left_join(sa_administrations) |>
-  left_join(sa_trials) |>
-  left_join(sa_trial_types) |>
-  left_join(subjects) |>
-  filter(condition != "filler") |>
-  mutate(condition = if_else(condition == "cp", "Correct", "Mispronounced"))
-```
-visualize the curves:
-
-```{r, eval=F}
-correct_accuracy <- sa_data |>
-  group_by(t_norm, condition) |>
-  summarise(correct = sum(aoi == "target") /
-    sum(aoi %in% c("target", "distractor")))
-
-ggplot(correct_accuracy, aes(x = t_norm, y = correct, col = condition)) +
-  geom_point() +
-  geom_smooth() +
-  geom_hline(yintercept = .5, lty = 2, col = "black")
-```
-
-
-```{r, eval=F}
-sa_sim <- function(t_start = -500, t_end = 4000) {
-  by_subject_accuracies <- sa_data |>
-    filter(t_norm >= t_start, t_norm <= t_end) |>
-    group_by(condition, t_norm, administration_id) |>
-    summarize(correct = sum(aoi == "target") /
-      sum(aoi %in% c("target", "distractor")))
-
-  mean_accuracies <- by_subject_accuracies |>
-    group_by(administration_id, condition) |>
-    summarize(mean_correct = mean(correct)) |>
-    group_by(administration_id) |>
-    summarise(diff = mean_correct[condition == "Correct"] -
-      mean_correct[condition == "Mispronounced"])
-
-  tibble(
-    acc_diff = mean(mean_accuracies$diff),
-    p_val = t.test(mean_accuracies$diff)$p.value
-  )
-}
-```
-
-```{r, eval=F}
-sa_acc_params <- expand_grid(
-  t_start = seq(-1000, 1500, 100),
-  t_end = seq(2000, 3000, 100)
-)
-tic()
-sa_accs <- sa_acc_params |>
-  # partition(cluster) |>
-  mutate(icc = pmap(list(t_start, t_end), sa_sim)) |>
-  # collect() |>
-  unnest(col = icc)
-toc()
-
-save(file = "cached_intermediates/3_accs_sa.Rds", sa_accs)
-```
-Visualize.
-
-```{r, eval=F}
-load(file = "cached_intermediates/3_accs_sa.Rds")
-
-ggplot(sa_accs, aes(col = p_val)) +
-  geom_vline(xintercept = 0, linetype = "dashed") +
-  geom_hline(yintercept = 0.05, lty = 3) +
-  geom_segment(aes(x = t_start, xend = t_end, y = p_val, yend = p_val)) +
-  # geom_segment(aes(x=t_start,xend=t_start,y=mean_icc-0.005,yend=mean_icc+0.005))+
-  # geom_segment(aes(x=t_end,xend=t_end,y=mean_icc-0.005,yend=mean_icc+0.005))+
-  scale_color_viridis(name = "Mean ICC", direction = -1) +
-  scale_y_log10() +
-  theme(legend.position = "none") +
-  ylab("Log p-value on key test") +
-  xlab("Analysis Window (in ms)")
-```
-
-Conclusion: if you cherry pick the window that has the biggest difference, you will get the lowest p-value. We should have known that before the simulation. 
-
-So really the question is when this window is, A PRIORI. Because of course the issue is that this analysis has a horrible false positive problem. Hence permutation-based analyses. 
-
-
-Validity via MB-CDI trial level (deprecated)
-
-```{r, eval=F}
-cdi_data <- readRDS("cdi.rds")
-
-
-
-acc_params <- expand_grid(
-  t_start = c(0, 100, 200, 300, 400, 500, 600, 700, 800, 900, 1000),
-  t_end = c(2000, 4000),
-)
-
-
-do_cdi_accuracy <- function(data, indices) {
-  summ <- data |>
-    slice(indices) |>
-    group_by(administration_id) |>
-    summarize(mean_var = mean(accuracy, na.rm = T)) |>
-    left_join(cdi_data) |>
-    ungroup() |>
-    summarise(
-      cor_comp = ifelse(sum(!is.na(comp) & !is.na(mean_var)) > 2, cor.test(mean_var, comp)$estimate, as.numeric(NA)),
-      cor_prod = ifelse(sum(!is.na(prod) & !is.na(mean_var)) > 2, cor.test(mean_var, prod)$estimate, as.numeric(NA)),
-      cor_age = ifelse(sum(!is.na(age) & !is.na(mean_var)) > 2, cor.test(mean_var, age)$estimate, as.numeric(NA))
-    )
-  cors <- c(summ$cor_comp[1], summ$cor_prod[1], summ$cor_age[1])
-  names(cors) <- c("cor_comp", "cor_prod", "cor_age")
-
-  return(cors)
-}
-
-acc_cdi <- function(t_start = -500, t_end = 4000) {
-  df <- d_aoi |>
-    filter(t_norm > t_start, t_norm < t_end) |>
-    group_by(dataset_name, dataset_id, administration_id, target_label, trial_id) |>
-    summarise(
-      accuracy = mean(correct, na.rm = TRUE),
-      prop_data = mean(!is.na(correct))
-    ) |>
-    group_by(dataset_name, dataset_id, administration_id, target_label) |>
-    filter(!is.na(accuracy))
-
-  # compute ICCs
-  df |>
-    group_by(dataset_name) |>
-    nest() |>
-    # head(5) |>
-    mutate(corr = map(data, \(d) {
-      b <- boot::boot(d, do_cdi_accuracy, 2000)
-      if (is.na(b$t0[1])) {
-        comp_lower <- NA
-        comp_upper <- NA
-      } else {
-        ci_comp <- boot::boot.ci(b, index = 1, type = "basic")
-        comp_lower <- ci_comp$basic[4]
-        comp_upper <- ci_comp$basic[5]
-      }
-      if (is.na(b$t0[2])) {
-        prod_lower <- NA
-        prod_upper <- NA
-      } else {
-        ci_prod <- boot::boot.ci(b, index = 2, type = "basic")
-        prod_lower <- ci_prod$basic[4]
-        prod_upper <- ci_prod$basic[5]
-      }
-      if (is.na(b$t0[3])) {
-        age_lower <- NA
-        age_upper <- NA
-      } else {
-        ci_age <- boot::boot.ci(b, index = 3, type = "basic")
-        age_lower <- ci_age$basic[4]
-        age_upper <- ci_age$basic[5]
-      }
-      tibble(
-        comp_est = b$t0[1], comp_lower = comp_lower, comp_upper = comp_upper,
-        prod_est = b$t0[2], prod_lower = prod_lower, prod_upper = prod_upper,
-        age_est = b$t0[3], age_lower = age_lower, age_upper = age_upper,
-      )
-    })) |>
-    select(-data) |>
-    unnest(corr)
-}
-
-
-cluster <- new_cluster(16)
-cluster_library(cluster, "dplyr")
-cluster_library(cluster, "stringr")
-cluster_library(cluster, "purrr")
-cluster_library(cluster, "tidyr")
-cluster_library(cluster, "stats")
-cluster_library(cluster, "tibble")
-cluster_copy(cluster, "do_cdi_accuracy")
-cluster_copy(cluster, "d_aoi")
-cluster_copy(cluster, "cdi_data")
-cluster_copy(cluster, "acc_cdi")
-
-accs_boot_cdi <- acc_params |>
-  partition(cluster) |>
-  # head(1) |>
-  mutate(cdi = pmap(list(t_start, t_end), \(t_s, t_e) acc_cdi(t_s, t_e))) |>
-  collect() |>
-  unnest(cdi)
-
-saveRDS(accs_boot_cdi, "3_accs_boot_cdi.rds")
-
-```
-
-```{r, eval=F}
-accs_boot_cdi <- readRDS(here("cached_intermediates", "3_accs_boot_cdi.rds"))
-
-library(metafor)
-
-accs_boot_cdi_summ <-  accs_boot_cdi |>
-  mutate(
-    comp_stdev = (comp_upper - comp_lower) / (1.96 * 2),
-    comp_var = comp_stdev**2,
-    prod_stdev = (prod_upper - prod_lower) / (1.96 * 2),
-    prod_var = prod_stdev**2,
-    age_stdev = (age_upper - age_lower) / (1.96 * 2),
-    age_var = age_stdev**2
-  ) |>
-  group_by(t_start, t_end) |>
-  nest() |>
-  mutate(comp= map(data, \(d){
-    rma(d$comp_est, d$comp_var) |>
-      summary() |>
-      coef()
-  }),
-  prod= map(data, \(d){
-    rma(d$prod_est, d$prod_var) |>
-      summary() |>
-      coef()
-  }),
-  age= map(data, \(d){
-    rma(d$age_est, d$age_var) |>
-      summary() |>
-      coef()
-  })) |>
-  select(-data) |>
-  unnest(c(comp, prod, age), names_sep="_")
-```
-
-Correlation with production
-```{r, eval=F}
-accs_boot_cdi_summ |> ggplot(aes(x = t_start, y = prod_estimate, ymin=prod_ci.lb, ymax=prod_ci.ub, color=as.character(t_end))) +geom_pointrange(position=position_dodge(width=50))+coord_flip()
-
-
-accs_boot_cdi |> filter(!is.na(prod_est)) |>  ggplot(aes(x = t_start, y = prod_est, ymin=prod_lower, ymax=prod_upper,  col=as.character(t_end))) +
-  geom_pointrange() +
-  coord_flip() +
-  theme(legend.position = "none") +
-  facet_wrap(~dataset_name)
-```
-not much difference either for short or long window, and definitely not within start times. 
-
-Correlation with comprehension
-```{r, eval=F}
-accs_boot_cdi_summ |> ggplot(aes(x = t_start, y = comp_estimate, ymin=comp_ci.lb, ymax=comp_ci.ub, color=as.character(t_end))) +geom_pointrange(position=position_dodge(width=50))+coord_flip()
-
-
-accs_boot_cdi |> filter(!is.na(comp_est)) |>  ggplot(aes(x = t_start, y = comp_est, ymin=comp_lower, ymax=comp_upper,  col=as.character(t_end))) +
-  geom_pointrange() +
-  coord_flip() +
-  theme(legend.position = "none") +
-  facet_wrap(~dataset_name)
-```
-again, differences are not big!
-
-Correlation with age
-```{r, eval=F}
-accs_boot_cdi_summ |> ggplot(aes(x = t_start, y = age_estimate, ymin=age_ci.lb, ymax=age_ci.ub, color=as.character(t_end))) +geom_pointrange(position=position_dodge(width=50))+coord_flip()
-
-
-accs_boot_cdi |> filter(!is.na(age_est)) |>  ggplot(aes(x = t_start, y = age_est, ymin=age_lower, ymax=age_upper,  col=as.character(t_end))) +
-  geom_pointrange() +
-  coord_flip() +
-  theme(legend.position = "none") +
-  facet_wrap(~dataset_name)
-```
-no differences here either
-
-
-# test - retest on accuracy windowing trial level (deprecated)
-
-Goal is to find out how reliability (test-retest) varies with number of trials, within datasets. (ICC for cross dataset is covered elsewhere) 
-
-what dataset have repeated administrations?
-```{r, eval=F}
-admins <- d_aoi |>
-  select(dataset_name, subject_id, administration_id, age) |>
-  distinct()
-repeated <- admins |>
-  group_by(dataset_name, subject_id) |>
-  tally() |>
-  filter(n > 1)
-
-repeated_subjects <- admins |> inner_join(repeated)
-```
-
-adams_marchman has 2 admins for each age and up to 5 ages 
-fernald totlot has 1 admin at each of 4 ages
-fmw sometimes has 2 admins at 1 age and 2 ages
-weaver_zettersten has 2 admins at 1 age 
-potter_remix has 2 admins at 1 age 
-
-so, we can say a pair is "close enough" if the ages are within 1 month of each other and then we'll have a bunch of test-retest pairs. 
-
-* for those pairs, for each admin, we want # of trials (administered), trial accuracy, trial RT, # trials with RT
-and then we want the correlation between admin-1 and admin-2 ?
-
-I don't know how much there's item overlap (probably is), so might be able to do something finer grained? 
-
-```{r, eval=F}
-admins <- d_aoi |>
-  select(dataset_name, subject_id, administration_id, age) |>
-  distinct()
-repeated <- admins |>
-  group_by(dataset_name, subject_id) |>
-  tally() |>
-  filter(n > 1)
-
-repeated_subjects <- admins |> inner_join(repeated)
-# identify pairs
-# hmm, sometimes we have times with 3+ 1 month apart,
-# for now allow all the pairs that result so like 14-15 and 15-16 for the same kid
-
-pairs <- repeated_subjects |>
-  group_by(dataset_name, subject_id) |>
-  mutate(
-    forward_age = lead(age),
-    forward_diff = forward_age - age,
-    test_num = case_when(
-      forward_diff < 1.5 ~ 1,
-    ),
-    mean_age = case_when(
-      test_num == 1 ~ (age + forward_age) / 2,
-    ),
-    second_admin = case_when(
-      test_num == 1 ~ lead(administration_id)
-    )
-  ) |>
-  filter(!is.na(test_num)) |>
-  rename(first_admin = administration_id) |>
-  select(-n, -age) |>
-  left_join(repeated_subjects |> select(-age, -n), by = c("dataset_name", "subject_id", "second_admin" = "administration_id")) |>
-  ungroup() |>
-  mutate(pair_number = row_number()) |>
-  select(-forward_age, -forward_diff, -test_num)
-
-pairs_long <- pairs |> pivot_longer(c("first_admin", "second_admin"), names_to = "session_num", values_to = "administration_id")
-```
-
-
-since one of the things we want to optimize for is test-retest (as a measure of reliability, in addition to ICC, and CDI validity), we can check how window differences affect test-retest.
-
-```{r, eval=F}
-library(tibble)
-library(multidplyr)
-
-pairs_aoi_data <- pairs_long |> left_join(d_aoi)
-
-test_retest_boot <- function(data, indices) {
-  summ <- data |>
-    slice(indices) |>
-    group_by(administration_id, subject_id, pair_number, session_num) |>
-    summarize(mean_var = mean(accuracy, na.rm = T), .groups = "drop") |>
-    select(-administration_id) |>
-    pivot_wider(names_from = session_num, values_from = mean_var) |>
-    summarise(cor_test_retest = ifelse(sum(!is.na(first_admin) & !is.na(second_admin)) > 2, cor.test(first_admin, second_admin)$estimate, NA))
-  return(summ$cor_test_retest[1])
-}
-
-
-acc_test_retest <- function(t_start = -500, t_end = 4000) {
-  print(paste(t_start, t_end))
-
-  df <- pairs_aoi_data |>
-    filter(t_norm > t_start, t_norm < t_end) |>
-    group_by(administration_id, dataset_name, subject_id, pair_number, session_num, target_label, trial_id) |>
-    summarise(
-      accuracy = mean(correct, na.rm = TRUE),
-      prop_data = mean(!is.na(correct)),
-      .groups = "drop"
-    ) |>
-    filter(!is.na(accuracy))
-
-  # compute
-  df |>
-    group_by(dataset_name) |>
-    nest() |>
-    mutate(corr = map(data, \(d) {
-      b <- boot::boot(d, test_retest_boot, 2000)
-      ci <- boot::boot.ci(b, type = "basic")
-      print(ci)
-      tibble(est = b$t0, lower = ci$basic[4], upper = ci$basic[5])
-    })) |>
-    select(-data) |>
-    unnest(corr)
-}
-
-acc_params <- expand_grid(
-  t_start = c(0, 100, 200, 300, 400, 500, 600, 700, 800, 900, 1000),
-  t_end = c(2000, 4000),
-  object = c("administration")
-)
-library(multidplyr)
-library(boot)
-cluster <- new_cluster(16)
-cluster_library(cluster, "dplyr")
-cluster_library(cluster, "stringr")
-cluster_library(cluster, "purrr")
-cluster_library(cluster, "tidyr")
-cluster_library(cluster, "stats")
-cluster_library(cluster, "tibble")
-cluster_library(cluster, "boot")
-
-cluster_copy(cluster, "test_retest_boot")
-cluster_copy(cluster, "pairs_aoi_data")
-cluster_copy(cluster, "cdi_data")
-cluster_copy(cluster, "acc_test_retest")
-
-accs_boot_test_retest <- acc_params |>
-  partition(cluster) |>
-  mutate(corr = pmap(list(t_start, t_end), \(t_s, t_e) acc_test_retest(t_s, t_e))) |>
-  collect() |>
-  unnest(corr)
-
-saveRDS(accs_boot_test_retest, here("cached_intermediates", "accs_boot_test_retest.rds"))
-
-```
-
-
-```{r, eval=F}
-accs_boot_test_retest <- readRDS(here("cached_intermediates", "3_accs_boot_test_retest.rds"))
-
-library(metafor)
-accs_boot_test_retest_summ <-  accs_boot_test_retest |>
-  mutate(
-    stdev = (upper - lower) / (1.96 * 2),
-    var = stdev**2,
-  ) |>
-  group_by(t_start, t_end) |>
-  nest() |>
-  mutate(corr= map(data, \(d){
-    rma(d$est, d$var) |>
-      summary() |>
-      coef()
-  })) |> 
-  unnest(corr)
-  
-accs_boot_test_retest |> ggplot(aes(x=t_start, y=est, ymin=lower, ymax=upper, color=as.character(t_end)))+geom_pointrange(position = position_dodge(width=50))+facet_wrap(~dataset_name)
-
-accs_boot_test_retest_summ |> ggplot(aes(x=t_start, y=estimate, ymin=ci.lb, ymax=ci.ub, color=as.character(t_end)))+geom_pointrange(position = position_dodge(width=50))
-
-```
-something is weird because the 95Ci isn't always containing the point estimate
-which can happen with bootstraps, but still is weird!
--->
-
-
-
-
+ 
+ 
