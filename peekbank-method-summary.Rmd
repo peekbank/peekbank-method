@@ -9,6 +9,7 @@ output:
 knitr::opts_chunk$set(warning=F, message=F, echo=F)
 source(here::here("helper/common.R"))
 library(metafor)
+library(ggthemes)
 ```
 
 Here are (draft) recommendations and (draft) supporting figures for the peekbank methods paper. 
@@ -40,17 +41,15 @@ Other factors may also influence what data practices to choose (and to recommend
 
 In drafting the recommendations, I've tried to focus on what leads to better reliability and validity. I've also assumed a preference for parsimony -- given two processes with equivalent goodness of outcome, we prefer the simpler one. There are cases where we might want to acknowledge how theoretical commitments might impact analytic and methodological preferences but I have not included recommendations based on them. 
 
-TODO prettier graphs!!!
-
 ## Recommendation 1: Use long accuracy windows. 
 
 Longer accuracy windows that go to 4000ms post disambiguation, rather than to 2000ms, increase reliability (both ICC and test-retest). Short and long windows show comparable correlations with CDI production data, although shorter windows are somewhat more highly correlated with comprehension data. Together, this suggests that looking behaving between 2 and 4 seconds is a stable child-level property, although we cannot say how related it to to child language per se. 
 
 Exactly when the window starts is not important, although we recommend starting around 500ms to balance between reliability is numerically highest starting at 600 or 700 milliseconds and correlation with production is highest at 500ms. 
 
-While we are recommending accuracy be measured over the 500-4000ms window, we want to be clear that other accuracy windows also have reasonable reliability and validity properties. Strong effects are likely to show up in any reasonable window, but for eeking the most reliability out of data, we recommend long windows. 
+While we are recommending accuracy be measured over the 500-4000ms window, we want to be clear that other accuracy windows also have reasonable reliability and validity properties. Strong effects are likely to show up in any reasonable window, but for eking the most reliability out of data, we recommend long windows. 
 
-```{r}
+```{r, fig.cap="A heatmap showing ICC (a measure of reliability) for different start and end times for accuracy windows. }
 
 accs <- readRDS(here("cached_intermediates/3_accs.Rds"))
 
@@ -91,11 +90,8 @@ acc_boot_summary <- acc_boot |>
   select(-data) |>
   unnest(icc)
 
-acc_boot_summary |> ggplot(aes(x = t_start, y = estimate, ymin = ci.lb, ymax = ci.ub, color = as.character(t_end))) +
-  geom_pointrange(position = position_dodge(width = 25))
-```
 
-```{r}
+
 accs_cdi_kid <- readRDS(here("cached_intermediates", "3_accs_kid_cdi.rds")) |> mutate(
   prod_est = ifelse(dataset_name=="newman_genderdistractor", NA, prod_est),
   prod_lower = ifelse(dataset_name=="newman_genderdistractor", NA, prod_lower),
@@ -133,16 +129,6 @@ accs_cdi_kid_summ <-  accs_cdi_kid |>
   select(-data) |>
   unnest(c(comp, prod, age), names_sep="_")
 
-accs_cdi_kid_summ |> ggplot(aes(x = t_start, y = prod_estimate, ymin=prod_ci.lb, ymax=prod_ci.ub, color=as.character(t_end))) +geom_pointrange(position=position_dodge(width=50))+coord_flip()
-
-accs_cdi_kid_summ |> ggplot(aes(x = t_start, y = comp_estimate, ymin=comp_ci.lb, ymax=comp_ci.ub, color=as.character(t_end))) +geom_pointrange(position=position_dodge(width=50))+coord_flip()
-
-View(accs_cdi_kid_summ)
-
-```
-
-```{r}
-
 accs_kid_test_retest <- readRDS(here("cached_intermediates", "3_accs_boot_kid_test_retest.rds"))
 
 accs_kid_test_retest_summ <-  accs_kid_test_retest |>
@@ -158,15 +144,22 @@ accs_kid_test_retest_summ <-  accs_kid_test_retest |>
       coef()
   })) |> 
   unnest(corr)
-accs_kid_test_retest_summ |> ggplot(aes(x=t_start, y=estimate, ymin=ci.lb, ymax=ci.ub, color=as.character(t_end)))+geom_pointrange(position = position_dodge(width=50))+geom_hline(yintercept=0)
+```
 
 
+```{r, fig.cap="Reliability and validity measures for different accuracy windows. Ranges are bootstrapped 95% CIs.}
+acc_all <- acc_boot_summary |> mutate(Type="ICC reliability") |> bind_rows(accs_cdi_kid_summ |> rename(estimate=prod_estimate, ci.lb=prod_ci.lb, ci.ub=prod_ci.ub) |> mutate(Type="Corr. with CDI Production")) |> bind_rows(accs_cdi_kid_summ |> rename(estimate=comp_estimate, ci.lb=comp_ci.lb, ci.ub=comp_ci.ub) |> mutate(Type="Corr. with CDI Comprehension")) |> 
+  bind_rows(accs_kid_test_retest_summ |> mutate(Type="Test-retest reliability"))
+
+acc_all |> ggplot(aes(x=t_start, col=as.character(t_end), y=estimate, ymin=ci.lb, group=t_end, ymax=ci.ub))+geom_pointrange(position=position_dodge(50))+coord_flip()+facet_wrap(~Type, scales="free_x", nrow=1)+theme(legend.position = "bottom", )+labs(y="Correlation", x="Window start time (ms)", color="Window end time (ms)")+scale_color_solarized()
 ```
 
 
 ## Recommendation 2: Don't do baseline correction. 
 
-Different images have varying levels of saliency to infants, which can drive uneven looking patterns at baseline, before auditory stimulus. Sometimes, researchers address this by using baseline-corrected accuracy, a difference between the looking fraction after the stimulus and the looking fraction before the stimulus. In general, we found that baseline correction led to 
+Different images have varying levels of saliency to infants, which can drive uneven looking patterns at baseline, before auditory stimulus. Sometimes, researchers address this by using baseline-corrected accuracy, a difference between the looking fraction after the stimulus and the looking fraction before the stimulus. In general, we found that baseline correction led to worse reliability and validity. For datasets where there was looking data for a long pre-stimulus period (at least 3 seconds), baseline correlation using a long pre-stimulus period was as reliable as accuracy without baseline-correction, but still had marginally worse validity.
+
+As alternatives to baseline correction, there are other ways to account for item-level variability, including TODO. Additionally, better matching of stimulus properties between the target and distractor pairs may reduce ... (see section TODO). 
 
 ```{r}
 d_aoi <- readRDS(here("cached_intermediates", "1_d_aoi.Rds"))
@@ -180,8 +173,6 @@ baseline_lengths <- d_aoi |>
 boot_graph <- bc_boot |>
   bind_rows(no_bc_boot) |>   inner_join(baseline_lengths |> filter(t_min < 0)) |>
   mutate(b_start = ifelse(is.na(b_start), "none", as.character(b_start)))
-
-
 
 library(metafor)
 bc_boot_summ <- boot_graph |>
@@ -201,12 +192,6 @@ bc_boot_summ <- boot_graph |>
   select(-data) |>
   unnest(icc)
 
-bc_boot_summ |> ggplot(aes(x = b_start, color = as.character(b_end), y = estimate, ymin = ci.lb, ymax = ci.ub)) +
-  geom_pointrange(position = position_dodge(width = .25))
-```
-
-
-```{r}
 bc_boot_early_summ <- boot_graph |>
   inner_join(baseline_lengths |> filter(t_min <= -3000)) |>
   filter(!is.na(lower), !is.na(upper)) |>
@@ -224,17 +209,10 @@ bc_boot_early_summ <- boot_graph |>
   select(-data) |>
   unnest(icc)
 
-bc_boot_early_summ |> ggplot(aes(x = b_start, color = as.character(b_end), y = estimate, ymin = ci.lb, ymax = ci.ub)) +
-  geom_pointrange(position = position_dodge(width = .25))
-```
-
-```{r}
 no_bc_accs_kid_cdi <- readRDS(here("cached_intermediates", "3_accs_kid_cdi.rds")) |> filter(t_start==500, t_end==4000)
 
 bc_accs_kid_cdi <- readRDS(here("cached_intermediates", "7_bc_accs_kid_cdi.rds")) |>bind_rows(no_bc_accs_kid_cdi) |> 
   mutate(b_start=ifelse(is.na(b_start), "none", as.character(b_start)))
-
-library(metafor)
 
   baseline_lengths <- d_aoi |>
     group_by(dataset_name) |>
@@ -300,20 +278,7 @@ bc_accs_kid_cdi_summ <-  bc_accs_kid_cdi |>
   })) |>
   select(-data) |>
   unnest(c(comp, prod, age), names_sep="_")
-  
-  bc_accs_kid_cdi_summ |> ggplot(aes(x = b_start, y = prod_estimate, ymin=prod_ci.lb, ymax=prod_ci.ub, color=as.character(b_end))) +geom_pointrange(position=position_dodge(width=.5))+coord_flip()
 
-  bc_accs_kid_cdi_summ_early |> ggplot(aes(x = b_start, y = prod_estimate, ymin=prod_ci.lb, ymax=prod_ci.ub, color=as.character(b_end))) +geom_pointrange(position=position_dodge(width=.5))+coord_flip()
-
-  bc_accs_kid_cdi_summ |> ggplot(aes(x = b_start, y = comp_estimate, ymin=comp_ci.lb, ymax=comp_ci.ub, color=as.character(b_end))) +geom_pointrange(position=position_dodge(width=.5))+coord_flip()
-
-  bc_accs_kid_cdi_summ_early |> ggplot(aes(x = b_start, y = comp_estimate, ymin=comp_ci.lb, ymax=comp_ci.ub, color=as.character(b_end))) +geom_pointrange(position=position_dodge(width=.5))+coord_flip()
-
-```
-
-For test-retest, there are a limited number of datasets where we have both pre-0 timepoints and longitudinal data. 
-
-```{r}
 no_bc_accs_kid_test_retest <- readRDS(here("cached_intermediates", "3_accs_boot_kid_test_retest.rds")) |> filter(t_start==500, t_end==4000)
 
 bc_accs_kid_test_retest <- readRDS(here("cached_intermediates", "7_bc_accs_boot_kid_test_retest.rds")) |> bind_rows(no_bc_accs_kid_test_retest) |> 
@@ -356,28 +321,337 @@ bc_accs_kid_test_retest_summ_early <-  bc_accs_kid_test_retest |>
   })) |> 
   unnest(corr)
 
-bc_accs_kid_test_retest_summ |> ggplot(aes(x=b_start, y=estimate, ymin=ci.lb, ymax=ci.ub, color=as.character(b_end)))+geom_pointrange(position = position_dodge(width=.5))
 
 ```
 
 
-## Recommendation 3: Use RT as it's reliability is generally high. For best outcome, use landing-based RT counting shifts starting at 400? ms. 
+```{r, fig.cap="Comparison between baseline-corrected accuracy with different baseline windows and accuracy with no baseline-correction. All datsets with data before time 0 were included. }
+
+bc_acc_all <- bc_boot_summ |> mutate(Type="ICC reliability") |> 
+  bind_rows(bc_accs_kid_cdi_summ |> rename(estimate=prod_estimate, ci.lb=prod_ci.lb, ci.ub=prod_ci.ub) |> mutate(Type="Corr. with CDI Production")) |> 
+  bind_rows(bc_accs_kid_cdi_summ |> rename(estimate=comp_estimate, ci.lb=comp_ci.lb, ci.ub=comp_ci.ub) |> mutate(Type="Corr. with CDI Comprehension")) |> 
+  bind_rows(bc_accs_kid_test_retest_summ |> mutate(Type="Test-retest reliability")) |> 
+  mutate(b_end=ifelse(is.na(b_end), "no baseline", as.character(b_end)),
+         b_start=ifelse(b_start=="none", "no baseline", b_start)) 
+
+bc_acc_all |> ggplot(aes(x=b_start, col=b_end, y=estimate, ymin=ci.lb, group=t_end, ymax=ci.ub))+geom_pointrange(position=position_dodge2(width=.5))+coord_flip()+facet_wrap(~Type, scales="free_x", nrow=1)+theme(legend.position = "bottom", )+labs(y="Correlation", x="Baseline start time (ms)", color="Baseline end time (ms)")+scale_color_solarized()
+```
+
+
+```{r, fig.cap="Comparison between baseline-corrected accuracy with different baseline windows and accuracy with no baseline-correction on the subset of datasets with at least 3 seconds of pre-stimulus onset looking data.  }
+bc_acc_early <- bc_boot_early_summ |> mutate(Type="ICC reliability") |> 
+  bind_rows(bc_accs_kid_cdi_summ_early |> rename(estimate=prod_estimate, ci.lb=prod_ci.lb, ci.ub=prod_ci.ub) |> mutate(Type="Corr. with CDI Production")) |> 
+  bind_rows(bc_accs_kid_cdi_summ_early |> rename(estimate=comp_estimate, ci.lb=comp_ci.lb, ci.ub=comp_ci.ub) |> mutate(Type="Corr. with CDI Comprehension")) |> 
+  mutate(b_end=ifelse(is.na(b_end), "no baseline", as.character(b_end)),
+         b_start=ifelse(b_start=="none", "no baseline", b_start)) 
+
+bc_acc_early |> ggplot(aes(x=b_start, col=b_end, y=estimate, ymin=ci.lb, group=t_end, ymax=ci.ub))+geom_pointrange(position=position_dodge2(width=.5))+coord_flip()+facet_wrap(~Type, scales="free_x", nrow=1)+theme(legend.position = "bottom", )+labs(y="Correlation", x="Baseline start time (ms)", color="Baseline end time (ms)")+scale_color_solarized()
+```
+
+
+## Recommendation 3: Use RT with a minimum RT of around 400 ms. 
 
 While for accuracy there are relatively few dimensions of variability, RT can be measured in a number of ways. 
 One choice is whether to measure RT based on when a child's eyes launch from the distractor or when a child's eyes land on the target. 
 Launches could be a more precise index of the timing of intent to look at the target, but leaving from the distractor could also be done with intent to look elsewhere. Thus, launch based analyses sometimes exclude trials where it takes a child too long to go from distractor to target (shift-length cutoff). 
 Short RTs are often excluded because they were necessarily or likely to not be as a response to the stimulus. We explore a range of different potential cutoffs in at attempt to maximize at what point RTs shift from mostly being random to mostly being stimulus driven. 
-RTs can be anlaysed either on a log scale or a raw RT scale.
-Finally, trials are generally only included if the child is looking at the distractor at the point of disambiguation and continues looking at the distractor for the entire minimum RT period. In our initial exploration, we considered relaxing this in different ways in case excluding brief departures from the distractor to missing (i.e. from blinks, or tracker loss)
-## Recommendation 4: Don't bother with exclusions. 
+RTs can be analysed either on a log scale or a raw RT scale.
+Finally, trials are generally only included if the child is looking at the distractor at the point of disambiguation and continues looking at the distractor for the entire minimum RT period. In our initial exploration, we considered relaxing this in different ways in case excluding brief departures from the distractor to missing (i.e. from blinks, or tracker loss) was not a problem. 
 
-## Recommendation 5: For individual differences, try to get XX trials. 
+Our initial exploration suggested that ICC reliability was maximized for landing-based RT without any shift-length cutoff and with log and with minimum RTs around 400-500ms. We found that it was not necessary to exclude children who had a little bit of missing data during the 0-400 window; it was sufficient for children to be looking at the distractor at time 0 and time 400 and not looking at the target at all before 400ms. However, little bits of missing data were rare, and is likely to be very dataset specific depending on the tracking and imputation process. 
+
+For the main validity and reliability measures, we compare a launch-based RT with a shift-length cutoff (as used in XX) and a land-based RT without a shift-length cutoff. We vary the minimum RT and whether the RTs are logged or not. 
+
+```{r}
+rt_boot <- readRDS(here("cached_intermediates", "4_rt_iccs_boot.rds")) |> inner_join(icc_cutoff) |> 
+    mutate(
+    type = case_when(
+      str_detect(measure, "first_launch_rt") ~ "first_launch",
+      str_detect(measure, "last_launch_rt") ~ "last_launch",
+      str_detect(measure, "land_rt") ~ "land"
+    ),
+    logged = case_when(
+      str_detect(measure, "log") ~ "log",
+      T ~ "raw"
+    ),
+    trimming = case_when(
+      str_detect(measure, "trim_first") ~ "trim_first",
+      str_detect(measure, "trim_last") ~ "trim_last",
+      T ~ "untrimmed"
+    )
+  ) |>
+  mutate(approach = case_when(
+    type == "land" & trimming == "untrimmed" & frac == "0" ~ "generous",
+    type == "land" & trimming == "untrimmed" & frac == "1" ~ "trad_land",
+    type == "first_launch" & trimming == "trim_first" & frac == "1" ~ "trad_launch"
+  )) |>
+  filter(!is.na(approach)) |> 
+  group_by(dataset_name) |> 
+  mutate(options_count=n()) |> 
+  filter(dataset_name!="ferguson_eyetrackingr") |> 
+  select(-options_count) |> ungroup()
+
+library(metafor)
+rt_boot_summ <- rt_boot |>
+  filter(!is.na(lower), !is.na(upper)) |>
+  mutate(
+    stdev = (upper - lower) / (1.96 * 2),
+    var = stdev**2
+  ) |>
+  group_by(window, during, logged, approach) |>
+  nest() |>
+  mutate(icc = map(data, \(d){
+    rma(d$est, d$var) |>
+      summary() |>
+      coef()
+  })) |>
+  select(-data) |>
+  unnest(icc)
+
+rt_kid_cdi <- readRDS(here("cached_intermediates", "4_rt_kid_cdi.rds")) |> filter(dataset_name!="ferguson_eyetrackingr")
+
+library(metafor)
+
+rt_kid_cdi_summ <-  rt_kid_cdi |>
+  mutate(
+    comp_stdev = (comp_upper - comp_lower) / (1.96 * 2),
+    comp_var = comp_stdev**2,
+    prod_stdev = (prod_upper - prod_lower) / (1.96 * 2),
+    prod_var = prod_stdev**2,
+    age_stdev = (age_upper - age_lower) / (1.96 * 2),
+    age_var = age_stdev**2
+  ) |>
+  group_by(approach, window, logged) |>
+  nest() |>
+  mutate(comp= map(data, \(d){
+    rma(d$comp_est, d$comp_var) |>
+      summary() |>
+      coef()
+  }),
+  prod= map(data, \(d){
+    rma(d$prod_est, d$prod_var) |>
+      summary() |>
+      coef()
+  }),
+  age= map(data, \(d){
+    rma(d$age_est, d$age_var) |>
+      summary() |>
+      coef()
+  })) |>
+  select(-data) |>
+  unnest(c(comp, prod, age), names_sep="_")
+
+rt_kid_test_retest <- readRDS(here("cached_intermediates", "4_rt_kid_test_retest.rds")) 
+
+library(metafor)
+rt_kid_test_retest_summ <-  rt_kid_test_retest |>
+  mutate(
+    stdev = (upper - lower) / (1.96 * 2),
+    var = stdev**2,
+  ) |>
+  group_by(approach, window, logged) |>
+  nest() |>
+  mutate(corr= map(data, \(d){
+    rma(d$est, d$var) |>
+      summary() |>
+      coef()
+  })) |> 
+  unnest(corr)
+```
+
+```{r}
+rt_boot_summ |> ggplot(aes(x = approach, color = as.character(window), y = estimate, ymin = ci.lb, ymax = ci.ub)) +
+  geom_pointrange(position = position_dodge(width = .5)) +
+  coord_flip() +
+  geom_hline(yintercept=.7)+
+  facet_wrap(~logged) +
+  scale_color_viridis(discrete = T)
+
+rt_kid_cdi_summ |> ggplot(aes(x = str_c(approach, "_", logged), y = prod_estimate, ymin=prod_ci.lb, ymax=prod_ci.ub, color=as.character(window))) +geom_pointrange(position=position_dodge(width=.5))+
+  scale_color_viridis(discrete=T)+
+  coord_flip()
+
+rt_kid_cdi_summ |> ggplot(aes(x = str_c(approach, "_", logged), y = comp_estimate, ymin=comp_ci.lb, ymax=comp_ci.ub, color=as.character(window))) +geom_pointrange(position=position_dodge(width=.5))+
+  scale_color_viridis(discrete=T)+
+  coord_flip()
+
+rt_kid_test_retest |> filter(window==400) |> ggplot(aes(x=str_c(approach, "_", logged), y=est, ymin=lower, ymax=upper, color=as.character(approach)))+geom_pointrange(position = position_dodge(width=.5))+facet_wrap(~dataset_name)+coord_flip()+geom_hline(yintercept=0)
+```
+
+```{r, fig.cap="Reliability and validity measures for different accuracy windows. Ranges are bootstrapped 95% CIs.}
+rt_all <- rt_boot_summ |> mutate(Type="ICC reliability") |> 
+  bind_rows(rt_kid_cdi_summ |> rename(estimate=prod_estimate, ci.lb=prod_ci.lb, ci.ub=prod_ci.ub) |> mutate(Type="Corr. with CDI Production")) |> 
+  bind_rows(rt_kid_cdi_summ |> rename(estimate=comp_estimate, ci.lb=comp_ci.lb, ci.ub=comp_ci.ub) |> mutate(Type="Corr. with CDI Comprehension")) |> 
+  bind_rows(rt_kid_test_retest_summ |> mutate(Type="Test-retest reliability")) |> 
+  filter(approach%in%c("trad_land", "trad_launch")) |> 
+  mutate(approach=ifelse(approach=="trad_land", "land-based", "launch-based"))
+
+#rt_all |> ggplot(aes(x=str_c(logged, " ", approach, " RT"), col=as.character(window), y=estimate, ymin=ci.lb, ymax=ci.ub))+geom_pointrange(position=position_dodge(.5))+coord_flip()+facet_wrap(~Type, scales="free_x", nrow=1)+theme(legend.position = "bottom", )+labs(y="Correlation", x="Type of RT", color="Minimum RT")+scale_color_viridis(discrete=T)
+
+rt_all |> mutate(type=str_c(logged, " ", approach, " RT") |> factor(levels=c("raw launch-based RT", "log launch-based RT", "raw land-based RT", "log land-based RT"))) |> ggplot(aes(col=type, x=as.character(window), y=estimate, ymin=ci.lb, ymax=ci.ub))+geom_pointrange(position=position_dodge(.5))+coord_flip()+facet_wrap(~Type, scales="free_x", nrow=1)+theme(legend.position = "bottom", )+labs(y="Correlation", x="Minimum RT", color="Type of RT")+scale_color_brewer(palette="Paired")
+```
+Among the 4 types of RT we consider in more detail (log v raw x launch-based v land-based), all have similar correlations with CDI comprehension, and correlations are negative as smaller (faster) RT is associated with larger CDI scores. Log RT has a slightly stronger (more negative) correlation with CDI production than raw RT especially for minimum RTs in the 400-450 range. The highest ICC reliabilities occur around 400 ms. ICC reliability is consistently slightly higher for land-based than launch-based although the scale of difference varies with minimum RT. Test-retest reliability is reasonable for all measures, and marginally higher for raw (not log) RT. 
+
+We recommend that researchers use minimum RT cutoffs around 400 ms as these increase reliability compared to shorter 200 ms cutoffs. While the differences between different methods are small, we recommend using log landing-based RT to maximize overall reliability and validity. 
+
+If there are short periods of missing data during the 0-400ms window, a more lax threshold of looking at the distractor and 0 and 400ms and not looking at the target between 0 and 400ms can be used for landing-based RT instead of requiring children to be continuously on the distractor, with no loss of reliability or validity. 
+
+## Recommendation 4: Don't bother with exclusions. There is no need to impose thresholds for inclusion. 
+
+Children may engage in various behavior that seems to not be responsive to the trials, including "zoning", contributing few valid looking points on a trial, or contributing few trials overall. One question is whether excluding these types of trials improves overall validity and reliability. 
+
+On a trial-by-trial basis, excluding trials where kids don't look at both target and distractor (either during a pre-window, or ever) does not improve ICC reliability or the correlation with CDI measures. Additionally, excluding trials with looks away from the target and distractor also does not improve ICC reliability or correlation with CDI measures. We do not recommend any trial-level exclusions to accuracy data. 
+
+On a administration basis, common exclusions are for cross-trial side-bias and minimum number of trials contributed. Very few children show strong side bias; in this dataset around 1% children who contributed .5% of trials looked to one side more than 90% of the time. Thus, exclusions for side bias have minimum impact on reliability and we do not recommend them. We also do not find that setting a minimum number of trials for inclusion improves ICC or CDI validity. 
+
+For RTs, exclusions based on number of trials does not improve ICC or correlations with CDI. 
+
+
+The one case where exclusions based on minimum trial count may be helpful is for individual difference measures where high test-retest reliability is desired. However, need to consider that the children who contribute fewer trials might vary in other ways from kids who contribute more so exclusions may hurt generalizability. 
+For test-retest reliability for individual differences, cutoffs may help, although there is high heterogeneity across datasets. Researchers will need to weigh how fewer children compares with better estimates for each child, but minimums of 2-5 RT trials may be reasonable. (so noisy and needs bootstrapping)
+
+For accuracy, 1 trial is probably fine, but again minimums of 2-5 accuracy trials may be reasonable. (Need to figure out how to bound this!)
+
+## Recommendation 5: For individual differences, plan for at least 10 trials and ideally closer to 30 trials per child. 
+
+While it is difficult to tell whether post-hoc exclusion of children who contributed too few data points makes sense for individual difference work, it is much clearer that it is better to design experiments to increase the liklihood of having more than 1 trial. 
+
+To understand how different numbers of trials would impact test-retest reliability, we sampled trials from each administration with replacement. This allows for up-sampling of children with low numbers of trials, simulating what might have happened in a longer experiment. 
+
+```{r}
+
+eligible <- all_wide |>
+  select(dataset_name, subject_id, mean_age, pair_number, administration_id_1, administration_id_2) |>
+  pivot_longer(c("administration_id_1", "administration_id_2"), names_to = "session_num", values_to = "administration_id") |>
+  select(dataset_name, subject_id, administration_id)
+
+acc_resample <- expand_grid(num_samples = c(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 18, 20, 25, 30), iter=1:10) |>
+  mutate(accs = map(num_samples, \(num) {
+    acc |>
+      group_by(dataset_name, subject_id, administration_id) |>
+      inner_join(eligible, by=c("dataset_name", "subject_id", "administration_id")) |>
+      group_by(dataset_name, subject_id, administration_id) |>
+      slice_sample(n=num,replace=T) |>
+      summarize(acc_trials = n(), mean_acc = mean(acc))
+  })) |>
+  unnest(accs)
+
+
+acc_corr_resample <- pairs_long |>
+  left_join(acc_resample) |>
+  mutate(session_num = ifelse(session_num == "first_admin", 1, 2)) |>
+  filter(!is.na(num_samples)) |>
+  pivot_wider(values_from = c("administration_id", "acc_trials", "mean_acc"), names_from = session_num) |>
+  mutate(age_bin = case_when(
+    mean_age < 18 ~ "12-17",
+    mean_age < 21 ~ "18-20",
+    mean_age < 28 ~ "21-27",
+    mean_age < 33 ~ "28-32",
+    mean_age >= 33 ~ "33+"
+  )) |>
+  filter(!is.na(mean_acc_1)) |>
+  filter(!is.na(mean_acc_2)) |>
+  group_by(dataset_name, age_bin, num_samples, iter) |>
+  summarise(
+    cor_acc = ifelse(sum(!is.na(mean_acc_1) & !is.na(mean_acc_2)) > 2, cor.test(mean_acc_1, mean_acc_2)$estimate, NA)  )
+
+ggplot(acc_corr_resample, aes(x = num_samples, y = cor_acc, col = age_bin)) +
+  stat_summary(position = position_dodge(.5))+
+  stat_summary(position = position_dodge(.5),geom="line")+
+
+    scale_color_viridis(discrete = T) +
+  facet_wrap(~dataset_name) +
+  geom_hline(yintercept = 0)+geom_vline(xintercept=10, lty="dashed")+geom_vline(xintercept=15, lty="dashed")
+
+ggplot(acc_corr_resample, aes(x = num_samples, y = cor_acc, col = age_bin)) +
+  scale_color_viridis(discrete = T) +
+  stat_summary(position = position_dodge(.5)) +
+  geom_smooth()+
+  stat_summary(position = position_dodge(.5), geom = "line") +
+  geom_hline(yintercept = 0)+geom_vline(xintercept=10, lty="dashed")+geom_vline(xintercept=15, lty="dashed")
+```
+
+```{r}
+
+eligible <- all_wide |>
+  select(dataset_name, subject_id, mean_age, pair_number, administration_id_1, administration_id_2) |>
+  pivot_longer(c("administration_id_1", "administration_id_2"), names_to = "session_num", values_to = "administration_id") |>
+  select(dataset_name, subject_id, administration_id)
+
+rt_resample <- expand_grid(num_samples = c(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15), iter=1:10) |>
+  mutate(rts = map(num_samples, \(num) {
+    rt |>
+      group_by(dataset_name, subject_id, administration_id) |>
+      inner_join(eligible, by=c("dataset_name", "subject_id", "administration_id")) |>
+      group_by(dataset_name, subject_id, administration_id) |>
+      slice_sample(n=num,replace=T) |>
+      summarize(rt_trials = n(), mean_rt = mean(rt))
+  })) |>
+  unnest(rts)
+
+
+rt_corr_resample <- pairs_long |>
+  left_join(rt_resample) |>
+  mutate(session_num = ifelse(session_num == "first_admin", 1, 2)) |>
+  filter(!is.na(num_samples)) |>
+  pivot_wider(values_from = c("administration_id", "rt_trials", "mean_rt"), names_from = session_num) |>
+  mutate(age_bin = case_when(
+    mean_age < 18 ~ "12-17",
+    mean_age < 21 ~ "18-20",
+    mean_age < 28 ~ "21-27",
+    mean_age < 33 ~ "28-32",
+    mean_age >= 33 ~ "33+"
+  )) |>
+  filter(!is.na(mean_rt_1)) |>
+  filter(!is.na(mean_rt_2)) |>
+  group_by(dataset_name, age_bin, num_samples, iter) |>
+  summarise(
+    cor_rt = ifelse(sum(!is.na(mean_rt_1) & !is.na(mean_rt_2)) > 2, cor.test(mean_rt_1, mean_rt_2)$estimate, NA)  )
+
+ggplot(rt_corr_resample, aes(x = num_samples, y = cor_rt, col = age_bin)) +
+  stat_summary(position = position_dodge(.5))+
+  stat_summary(position = position_dodge(.5),geom="line")+
+    scale_color_viridis(discrete = T) +
+  facet_wrap(~dataset_name) +
+  geom_hline(yintercept = 0)+geom_vline(xintercept=5, lty="dashed")+geom_vline(xintercept=10, lty="dashed")
+
+ggplot(rt_corr_resample, aes(x = num_samples, y = cor_rt)) +
+  stat_summary(position = position_dodge(.5))+
+  stat_summary(position = position_dodge(.5),geom="line")+
+    scale_color_viridis(discrete = T) +
+  facet_wrap(~dataset_name) +
+  geom_hline(yintercept = 0)+geom_vline(xintercept=5, lty="dashed")+geom_vline(xintercept=10, lty="dashed")
+
+ggplot(rt_corr_resample, aes(x = num_samples, y = cor_rt, col = age_bin)) +
+  scale_color_viridis(discrete = T) +
+  stat_summary(position = position_dodge(.5)) +
+  geom_smooth(se=F)+
+  stat_summary(position = position_dodge(.5), geom = "line") +
+  geom_hline(yintercept = 0)+geom_vline(xintercept=5, lty="dashed")+geom_vline(xintercept=10, lty="dashed")
+
+ggplot(rt_corr_resample, aes(x = num_samples, y = cor_rt)) +
+  scale_color_viridis(discrete = T) +
+  stat_summary(position = position_dodge(.5)) +
+  geom_smooth(se=F)+
+  stat_summary(position = position_dodge(.5), geom = "line") +
+  geom_hline(yintercept = 0)+geom_vline(xintercept=5, lty="dashed")+geom_vline(xintercept=10, lty="dashed")
+```
+
+
+recs: definitely is better to have more than 1 RT. Doing 10 trials total will likely get 2 RTs from nearly all kids. 
+
+Aim for 5-10 RT trials for test-retest reliability. (Meaning 15-30 overall trials presented)
+
+for accuracy probably 10-15 trials is enough.
+
+At least 10 trials which should get decent accuracy and multiple RT's 
+
+10 minimum, reliability (at least for RT) is probably increasing up to 30 total trials.
 
 ## Recommendation 6: Match target and distractor based on image saliency, in particular animacy. 
 [TODO Tarun is leading the image properties analysis.]
 
-## Recommendation 7: (possibly something about counterbalancing/repetition)
-[TODO]
+Repeating the same image pairs does not have a substantial effect on looking patterns overall. 
 <!--
 # (Preamble) Overview of approach
 
