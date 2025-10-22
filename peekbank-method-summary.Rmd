@@ -12,13 +12,13 @@ library(metafor)
 library(ggthemes)
 ```
 
-Here are (draft) recommendations and (draft) supporting figures for the peekbank methods paper. Obviously still some work on how to phase the recommendations. 
+Here are (draft) recommendations and (draft) supporting figures for the peekbank methods paper. Obviously there is still some work to be done on how to phrase the recommendations. 
 
 Note that quality checks on the data may cause numbers to change, but we don't anticipate large changes in overall results. 
 
 # Summary of approach
 
-The goal of the peekbank-methods project is to give recommendations about the design and analysis of LWL studies. To do so, we need some criteria for what is a better outcome. Here, we take a "data-driven" approach to look at how different potential data-processing and study design factors affect reliability and validity. 
+The goal of the peekbank-methods project is to give recommendations about the design and analysis of LWL studies. To do so, we need some criteria for what is a better outcome. Here, we take a "data-driven" approach to look at how different potential data-processing and study design factors affect **reliability** and **validity**. 
 
 All of these analyses are done on a subset of the peekbank database limited to "vanilla" trials (real word target, real word distractor, plain carrier phrase) in English with target words that are nouns. 
 
@@ -28,9 +28,9 @@ Throughout we use three different metrics to assess reliabilty and validity.
 
 2. Test-retest reliability for measures on the same child at two different administrations within 1.5 months of each other. This measure is only possible on a subset of the datasets that have longitudinal data with some closely spaced repeat administrations. 
 
-3. Correlation with CDI measure for validity. We can check how well our metrics correlate with children's CDI sumscores from CDI administrations at roughly the same time. In general, correlating with production and comprehension in the expected directions is desirable, although we also may expect that LWL measures are picking up on slightly different aspects of language learning. 
+3. Correlation with CDI measure for validity. We can check how well our metrics correlate with children's CDI sumscores from CDI administrations at roughly the same time. In general, correlating with production and comprehension in the expected directions is desirable, although we also may expect that LWL measures are picking up on slightly different aspects of language learning than is represented in CDI. 
 
-In order to tell when numerical differences in ICC or correlations could be meaningful, I use bootstrapping which generates per-dataset confidence intervals around the point estimate. I then use point estimates and the bootstrapped CIs to calculate a variance-weighted meta-analytic estimate (and CI) for the correlation across datasets.
+In order to tell when numerical differences in ICC or correlations could be meaningful, I use bootstrapping to generate per-dataset confidence intervals around the point estimate. I then use the point estimates and the bootstrapped CIs to calculate a variance-weighted meta-analytic estimate (and CI) of the overall correlation across datasets.
 
 This project has a non-standard aim with the statistics. We are neither trying to do just estimation nor are we trying to do "traditional" inferential (p<.05) statistics. We are trying to make inferences as to what data practices to recommend (and how strongly)! 
 
@@ -40,15 +40,16 @@ Other factors may also influence what data practices to choose (and to recommend
 
 # Data processing recommendations
 
-## Recommendation 1: Use long accuracy windows. 
+## Recommendation 1: Measure accuracy over a long  time window, such as from 500 - 4000 ms after the point of disambiguation.
 
-Longer accuracy windows that go to 4000ms post disambiguation, rather than to 2000ms, increase reliability (both ICC and test-retest). Short and long windows show comparable correlations with CDI production data, although shorter windows are somewhat more highly correlated with comprehension data. Together, this suggests that looking behaving between 2 and 4 seconds is a stable child-level property, although we cannot say how related it to to child language per se. 
+Longer accuracy windows that go to 4000ms post disambiguation, rather than to 2000ms, increase reliability (both ICC and test-retest). Short and long windows show comparable correlations with CDI production data, although shorter windows are somewhat more highly correlated with comprehension data. Together, this suggests that children's looking behaving between 2 and 4 seconds post disambiguation is a stable child-level property, although we cannot say how related it to to child language per se. 
 
-Exactly when the window starts is not important, although we recommend starting around 500ms to balance between reliability is numerically highest starting at 600 or 700 milliseconds and correlation with production is highest at 500ms. 
+Exactly when the accuracy window starts is not important, although we recommend starting around 500ms to balance between reliability is numerically highest starting at 600 or 700 milliseconds and correlation with production is highest at 500ms. 
 
 While we are recommending accuracy be measured over the 500-4000ms window, we want to be clear that other accuracy windows also have reasonable reliability and validity properties. Strong effects are likely to show up in any reasonable window, but for eking the most reliability out of data, we recommend long windows. 
 
-A heatmap showing ICC (a measure of reliability) for different start and end times for accuracy windows.
+A heatmap showing ICC (a measure of reliability) for different start and end times for accuracy windows. Lighter colors indicate higher (better) reliability. 
+
 ```{r}
 
 accs <- readRDS(here("cached_intermediates/3_accs.Rds"))
@@ -148,20 +149,20 @@ accs_kid_test_retest_summ <-  accs_kid_test_retest |>
 
 Reliability and validity measures for different accuracy windows. Ranges are bootstrapped 95% CIs.
 ```{r}
-acc_all <- acc_boot_summary |> mutate(Type="ICC reliability") |> bind_rows(accs_cdi_kid_summ |> rename(estimate=prod_estimate, ci.lb=prod_ci.lb, ci.ub=prod_ci.ub) |> mutate(Type="Corr. with CDI Production")) |> bind_rows(accs_cdi_kid_summ |> rename(estimate=comp_estimate, ci.lb=comp_ci.lb, ci.ub=comp_ci.ub) |> mutate(Type="Corr. with CDI Comprehension")) |> 
+acc_all <- acc_boot_summary |> mutate(Type="ICC reliability") |> bind_rows(accs_cdi_kid_summ |> rename(estimate=prod_estimate, ci.lb=prod_ci.lb, ci.ub=prod_ci.ub) |> mutate(Type="Corr. with CDI Production")) |> bind_rows(accs_cdi_kid_summ |> rename(estimate=comp_estimate, ci.lb=comp_ci.lb, ci.ub=comp_ci.ub) |> mutate(Type="Corr. with CDI Comp.")) |> 
   bind_rows(accs_kid_test_retest_summ |> mutate(Type="Test-retest reliability"))
 
 acc_all |> ggplot(aes(x=t_start, col=as.character(t_end), y=estimate, ymin=ci.lb, group=t_end, ymax=ci.ub))+geom_pointrange(position=position_dodge(50))+coord_flip()+facet_wrap(~Type, scales="free_x", nrow=1)+theme(legend.position = "bottom", )+labs(y="Correlation", x="Window start time (ms)", color="Window end time (ms)")+scale_color_solarized()
 ```
 
 
-## Recommendation 2: Don't do baseline correction. 
+## Recommendation 2: Don't use baseline correction to control for variation in image saliency. 
 
 Different images have varying levels of saliency to infants, which can drive uneven looking patterns at baseline, before auditory stimulus. Sometimes, researchers address this by using baseline-corrected accuracy, a difference between the looking fraction after the stimulus and the looking fraction before the stimulus. In general, we found that baseline-corrected accuracy led to worse reliability and validity than accuracy. For datasets where there was looking data for a long pre-stimulus period (at least 3 seconds), baseline correction using a long pre-stimulus period was as reliable as accuracy without baseline-correction, but still had marginally worse validity.
 
 [TODO we could therorize on why baseline-correction is worse -- difference measures are generally high variance]
 
-As alternatives to baseline correction, researchers could account for item-level variability in their statistical models. Additionally, better matching of stimulus properties between the target and distractor pairs may reduce unequal looking before stimulus onset (see Recommendation TODO). 
+As alternatives to baseline correction, researchers could account for item-level variability in their statistical models. Additionally, better matching of stimulus properties between the target and distractor pairs may reduce unequal looking before stimulus onset (see Recommendation # YY). 
 
 ```{r}
 d_aoi <- readRDS(here("cached_intermediates", "1_d_aoi.Rds"))
@@ -351,9 +352,9 @@ bc_acc_early |> ggplot(aes(x=b_start, col=b_end, y=estimate, ymin=ci.lb, group=t
 ```
 
 
-## Recommendation 3: Use RT with a minimum RT of around 400 ms. 
+## Recommendation 3: Measure reaction times with a minimum reaction time of around 400 ms. 
 
-While for accuracy there are relatively few dimensions of variability, RT can be measured in a number of ways. 
+While for accuracy there are relatively few dimensions of variability, reaction time (RT) can be measured in a number of ways. 
 
 One choice is whether to measure RT based on when a child's eyes launch from the distractor or when a child's eyes land on the target. Launches could be a more precise index of the timing of intent to look at the target, but leaving from the distractor could also be done with intent to look elsewhere. Thus, launch based analyses sometimes exclude trials where it takes a child too long to go from distractor to target (shift-length cutoff).
 
@@ -363,7 +364,15 @@ RTs can be analysed either on a log scale or a raw RT scale.
 
 Our initial exploration suggested that ICC reliability was maximized for log-scale landing-based RT without any shift-length cutoff with minimum RTs around 400-500ms.  
 
-For the main validity and reliability measures, we compare a launch-based RT with a 600ms shift-length cutoff (as used in XX) and a land-based RT without a shift-length cutoff. We vary the minimum RT and whether the RTs are logged or not. 
+For the main validity and reliability measures, we compare a launch-based RT with a 600ms shift-length cutoff (as used in ...TODO) and a land-based RT without a shift-length cutoff (as used in ...TODO). We vary the minimum RT and whether the RTs are on a log or raw scale. 
+
+Among the 4 types of RT we considered in more detail (log v raw x launch-based v land-based), all have similar correlations with CDI comprehension. Note that correlations between RT and CDI scores are expected to be negative as smaller (faster) RT is associated with better language skills and thus higher CDI scores. Log RT has a slightly stronger (more negative) correlation with CDI production than raw RT especially for minimum RT cutoffs in the 400-450ms range. 
+
+The highest ICC reliabilities occur around 400 ms. ICC reliability is consistently slightly higher for land-based than launch-based although the scale of difference varies with minimum RT. Test-retest reliability is reasonable for all measures. 
+
+We recommend that researchers use minimum RT cutoffs around 400 ms as these increase reliability compared to shorter cutoffs like 200 ms. While the differences between different methods are small, we recommend using landing-based RT on the log scale to maximize overall reliability and validity. 
+
+As an additional note, trials are generally only included in RT analyses if the child is looking at the distractor at the point of disambiguation and continues looking at the distractor for the entire minimum RT period. We found that a more lax threshold of looking at the distractor at time 0ms  and 400ms and not looking at the target in between  can be used with no loss of reliability or validity. However, little bits of missing data were rare, and is likely to be very dataset specific depending on the tracking and imputation process. 
 
 ```{r}
 
@@ -483,25 +492,24 @@ rt_all <- rt_boot_summ |> mutate(Type="ICC reliability") |>
 
 rt_all |> mutate(type=str_c(logged, " ", approach, " RT") |> factor(levels=c("raw launch-based RT", "log launch-based RT", "raw land-based RT", "log land-based RT"))) |> ggplot(aes(col=type, x=as.character(window), y=estimate, ymin=ci.lb, ymax=ci.ub))+geom_pointrange(position=position_dodge(.5))+coord_flip()+facet_wrap(~Type, scales="free_x", nrow=1)+theme(legend.position = "bottom", )+labs(y="Correlation", x="Minimum RT", color="Type of RT")+scale_color_brewer(palette="Paired")
 ```
-Among the 4 types of RT we considered in more detail (log v raw x launch-based v land-based), all have similar correlations with CDI comprehension, and correlations are negative as smaller (faster) RT is associated with larger CDI scores. Log RT has a slightly stronger (more negative) correlation with CDI production than raw RT especially for minimum RTs in the 400-450 range. The highest ICC reliabilities occur around 400 ms. ICC reliability is consistently slightly higher for land-based than launch-based although the scale of difference varies with minimum RT. Test-retest reliability is reasonable for all measures. 
 
-We recommend that researchers use minimum RT cutoffs around 400 ms as these increase reliability compared to shorter 200 ms cutoffs. While the differences between different methods are small, we recommend using log landing-based RT to maximize overall reliability and validity. 
 
-Finally, trials are generally only included if the child is looking at the distractor at the point of disambiguation and continues looking at the distractor for the entire minimum RT period. We found that a more lax threshold of looking at the distractor and 0 and 400ms and not looking at the target between 0 and 400ms can be used for landing-based RT instead of requiring children to be continuously on the distractor, with no loss of reliability or validity. However, little bits of missing data were rare, and is likely to be very dataset specific depending on the tracking and imputation process. 
 
-## Recommendation 4: Excluding trials or children for "zoning" or low numbers of trials is generally unnecessary.
+## Recommendation 4: Excluding trials or children for side-bias or low numbers of trials is generally unnecessary.
 
 Children may engage in various behavior that seems to not be responsive to the trials, including "zoning", contributing few valid looking points on a trial, or contributing few trials overall. One question is whether excluding these types of trials improves overall validity and reliability. 
 
 On a trial-by-trial basis, excluding trials where kids don't look at both target and distractor (either during a pre-window, or ever) does not improve ICC reliability or the correlation with CDI measures. Additionally, excluding trials with looks away from the target and distractor also does not improve ICC reliability or correlation with CDI measures. We do not recommend any trial-level exclusions to accuracy data. 
 
-On a administration basis, common exclusions are for cross-trial side-bias and minimum number of trials contributed. Very few children show strong side bias; in this dataset around 1% children who contributed .5% of trials looked to one side more than 90% of the time.
+On a administration basis, children who show a cross-trial side-bias or who did not contribute some minimum number of trials are often excluded. We found that very few children show strong side bias; in this dataset around 1% children who contributed .5% of trials looked to one side more than 90% of the time.
 
 Thus, exclusions for side bias have minimum impact on reliability and we do not recommend them. We also do not find that setting a minimum number of trials for inclusion improves ICC or CDI validity. 
 
 For RTs, exclusions based on number of trials does not improve ICC or correlations with CDI. 
 
 ## Recommendation 5: When measuring individual differences, excluding children with fewer than 2 RT measures or 3 accuracy measures may be reasonable. 
+
+[may want to combine this with rec 4]
 The one case where exclusions based on minimum trial count may be helpful is for individual difference measures where high test-retest reliability is desired. However, the children who contribute fewer trials might vary in other ways from kids who contribute more so exclusions may hurt generalizability in addition to decreasing effective sample size. 
 
 While our results are uncertain, it appears that test-retest reliability is higher when children have to have 2 RTs from each testing session. Reliability may also increase slightly over the 2-5 RT minimum, but the data loss is substantial. For analysis of archival datasets, tradeoffs between better measurement of each child and fewer children must be considered. 
@@ -512,11 +520,17 @@ For accuracy, results were again uncertain, but a minimum of 3 accuracy trials h
 
 # Design recommendations 
 
-## Recommendation 5: For individual differences, plan for at least 10 trials and ideally closer to 30 trials per child. 
+## Recommendation 6: Design studies to have a minimum of 10 trials per kid. Studies targeting individual differences in processing speed should target 30 trials if possible.
 
-While it is difficult to tell whether post-hoc exclusion of children who contributed too few data points makes sense for individual difference work, it is much clearer that it is better to design experiments to increase the likelihood of having more valid trials.  
+While it is difficult to determine whether to do post-hoc exclusion of children who contributed too few data points, it is much clearer that it is better to design experiments to increase the likelihood of having more valid trials.  
 
 To understand how different numbers of trials would impact test-retest reliability, we sampled trials from each administration with replacement. This allows for up-sampling of children with low numbers of trials, simulating what might have happened in a longer experiment. 
+
+For accuracy, the benefits of increasing numbers of trials seems to flatten out around 10-15 trials. As nearly all trials produce useable accuracy data, this suggests a target minimum of 10-15 trials. 
+
+For RT, it seems much better to have 2 RTs rather than just 1 whenever possible. On average, 1/3 of trials result in useable RT data, but this varies per child, so having 10 trials is recommended to ensure that most children have at least 2 valid RT trials. Test-retest reliability for RT does seem to increase with more trials, with benefits diminishing after 10 trials. Thus, for individual-differences studies where consistent measures of individual language processing speed are desired, we recommend 30 trials, to end up with an average of 10 RT trials per child. 
+
+10 trials should result in multiple RT measures for each child and a fairly reliable measure of accuracy; however, for individual differences in processing speed, 30 trials is recommended where possible. 
 
 ```{r}
 admins <- d_aoi |>
@@ -642,10 +656,11 @@ ggplot(acc_corr_resample, aes(x = num_samples, y = cor_acc)) +
   stat_summary(position = position_dodge(.5)) +
   geom_smooth()+
   stat_summary(position = position_dodge(.5), geom = "line") +
-  geom_hline(yintercept = 0)+geom_vline(xintercept=10, lty="dashed")+geom_vline(xintercept=15, lty="dashed")
+  geom_hline(yintercept = 0)+geom_vline(xintercept=10, lty="dashed")+geom_vline(xintercept=15, lty="dashed")+
+  labs(y="Test-retest correlation", x="Simulated trial count (accuracy)")
 ```
 
-Simulations of test-retest reliability from down- and up-sampling accuracy trials. 
+Simulations of test-retest reliability from down- and up-sampling RT trials. 
 
 ```{r}
 
@@ -687,20 +702,77 @@ rt_corr_resample <- pairs_long |>
 ggplot(rt_corr_resample, aes(x = num_samples, y = cor_rt)) +
   scale_color_viridis(discrete = T) +
   stat_summary(position = position_dodge(.5)) +
-  geom_smooth(se=F)+
+  geom_smooth()+
   stat_summary(position = position_dodge(.5), geom = "line") +
-  geom_hline(yintercept = 0)+geom_vline(xintercept=5, lty="dashed")+geom_vline(xintercept=10, lty="dashed")
+  geom_hline(yintercept = 0)+geom_vline(xintercept=5, lty="dashed")+geom_vline(xintercept=10, lty="dashed")+
+    labs(y="Test-retest correlation", x="Simulated trial count (RT)")
+
 ```
-For accuracy, the benefits of increasing numbers of trials seems to flatten out around 10-15 trials. As nearly all trials produce useable accuracy data, this suggests a target minimum of 10-15 trials. 
 
-For RT, it seems much better to have 2 RTs rather than just 1 whenever possible. On average, 1/3 of trials result in useable RT data, but this varies per child, so having 10 trials is recommended to ensure that most children have at least 2 valid RT trials. Test-retest reliability for RT does seem to increase with more trials, with benefits diminishing after 10 trials. Thus, for individual-differences studies where consistent measures of individual language processing speed are desired, we recommend 30 trials, to end up with an average of 10 RT trials per child. 
 
-10 trials should result in multiple RT measures for each child and a fairly reliable measure of accuracy; however, for individual differences in processing speed, 30 trials is recommended where possible. 
+## Recommendation 7: Match target and distractor images based on animacy. 
 
-## Recommendation 6: Match target and distractor based on image saliency, in particular animacy. 
-[TODO Tarun is leading the image properties analysis so I haven't looked at this part yet.]
+When designing stimuli and setting up target-distractor pairs, researchers want images that children (in the absense of auditory stimuli) have equivalent preference for. One large driver of child looking preference is a preference to look at animates, that is people (or parts of people) and animals. For mixed-animacy trials, children overall look substantially more to the animate option in the pre-stimulus-response window, and are slower to look to inanimates in response to the stimulus. In contrast, children's response to the stimulus shows a similar trajectory between animates and inanimates in trials where the distractor matches the target in animacy. 
 
-Repeating the same image pairs does not have a substantial effect on looking patterns overall. 
+[Not sure if there's anything else we want to say about image saliency measures here]
+
+We found that repeating the same image pairs does not have a substantial effect on looking patterns overall, so it is acceptable to repeat target labels (and target and distractor images) during the experiment. 
+
+```{r, cache=T}
+# this existing animacy labels doesn't cover everything we have in the list now
+# animacy_labels <- read_csv(here("metadata","animates.csv"))
+d_aoi <- readRDS(here("cached_intermediates", "1_d_aoi.Rds"))
+
+
+animates <- c(
+  "dog", "cat", "baby", "bird", "cow", "elephant", "lion", "pig", "duck",
+  "frog", "zebra", "monkey", "bear", "doggy", "horse", "clown", "fish", "butterfly",
+  "giraffe", "chicken", "animal", "boy", "puppy", "lamb", "sheep", "rooster", "tiger", "whale",
+  "owl", "caterpillar", "kangaroo", "bunny", "rabbit", "mouse"
+)
+questionable <- c("foot", "mouth", "ear", "hand")
+
+all_targets <- d_aoi |>
+  distinct(target_label) |>
+  rename(item = target_label) |>
+  bind_rows(d_aoi |> distinct(distractor_label) |> rename(item = distractor_label)) |>
+  distinct(item) |>
+  mutate(animate = case_when(
+    item %in% animates ~ "yes",
+    item %in% questionable ~ "yes", # we can decide about body parts later
+    T ~ "no"
+  ))
+
+d_aoi_labelled <- d_aoi |>
+  left_join(all_targets, by = c("target_label" = "item")) |>
+  rename(animate_target = animate) |>
+  left_join(all_targets, by = c("distractor_label" = "item")) |>
+  rename(animate_distractor = animate) |> 
+  mutate(mixed=animate_distractor!=animate_target)
+```
+
+Plot of accuracy over time based on target and distractor animacy. Dashed horizontal line indicates chance and dashed vertical lines indicate the point of disambiguation and start of the recommended accuracy window. 
+
+```{r}
+d_aoi_labelled |>filter(t_norm>-1000, t_norm<2000) |> 
+  group_by(animate_target, animate_distractor, t_norm) |>
+  summarize(acc = mean(correct, na.rm = T)) |>
+  mutate(type=case_when(
+    animate_target=="yes"&animate_distractor=="yes"~ "both animate",
+    animate_target=="yes"~ "animate target, \ninanimate distractor",
+    animate_target=="no"&animate_distractor=="no" ~ "both inanimate",
+    T ~ "inanimate target, \nanimate distractor"
+  )) |> mutate(type=factor(type, levels=c("both animate","both inanimate",
+                                          "animate target, \ninanimate distractor",
+                                          "inanimate target, \nanimate distractor" ))) |> 
+  ggplot(aes(x = t_norm, y = acc, color = type)) +
+  geom_line() +
+  geom_hline(yintercept = .5, lty = "dashed") +
+  geom_vline(xintercept = 0, lty="dashed") +
+      geom_vline(xintercept = 500, lty = "dashed") +
+  labs(x="Time point (ms)", y="Fraction looks to target", color="")+
+  scale_color_brewer(palette="Dark2")
+```
 
 # Paper outline
 
@@ -722,7 +794,7 @@ Methods: (where are we submitting this -- is it a methods first paper)
  
 Results:
 
-= recommendations above
+= recommendations above (header wording suggestions appreciated!)
 
 Discussion:
 
