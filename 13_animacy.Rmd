@@ -139,6 +139,51 @@ d_aoi_labelled |> inner_join(targets_with_both_distractors) |> filter(animate_ta
   theme(legend.position = "bottom")
 ```
 
+```{r, cache=T}
+# this existing animacy labels doesn't cover everything we have in the list now
+# animacy_labels <- read_csv(here("metadata","animates.csv"))
+d_aoi <- readRDS(here("cached_intermediates", "1_d_aoi.Rds"))
+
+
+animates <- c(
+  "dog", "cat", "baby", "bird", "cow", "elephant", "lion", "pig", "duck",
+  "frog", "zebra", "monkey", "bear", "doggy", "horse", "clown", "fish", "butterfly",
+  "giraffe", "chicken", "animal", "boy", "puppy", "lamb", "sheep", "rooster", "tiger", "whale",
+  "owl", "caterpillar", "kangaroo", "bunny", "rabbit", "mouse"
+)
+questionable <- c("foot", "mouth", "ear", "hand")
+
+all_targets <- d_aoi |>
+  distinct(target_label) |>
+  rename(item = target_label) |>
+  bind_rows(d_aoi |> distinct(distractor_label) |> rename(item = distractor_label)) |>
+  distinct(item) |>
+  mutate(animate = case_when(
+    item %in% animates ~ "yes",
+    item %in% questionable ~ "yes", # we can decide about body parts later
+    T ~ "no"
+  ))
+
+d_aoi_labelled <- d_aoi |>
+  left_join(all_targets, by = c("target_label" = "item")) |>
+  rename(animate_target = animate) |>
+  left_join(all_targets, by = c("distractor_label" = "item")) |>
+  rename(animate_distractor = animate) |> 
+  mutate(mixed=animate_distractor!=animate_target)
+
+d_aoi_labelled |>filter(t_norm>-1000, t_norm<2000) |> 
+  group_by(animate_target, animate_distractor, t_norm) |>
+  summarize(acc = mean(correct, na.rm = T)) |>
+  mutate(type=case_when(
+    animate_target=="yes"&animate_distractor=="yes"~ "both animate",
+    animate_target=="yes"~ "animate target, \ninanimate distractor",
+    animate_target=="no"&animate_distractor=="no" ~ "both inanimate",
+    T ~ "inanimate target, \nanimate distractor"
+  )) |> mutate(type=factor(type, levels=c("both animate","both inanimate",
+                                          "animate target, \ninanimate distractor",
+                                          "inanimate target, \nanimate distractor" ))) |> saveRDS(here("cached_intermediates", "13_animacy_timecourse.rds"))
+```
+
 # Older
 # Fit models
 

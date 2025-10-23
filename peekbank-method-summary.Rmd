@@ -516,7 +516,61 @@ While our results are uncertain, it appears that test-retest reliability is high
 
 For accuracy, results were again uncertain, but a minimum of 3 accuracy trials had slightly better test-retest reliability than 2 trials (which in turn was better than 1). Most children had plenty of accuracy trials, so data loss is unlikely to be a concern. 
 
-[TODO possible figure for these]
+Effects of different trial-level accuracy exclusions on data validity and reliability. (If we include the graph, bootstrapped error bars can be produced)
+```{r}
+excl1 <- readRDS(here("cached_intermediates/5_acc_trial_exclusions.rds"))
+
+excl1_loss <- readRDS(here("cached_intermediates/5_acc_trial_exclusions_loss.rds"))
+
+
+excl1_cdi <- readRDS(here("cached_intermediates/5_acc_trial_exclusion_cdi.rds"))
+
+excl1_test_retest <- readRDS(here("cached_intermediates/5_acc_trial_exclusions_testretest.rds"))
+
+acc_trial_all <- excl1 |> mutate(Type="ICC reliability") |> rename(estimate=icc) |> 
+  bind_rows(excl1_loss |> rename(estimate=prop_trials_retained) |> mutate(Type="Frac data retained")) |> 
+  bind_rows(excl1_cdi |> rename(estimate=cor_prod) |> mutate(Type="Corr. with CDI Production")) |> 
+    bind_rows(excl1_cdi |> rename(estimate=cor_comp) |> mutate(Type="Corr. with CDI Comp.")) |> 
+    bind_rows(excl1_test_retest |> rename(estimate=cor_test_retest) |> mutate(Type="Test-retest Reliability"))
+
+
+  
+
+acc_trial_all |> ggplot(aes(x=exclude_less_than, col=zoners_included, y=estimate, group=zoners_included))+stat_summary(position=position_dodge2(.05), geom="point")+coord_flip()+facet_wrap(~Type, scales="free_x", nrow=1)+theme(legend.position = "bottom", )+labs(y="", x="Minimum Fraction Looking", color="Zoner exclusion")+scale_color_solarized()
+```
+Effects of different minimum trial cut-offs on data validity and reliability. (If we include the graph, bootstrapped error bars can be produced, as could data-loss rates)
+```{r}
+excl2 <- readRDS(here("cached_intermediates", "5_acc_kid_exclusions_icc.rds"))
+
+excl2_cdi <- readRDS(here("cached_intermediates", "5_acc_kid_exclusions_cdi.rds"))
+
+excl2_test_retest <- readRDS(here("cached_intermediates", "5_acc_kid_exclusions_testretest.rds"))
+
+acc_kid_all <- excl2 |> mutate(Type="ICC reliability") |> rename(estimate=icc_values) |> 
+  bind_rows(excl2_cdi |> rename(estimate=cor_prod) |> mutate(Type="Corr. with CDI Production")) |> 
+    bind_rows(excl2_cdi |> rename(estimate=cor_comp) |> mutate(Type="Corr. with CDI Comp.")) |> 
+    bind_rows(excl2_test_retest |> rename(estimate=cor_test_retest) |> mutate(Type="Test-retest Reliability")) |> 
+  mutate(Measure="accuracy")
+
+excl3 <- readRDS(here("cached_intermediates", "5_kid_rt_exclusions.rds"))
+
+excl3_cdi <- readRDS(here("cached_intermediates", "5_kid_rt_exclusions_cdi.rds"))
+
+excl3_test_retest <- readRDS(here("cached_intermediates", "5_kid_rt_exclusions_testretest.rds"))
+
+rt_kid_all <-   excl3 |> mutate(Type="ICC reliability") |> rename(estimate=icc_values) |> 
+  bind_rows(excl3_cdi |> rename(estimate=cor_prod) |> mutate(Type="Corr. with CDI Production")) |> 
+    bind_rows(excl3_cdi |> rename(estimate=cor_comp) |> mutate(Type="Corr. with CDI Comp.")) |> 
+    bind_rows(excl3_test_retest |> rename(estimate=cor_test_retest) |> mutate(Type="Test-retest Reliability")) |> 
+  mutate(Measure="RT")
+
+acc_plot <- acc_kid_all |> ggplot(aes(x=min_trials, y=estimate, color=Measure, group=Measure))+stat_summary(position=position_dodge2(.05), geom="point")+coord_flip()+facet_wrap(~Type, scales="free_x", nrow=1)+theme(legend.position = "bottom", )+labs(y="Correlation", x="Minimum Trials", color="")+scale_color_solarized()
+
+rt_plot <- rt_kid_all |> ggplot(aes(x=min_trials, y=estimate, color=Measure, group=Measure))+stat_summary(position=position_dodge2(.05), geom="point")+coord_flip()+facet_wrap(~Type, scales="free_x", nrow=1)+theme(legend.position = "bottom", )+labs(y="Correlation", x="Minimum Trials", color="")+scale_color_solarized(accent="red")
+
+library(cowplot)
+plot_grid(acc_plot, rt_plot, rows=2)
+```
 
 # Design recommendations 
 
@@ -532,6 +586,7 @@ For RT, it seems much better to have 2 RTs rather than just 1 whenever possible.
 
 10 trials should result in multiple RT measures for each child and a fairly reliable measure of accuracy; however, for individual differences in processing speed, 30 trials is recommended where possible. 
 
+(note for discussion: Alvin brings up that up-sampling might be artificially inflating reliability. may want to consider alternatives or make sure results are consistent with downsample only results??)
 ```{r}
 admins <- d_aoi |>
   select(dataset_name, subject_id, administration_id, age) |>
@@ -718,60 +773,37 @@ When designing stimuli and setting up target-distractor pairs, researchers want 
 
 We found that repeating the same image pairs does not have a substantial effect on looking patterns overall, so it is acceptable to repeat target labels (and target and distractor images) during the experiment. 
 
-```{r, cache=T}
-# this existing animacy labels doesn't cover everything we have in the list now
-# animacy_labels <- read_csv(here("metadata","animates.csv"))
-d_aoi <- readRDS(here("cached_intermediates", "1_d_aoi.Rds"))
-
-
-animates <- c(
-  "dog", "cat", "baby", "bird", "cow", "elephant", "lion", "pig", "duck",
-  "frog", "zebra", "monkey", "bear", "doggy", "horse", "clown", "fish", "butterfly",
-  "giraffe", "chicken", "animal", "boy", "puppy", "lamb", "sheep", "rooster", "tiger", "whale",
-  "owl", "caterpillar", "kangaroo", "bunny", "rabbit", "mouse"
-)
-questionable <- c("foot", "mouth", "ear", "hand")
-
-all_targets <- d_aoi |>
-  distinct(target_label) |>
-  rename(item = target_label) |>
-  bind_rows(d_aoi |> distinct(distractor_label) |> rename(item = distractor_label)) |>
-  distinct(item) |>
-  mutate(animate = case_when(
-    item %in% animates ~ "yes",
-    item %in% questionable ~ "yes", # we can decide about body parts later
-    T ~ "no"
-  ))
-
-d_aoi_labelled <- d_aoi |>
-  left_join(all_targets, by = c("target_label" = "item")) |>
-  rename(animate_target = animate) |>
-  left_join(all_targets, by = c("distractor_label" = "item")) |>
-  rename(animate_distractor = animate) |> 
-  mutate(mixed=animate_distractor!=animate_target)
-```
 
 Plot of accuracy over time based on target and distractor animacy. Dashed horizontal line indicates chance and dashed vertical lines indicate the point of disambiguation and start of the recommended accuracy window. 
 
+[TODO could bootstrap for CI around the mean at each time point and get error bands on these]
 ```{r}
-d_aoi_labelled |>filter(t_norm>-1000, t_norm<2000) |> 
-  group_by(animate_target, animate_distractor, t_norm) |>
-  summarize(acc = mean(correct, na.rm = T)) |>
-  mutate(type=case_when(
-    animate_target=="yes"&animate_distractor=="yes"~ "both animate",
-    animate_target=="yes"~ "animate target, \ninanimate distractor",
-    animate_target=="no"&animate_distractor=="no" ~ "both inanimate",
-    T ~ "inanimate target, \nanimate distractor"
-  )) |> mutate(type=factor(type, levels=c("both animate","both inanimate",
-                                          "animate target, \ninanimate distractor",
-                                          "inanimate target, \nanimate distractor" ))) |> 
+
+readRDS(here("cached_intermediates", "13_animacy_timecourse.rds")) |> 
   ggplot(aes(x = t_norm, y = acc, color = type)) +
   geom_line() +
   geom_hline(yintercept = .5, lty = "dashed") +
   geom_vline(xintercept = 0, lty="dashed") +
       geom_vline(xintercept = 500, lty = "dashed") +
   labs(x="Time point (ms)", y="Fraction looks to target", color="")+
+  coord_cartesian(xlim=c(-1000,2000), ylim=c(.4, .8))+
   scale_color_brewer(palette="Dark2")
+```
+To check for possible differences in behavior when viewing images for a first or repeated time, we compared time courses for items viewed for the first time with items viewed for a second time. All items had the same distractor-target pairings; some datasets had counterbalancing where what was initially the target was later the distractor, and others kept the same distractor. Here we show items for the first time compared to the same items a second time, based on their prior role. 
+
+```{r}
+prev_dist <- readRDS(here("cached_intermediates", "13_prev_dist_timecourse.rds")) |> mutate(Panel="prev_dist")
+prev_target <- readRDS(here("cached_intermediates", "13_prev_target_time_course.rds")) |> mutate(Panel="prev_target")
+
+prev_dist |> bind_rows(prev_target) |> ggplot(aes(x = t_norm, y = acc, color = type)) +
+  geom_line() +
+  geom_hline(yintercept = .5, lty = "dashed") +
+  geom_vline(xintercept = 0, lty="dashed") +
+      geom_vline(xintercept = 500, lty = "dashed") +
+  labs(x="Time point (ms)", y="Fraction looks to target", color="")+
+  scale_color_brewer(palette="Dark2")+
+    coord_cartesian(xlim=c(-1000,2000), ylim=c(.4, .8))+
+  facet_wrap(~Panel)
 ```
 
 # Paper outline

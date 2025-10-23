@@ -234,6 +234,19 @@ prev_dist |> inner_join(prev_dist_both) |>
   geom_line() +
   geom_hline(yintercept = .5, lty = "dashed")+
   geom_vline(xintercept=0, lty="dashed")+theme(legend.position = "bottom")
+
+
+prev_dist |> inner_join(prev_dist_both) |> 
+  left_join(d_aoi) |>
+    filter(t_norm>=-1000, t_norm<=2000) |> 
+  group_by( type, t_norm) |>
+  summarize(acc=mean(correct,na.rm=T)) |> saveRDS(here("cached_intermediates", "13_prev_dist_timecourse.rds"))
+  # ggplot(aes(x = t_norm, y = acc, color = type)) +
+  # geom_line() +
+  # geom_hline(yintercept = .5, lty = "dashed")+
+  # geom_vline(xintercept=0, lty="dashed")+theme(legend.position = "bottom")
+
+
 ```
 
 ```{r, eval=T}
@@ -293,6 +306,17 @@ prev_target |> inner_join(prev_target_both) |>
   geom_line() +
   geom_hline(yintercept = .5, lty = "dashed")+
   geom_vline(xintercept=0, lty="dashed")+theme(legend.position = "bottom")
+
+prev_target |> inner_join(prev_target_both) |> 
+  left_join(d_aoi) |>
+    filter(t_norm>=-1000, t_norm<=2000) |> 
+  group_by( type, t_norm) |> 
+  summarize(acc = mean(correct, na.rm = T),
+           ) |> saveRDS(here("cached_intermediates", "13_prev_target_time_course.rds"))
+  # ggplot(aes(x = t_norm, y = acc, color = type)) +
+  # geom_line() +
+  # geom_hline(yintercept = .5, lty = "dashed")+
+  # geom_vline(xintercept=0, lty="dashed")+theme(legend.position = "bottom")
 ```
 
 ```{r, eval=T}

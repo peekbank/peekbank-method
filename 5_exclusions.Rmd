@@ -277,12 +277,16 @@ excl1_loss <- excl1_params |>
     data_loss_trial_exclusion_sim
   )) |>
   unnest(col = data_loss)
+
+saveRDS(excl1_loss, here("cached_intermediates", "5_acc_trial_exclusions_loss.rds"))
 ```
 
 ```{r}
 # data_loss_trial_exclusion_sim()
 
 excl1 <- left_join(excl1, excl1_loss)
+
+
 ```
 
 Now plot by dataset loss. 
@@ -497,6 +501,8 @@ excl1_cdi <- excl1_params |>
   )) |>
   unnest(col = cdi_corr)
 toc()
+
+saveRDS(excl1_cdi, here("cached_intermediates", "5_acc_trial_exclusion_cdi.rds"))
 ```
 
 ```{r}
@@ -585,6 +591,7 @@ pairs <- repeated_subjects |>
   select(-n, -age) |>
   left_join(repeated_subjects |> select(-age, -n), by = c("dataset_name", "subject_id", "second_admin" = "administration_id")) |>
   ungroup() |>
+    filter(!(dataset_name=="adams_marchman_2018" & mean_age>28)) |> # these do have multiple sessions but with very different items banks for the two sessions!
   mutate(pair_number = row_number()) |>
   select(-forward_age, -forward_diff, -test_num)
 
@@ -659,6 +666,8 @@ excl1_test_retest <- excl1_params |>
   unnest(corr) |> 
   filter(dataset_name!="NA")
 toc()
+
+saveRDS(excl1_test_retest, here("cached_intermediates", "5_acc_trial_exclusions_testretest.rds"))
 ```
 
 
@@ -1407,6 +1416,7 @@ acc_icc <- d_kid_sim |>
   unnest(icc_values) |>
   unnest(kids)
 
+saveRDS(acc_icc, here("cached_intermediates", "5_acc_kid_exclusions_icc.rds"))
 ```
 
 ```{r}
@@ -1453,6 +1463,9 @@ acc_cdi <- d_kid_sim |>
     n_total = sum(!is.na(mean_val)),
     kids = sum(unique(administration_id))
   )
+
+saveRDS(acc_cdi, here("cached_intermediates", "5_acc_kid_exclusions_cdi.rds"))
+
 ```
 
 ```{r}
@@ -1538,6 +1551,7 @@ pairs <- repeated_subjects |>
   select(-n, -age) |>
   left_join(repeated_subjects |> select(-age, -n), by = c("dataset_name", "subject_id", "second_admin" = "administration_id")) |>
   ungroup() |>
+     filter(!(dataset_name=="adams_marchman_2018" & mean_age>28)) |> # these do have multiple sessions but with very different items banks for the two sessions!
   mutate(pair_number = row_number()) |>
   select(-forward_age, -forward_diff, -test_num)
 
@@ -1577,6 +1591,8 @@ acc_test_retest <- d_sim_pairs |>
     group_by(dataset_name, min_trials) %>%
    summarise(cor_test_retest = ifelse( "first_admin" %in% names(.) & "second_admin" %in% names(.) &
     sum(!is.na(first_admin) & !is.na(second_admin)) > 2, cor.test(first_admin, second_admin)$estimate, NA)) 
+
+saveRDS(acc_test_retest, here("cached_intermediates", "5_acc_kid_exclusions_testretest.rds"))
 ```
 
 ```{r}
@@ -1711,6 +1727,9 @@ rt_cdi <- rt_data |>
     n_total = sum(!is.na(mean_rt)),
     kids = sum(unique(administration_id))
   )
+
+saveRDS(rt_cdi, here("cached_intermediates", "5_kid_rt_exclusions_cdi.rds"))
+
 ```
 
 ```{r}
@@ -1797,6 +1816,7 @@ pairs <- repeated_subjects |>
   select(-n, -age) |>
   left_join(repeated_subjects |> select(-age, -n), by = c("dataset_name", "subject_id", "second_admin" = "administration_id")) |>
   ungroup() |>
+     filter(!(dataset_name=="adams_marchman_2018" & mean_age>28)) |> # these do have multiple sessions but with very different items banks for the two sessions!
   mutate(pair_number = row_number()) |>
   select(-forward_age, -forward_diff, -test_num)
 
@@ -1825,7 +1845,10 @@ rt_test_retest <- pairs_rt_data |>
     pivot_wider(names_from = session_num, values_from = mean_var) |>
     group_by(dataset_name, min_trials, approach, logged) %>%
    summarise(cor_test_retest = ifelse( "first_admin" %in% names(.) & "second_admin" %in% names(.) &
-    sum(!is.na(first_admin) & !is.na(second_admin)) > 2, cor.test(first_admin, second_admin)$estimate, NA)) 
+    sum(!is.na(first_admin) & !is.na(second_admin)) > 2, cor.test(first_admin, second_admin)$estimate, NA))
+
+ saveRDS(rt_test_retest, here("cached_intermediates", "5_kid_rt_exclusions_testretest.rds"))
+
 ```
 
 ```{r}
