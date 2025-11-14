@@ -69,6 +69,8 @@ ggplot(accs_summary, aes(x = t_start, y = t_end, fill = mean_icc)) +
   scale_x_continuous(breaks = c(-1000, -500, 0, 500, 1000, 1500)) +
   xlab("Window Start Time (in ms)") +
   ylab("Window End Time (in ms)")
+
+ggsave(here("heat_acc.png"), width=5, height=3)
 ```
 
 
@@ -153,7 +155,130 @@ acc_all <- acc_boot_summary |> mutate(Type="ICC reliability") |> bind_rows(accs_
   bind_rows(accs_kid_test_retest_summ |> mutate(Type="Test-retest reliability"))
 
 acc_all |> ggplot(aes(x=t_start, col=as.character(t_end), y=estimate, ymin=ci.lb, group=t_end, ymax=ci.ub))+geom_pointrange(position=position_dodge(50))+coord_flip()+facet_wrap(~Type, scales="free_x", nrow=1)+theme(legend.position = "bottom", )+labs(y="Correlation", x="Window start time (ms)", color="Window end time (ms)")+scale_color_solarized()
+
+ggsave("acc.png")
 ```
+
+Other approaches to aggregation!
+
+
+```{r}
+acc_boot <- readRDS(here("cached_intermediates", "3_acc_icc_boot.rds"))
+
+acc_boot_summary_1 <- acc_boot |>
+  filter(!is.na(lower), !is.na(upper)) |>
+  mutate(
+    stdev = (upper - lower) / (1.96 * 2),
+    var = stdev**2
+  ) |>
+  group_by(t_start, t_end) |>
+  nest() |>
+  mutate(icc = map(data, \(d){
+    rma(d$est, d$var) |>
+      summary() |>
+      predict() |> as_tibble()
+  })) |>
+  select(-data) |>
+  unnest(icc) |> 
+  mutate(type="1")
+
+acc_boot_summary_2 <- acc_boot |>
+  filter(!is.na(lower), !is.na(upper)) |>
+  mutate(
+    stdev = (upper - lower) / (1.96 * 2),
+    var = stdev**2,
+    condition=str_c(t_start, "_", t_end)
+  ) |> select(dataset_name, condition, var, est) |> nest() |> 
+  mutate(icc = map(data, \(d){
+    rma(yi=est, vi=var, mods=~condition, data=d) |> #summary() |> coef() |> as_tibble(rownames="coef") |> View()
+      
+      predict() |> as_tibble()
+  })) |>
+  unnest(icc, data) |> 
+  select(condition, pred, ci.lb, ci.ub) |> distinct() |> 
+  separate(condition, sep="_", c("t_start", "t_end")) |> 
+  mutate(t_start=as.numeric(t_start), t_end=as.numeric(t_end)) |> mutate(type="2")
+
+acc_boot_summary_3 <- acc_boot |>
+  filter(!is.na(lower), !is.na(upper)) |>
+  mutate(
+    stdev = (upper - lower) / (1.96 * 2),
+    var = stdev**2,
+    condition=str_c(t_start, "_", t_end)
+  ) |> select(dataset_name, condition, var, est) |> nest() |> 
+  mutate(icc = map(data, \(d){
+    rma.mv(yi=est, V=var, mods=~condition, random=~1|dataset_name, data=d) |> #summary() |> coef() |> as_tibble(rownames="coef") |> View()
+      
+    
+    predict() |> as_tibble()
+  })) |>
+  unnest(icc, data) |> 
+  select(condition, pred, ci.lb, ci.ub) |> distinct() |> 
+  separate(condition, sep="_", c("t_start", "t_end")) |> 
+  mutate(t_start=as.numeric(t_start), t_end=as.numeric(t_end)) |> mutate(type="3")
+
+acc_boot_summary_4 <- acc_boot |>
+  filter(!is.na(lower), !is.na(upper)) |>
+  mutate(
+    stdev = (upper - lower) / (1.96 * 2),
+    var = stdev**2,
+    condition=str_c(t_start, "_", t_end)
+  ) |> select(dataset_name, condition, var, est) |> nest() |> 
+  mutate(icc = map(data, \(d){
+    rma.mv(yi=est, V=var, mods=~condition, random=~1|dataset_name, data=d) |> summary() |> coef() |> as_tibble(rownames="coef")
+    })) |>
+  unnest(icc) |> 
+  select(-data) |> 
+  mutate(coef=str_replace(coef, "condition", "")) |> 
+  separate(coef, sep="_", c( "t_start", "t_end")) |> 
+  mutate(t_start=as.numeric(t_start), t_end=as.numeric(t_end)) |> mutate(type="4") |> filter(!is.na(t_start)) |> 
+  mutate(pred=.3419+estimate, ci.lb=.3419+ci.lb, ci.ub=.3419+ci.ub)
+
+acc_boot_summary_3 |> bind_rows(acc_boot_summary_2) |> bind_rows(acc_boot_summary_1)|>
+  bind_rows(acc_boot_summary_4) |> ggplot(aes(x=t_start, col=type, y=pred, ymin=ci.lb, group=type, ymax=ci.ub))+geom_pointrange(position=position_dodge(70))+coord_flip()+theme(legend.position = "bottom", )+labs(y="Correlation", x="Window start time (ms)", color="Window end time (ms)")+scale_color_solarized()+facet_wrap(~t_end)
+
+
+acc_boot_summary_3 |> bind_rows(acc_boot_summary_2) |> bind_rows(acc_boot_summary_1)|>
+  bind_rows(acc_boot_summary_4) |> ggplot(aes(x=t_start, col=as.character(t_end), y=pred, ymin=ci.lb, group=t_end, ymax=ci.ub))+geom_pointrange(position=position_dodge(70))+coord_flip()+theme(legend.position = "bottom", )+labs(y="Correlation", x="Window start time (ms)", color="Window end time (ms)")+scale_color_solarized()+facet_wrap(~type)
+```
+
+```{r, eval=F}
+acc_boot <- readRDS(here("cached_intermediates", "3_acc_icc_boot.rds"))
+
+acc_boot |> filter(t_start==500, t_end==4000) |> ggplot(aes(x=dataset_name, y=est, ymin=lower, group=t_end, ymax=upper))+geom_pointrange(position=position_dodge(.3), color="purple")+coord_flip()+theme(legend.position = "bottom", )+labs(y="ICC", x="Dataset", color="Window end time (ms)")+scale_color_solarized()+geom_pointrange(data=acc_boot_summary |> filter(t_start==500, t_end==4000), aes(x=" Meta-analytic aggregate", y=estimate, ymin=ci.lb, ymax=ci.ub), color="black")
+
+
+ggsave("single_boot.png", width=5, height=2.5)
+acc_boot_summary|> ggplot(aes(x=t_start, col=as.character(t_end), y=estimate, ymin=ci.lb, group=t_end, ymax=ci.ub))+geom_pointrange(position=position_dodge(50))+coord_flip()+theme(legend.position = "bottom", )+labs(y="Correlation", x="Window start time (ms)", color="Window end time (ms)")+scale_color_solarized()
+
+ggsave("acc_boot.png", width=5, height=2.5)
+
+```
+
+
+```{r}
+acc_boot_age <- readRDS(here("cached_intermediates", "3_acc_icc_boot_age.rds"))
+
+acc_boot_age_summary <- acc_boot_age |>
+  filter(!is.na(lower), !is.na(upper)) |>
+  mutate(
+    stdev = (upper - lower) / (1.96 * 2),
+    var = stdev**2
+  ) |>
+  group_by(t_start, t_end, younger) |>
+  nest() |>
+  mutate(icc = map(data, \(d){
+    rma(d$est, d$var) |>
+      summary() |>
+      coef()
+  })) |>
+  select(-data) |>
+  unnest(icc)
+
+acc_boot_age_summary|>   mutate(age = ifelse(younger,  "<24 months", ">=24 months")) |> 
+ggplot(aes(x=t_start, col=as.character(t_end), y=estimate, ymin=ci.lb, group=t_end, ymax=ci.ub))+geom_pointrange(position=position_dodge(50))+coord_flip()+theme(legend.position = "bottom", )+labs(y="Correlation", x="Window start time (ms)", color="Window end time (ms)")+scale_color_solarized()+facet_wrap(~age)
+```
+
 
 
 ## Recommendation 2: Don't use baseline correction to control for variation in image saliency. 
@@ -331,24 +456,29 @@ Comparison between baseline-corrected accuracy with different baseline windows a
 
 ```{r}
 bc_acc_all <- bc_boot_summ |> mutate(Type="ICC reliability") |> 
-  bind_rows(bc_accs_kid_cdi_summ |> rename(estimate=prod_estimate, ci.lb=prod_ci.lb, ci.ub=prod_ci.ub) |> mutate(Type="Corr. with CDI Production")) |> 
-  bind_rows(bc_accs_kid_cdi_summ |> rename(estimate=comp_estimate, ci.lb=comp_ci.lb, ci.ub=comp_ci.ub) |> mutate(Type="Corr. with CDI Comprehension")) |> 
+  bind_rows(bc_accs_kid_cdi_summ |> rename(estimate=prod_estimate, ci.lb=prod_ci.lb, ci.ub=prod_ci.ub) |> mutate(Type="Corr. with CDI Prod.")) |> 
+  bind_rows(bc_accs_kid_cdi_summ |> rename(estimate=comp_estimate, ci.lb=comp_ci.lb, ci.ub=comp_ci.ub) |> mutate(Type="Corr. with CDI Comp.")) |> 
   bind_rows(bc_accs_kid_test_retest_summ |> mutate(Type="Test-retest reliability")) |> 
   mutate(b_end=ifelse(is.na(b_end), "no baseline", as.character(b_end)),
          b_start=ifelse(b_start=="none", "no baseline", b_start)) 
 
 bc_acc_all |> ggplot(aes(x=b_start, col=b_end, y=estimate, ymin=ci.lb, group=t_end, ymax=ci.ub))+geom_pointrange(position=position_dodge2(width=.5))+coord_flip()+facet_wrap(~Type, scales="free_x", nrow=1)+theme(legend.position = "bottom", )+labs(y="Correlation", x="Baseline start time (ms)", color="Baseline end time (ms)")+scale_color_solarized()
+
+ggsave("bc-all.png")
 ```
 
 Comparison between baseline-corrected accuracy with different baseline windows and accuracy with no baseline-correction on the subset of datasets with at least 3 seconds of pre-stimulus onset looking data.
 ```{r}
 bc_acc_early <- bc_boot_early_summ |> mutate(Type="ICC reliability") |> 
   bind_rows(bc_accs_kid_cdi_summ_early |> rename(estimate=prod_estimate, ci.lb=prod_ci.lb, ci.ub=prod_ci.ub) |> mutate(Type="Corr. with CDI Production")) |> 
-  bind_rows(bc_accs_kid_cdi_summ_early |> rename(estimate=comp_estimate, ci.lb=comp_ci.lb, ci.ub=comp_ci.ub) |> mutate(Type="Corr. with CDI Comprehension")) |> 
+  bind_rows(bc_accs_kid_cdi_summ_early |> rename(estimate=comp_estimate, ci.lb=comp_ci.lb, ci.ub=comp_ci.ub) |> mutate(Type="Corr. with CDI Comp.")) |> 
   mutate(b_end=ifelse(is.na(b_end), "no baseline", as.character(b_end)),
          b_start=ifelse(b_start=="none", "no baseline", b_start)) 
 
 bc_acc_early |> ggplot(aes(x=b_start, col=b_end, y=estimate, ymin=ci.lb, group=t_end, ymax=ci.ub))+geom_pointrange(position=position_dodge2(width=.5))+coord_flip()+facet_wrap(~Type, scales="free_x", nrow=1)+theme(legend.position = "bottom", )+labs(y="Correlation", x="Baseline start time (ms)", color="Baseline end time (ms)")+scale_color_solarized()
+
+ggsave("bc-some.png")
+
 ```
 
 
@@ -483,7 +613,7 @@ Reliability and validity measures for different accuracy windows. Ranges are boo
 ```{r}
 rt_all <- rt_boot_summ |> mutate(Type="ICC reliability") |> 
   bind_rows(rt_kid_cdi_summ |> rename(estimate=prod_estimate, ci.lb=prod_ci.lb, ci.ub=prod_ci.ub) |> mutate(Type="Corr. with CDI Production")) |> 
-  bind_rows(rt_kid_cdi_summ |> rename(estimate=comp_estimate, ci.lb=comp_ci.lb, ci.ub=comp_ci.ub) |> mutate(Type="Corr. with CDI Comprehension")) |> 
+  bind_rows(rt_kid_cdi_summ |> rename(estimate=comp_estimate, ci.lb=comp_ci.lb, ci.ub=comp_ci.ub) |> mutate(Type="Corr. with CDI Comp.")) |> 
   bind_rows(rt_kid_test_retest_summ |> mutate(Type="Test-retest reliability")) |> 
   filter(approach%in%c("trad_land", "trad_launch")) |> 
   mutate(approach=ifelse(approach=="trad_land", "land-based", "launch-based"))
@@ -491,8 +621,68 @@ rt_all <- rt_boot_summ |> mutate(Type="ICC reliability") |>
 #rt_all |> ggplot(aes(x=str_c(logged, " ", approach, " RT"), col=as.character(window), y=estimate, ymin=ci.lb, ymax=ci.ub))+geom_pointrange(position=position_dodge(.5))+coord_flip()+facet_wrap(~Type, scales="free_x", nrow=1)+theme(legend.position = "bottom", )+labs(y="Correlation", x="Type of RT", color="Minimum RT")+scale_color_viridis(discrete=T)
 
 rt_all |> mutate(type=str_c(logged, " ", approach, " RT") |> factor(levels=c("raw launch-based RT", "log launch-based RT", "raw land-based RT", "log land-based RT"))) |> ggplot(aes(col=type, x=as.character(window), y=estimate, ymin=ci.lb, ymax=ci.ub))+geom_pointrange(position=position_dodge(.5))+coord_flip()+facet_wrap(~Type, scales="free_x", nrow=1)+theme(legend.position = "bottom", )+labs(y="Correlation", x="Minimum RT", color="Type of RT")+scale_color_brewer(palette="Paired")
+
+ggsave("rt.png", width=7, height=5)
 ```
 
+```{r}
+# we require 10 trials and 5 kids 
+rt_dist <- readRDS(here("cached_intermediates", "4_rts.rds")) |> filter(shift_type=="D-T") |> 
+  group_by(time_0, time_end, during, frac, dataset_name, window) |> summarize(trials=n(), admins=administration_id |> unique() |> length()) 
+  
+icc_cutoff <- rt_dist |> filter(trials>9, admins>4) |> select(dataset_name, time_0, time_end, during, frac, window)
+
+
+rt_boot_age <- readRDS(here("cached_intermediates", "4_rt_iccs_age_boot.rds")) |> inner_join(icc_cutoff) |> 
+    mutate(
+    type = case_when(
+      str_detect(measure, "first_launch_rt") ~ "first_launch",
+      str_detect(measure, "last_launch_rt") ~ "last_launch",
+      str_detect(measure, "land_rt") ~ "land"
+    ),
+    logged = case_when(
+      str_detect(measure, "log") ~ "log",
+      T ~ "raw"
+    ),
+    trimming = case_when(
+      str_detect(measure, "trim_first") ~ "trim_first",
+      str_detect(measure, "trim_last") ~ "trim_last",
+      T ~ "untrimmed"
+    )
+  ) |>
+  mutate(approach = case_when(
+    type == "land" & trimming == "untrimmed" & frac == "0" ~ "generous",
+    type == "land" & trimming == "untrimmed" & frac == "1" ~ "land-based",
+    type == "first_launch" & trimming == "trim_first" & frac == "1" ~ "launch-based"
+  )) |>
+  filter(!is.na(approach)) |> 
+  group_by(dataset_name) |> 
+  mutate(options_count=n()) |> 
+  filter(dataset_name!="ferguson_eyetrackingr") |> 
+  select(-options_count) |> ungroup()
+
+library(metafor)
+rt_boot_age_summ <- rt_boot_age |>
+  filter(upper!=0) |> 
+  filter(!is.na(lower), !is.na(upper)) |>  
+  mutate(
+    stdev = (upper - lower) / (1.96 * 2),
+    var = stdev**2
+  ) |>
+  group_by(window, logged, approach, younger) |>
+  nest() |>
+  mutate(icc = map(data, \(d){
+    rma(d$est, d$var, method="REML", verbose=F,control=list(stepadj=0.5, maxiter=10000)) |>
+      summary() |>
+      coef()
+  })) |>
+  select(-data) |>
+  unnest(icc)
+
+rt_boot_age_summ |>mutate(age = ifelse(younger,  "<24 months", ">=24 months")) |> filter(approach!="generous") |>  mutate(type=str_c(logged, " ", approach, " RT") |> factor(levels=c("raw launch-based RT", "log launch-based RT", "raw land-based RT", "log land-based RT"))) |> ggplot(aes(col=type, x=as.character(window), y=estimate, ymin=ci.lb, ymax=ci.ub))+geom_pointrange(position=position_dodge(.5))+coord_flip()+facet_wrap(~age)+theme(legend.position = "bottom", )+labs(y="Correlation", x="Minimum RT", color="Type of RT")+scale_color_brewer(palette="Paired")
+
+rt_boot_age |>mutate(age = ifelse(younger,  "<24 months", ">=24 months")) |> filter(approach!="generous") |>  mutate(type=str_c(logged, " ", approach, " RT") |> factor(levels=c("raw launch-based RT", "log launch-based RT", "raw land-based RT", "log land-based RT"))) |> ggplot(aes(col=type, x=as.character(window), y=est))+stat_summary(position=position_dodge(.5))+coord_flip()+facet_wrap(~age)+theme(legend.position = "bottom", )+labs(y="Correlation", x="Minimum RT", color="Type of RT")+scale_color_brewer(palette="Paired")
+```
 
 
 ## Recommendation 4: Excluding trials or children for side-bias or low numbers of trials is generally unnecessary.
@@ -529,14 +719,21 @@ excl1_test_retest <- readRDS(here("cached_intermediates/5_acc_trial_exclusions_t
 
 acc_trial_all <- excl1 |> mutate(Type="ICC reliability") |> rename(estimate=icc) |> 
   bind_rows(excl1_loss |> rename(estimate=prop_trials_retained) |> mutate(Type="Frac data retained")) |> 
-  bind_rows(excl1_cdi |> rename(estimate=cor_prod) |> mutate(Type="Corr. with CDI Production")) |> 
+  bind_rows(excl1_cdi |> rename(estimate=cor_prod) |> mutate(Type="Corr. with CDI Prod.")) |> 
     bind_rows(excl1_cdi |> rename(estimate=cor_comp) |> mutate(Type="Corr. with CDI Comp.")) |> 
-    bind_rows(excl1_test_retest |> rename(estimate=cor_test_retest) |> mutate(Type="Test-retest Reliability"))
+    bind_rows(excl1_test_retest |> rename(estimate=cor_test_retest) |> mutate(Type="Test-retest Reliability")) |> 
+  mutate(zoners_included=case_when(
+    zoners_included=="all" ~ "All included",
+    zoners_included=="no pre" ~ "Only if look at both in pre-window",
+    zoners_included=="none" ~ "Only if look at both ever"
+  ))
 
 
   
 
-acc_trial_all |> ggplot(aes(x=exclude_less_than, col=zoners_included, y=estimate, group=zoners_included))+stat_summary(position=position_dodge2(.05), geom="point")+coord_flip()+facet_wrap(~Type, scales="free_x", nrow=1)+theme(legend.position = "bottom", )+labs(y="", x="Minimum Fraction Looking", color="Zoner exclusion")+scale_color_solarized()
+acc_trial_all |> ggplot(aes(x=exclude_less_than, col=zoners_included, y=estimate, group=zoners_included))+stat_summary(position=position_dodge2(.05), geom="point")+coord_flip()+facet_wrap(~Type, scales="free_x", nrow=1)+theme(legend.position = "bottom", )+labs(y="", x="Minimum Fraction Looking", color="Zoner inclusion")+scale_color_solarized()
+
+ggsave("excl1.png", width=8, height=4)
 ```
 Effects of different minimum trial cut-offs on data validity and reliability. (If we include the graph, bootstrapped error bars can be produced, as could data-loss rates)
 ```{r}
@@ -570,6 +767,8 @@ rt_plot <- rt_kid_all |> ggplot(aes(x=min_trials, y=estimate, color=Measure, gro
 
 library(cowplot)
 plot_grid(acc_plot, rt_plot, rows=2)
+
+ggsave("excl2.png")
 ```
 
 # Design recommendations 
@@ -713,6 +912,8 @@ ggplot(acc_corr_resample, aes(x = num_samples, y = cor_acc)) +
   stat_summary(position = position_dodge(.5), geom = "line") +
   geom_hline(yintercept = 0)+geom_vline(xintercept=10, lty="dashed")+geom_vline(xintercept=15, lty="dashed")+
   labs(y="Test-retest correlation", x="Simulated trial count (accuracy)")
+
+ggsave("trials-acc.png")
 ```
 
 Simulations of test-retest reliability from down- and up-sampling RT trials. 
@@ -762,6 +963,7 @@ ggplot(rt_corr_resample, aes(x = num_samples, y = cor_rt)) +
   geom_hline(yintercept = 0)+geom_vline(xintercept=5, lty="dashed")+geom_vline(xintercept=10, lty="dashed")+
     labs(y="Test-retest correlation", x="Simulated trial count (RT)")
 
+ggsave("trials-rt.png")
 ```
 
 
@@ -788,6 +990,8 @@ readRDS(here("cached_intermediates", "13_animacy_timecourse.rds")) |>
   labs(x="Time point (ms)", y="Fraction looks to target", color="")+
   coord_cartesian(xlim=c(-1000,2000), ylim=c(.4, .8))+
   scale_color_brewer(palette="Dark2")
+
+ggsave("animacy.png")
 ```
 To check for possible differences in behavior when viewing images for a first or repeated time, we compared time courses for items viewed for the first time with items viewed for a second time. All items had the same distractor-target pairings; some datasets had counterbalancing where what was initially the target was later the distractor, and others kept the same distractor. Here we show items for the first time compared to the same items a second time, based on their prior role. 
 
@@ -804,6 +1008,8 @@ prev_dist |> bind_rows(prev_target) |> ggplot(aes(x = t_norm, y = acc, color = t
   scale_color_brewer(palette="Dark2")+
     coord_cartesian(xlim=c(-1000,2000), ylim=c(.4, .8))+
   facet_wrap(~Panel)
+
+ggsave("order.png")
 ```
 
 # Paper outline

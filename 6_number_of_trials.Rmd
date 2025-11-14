@@ -72,6 +72,12 @@ pairs <- repeated_subjects |>
 pairs_long <- pairs |> pivot_longer(c("first_admin", "second_admin"), names_to = "session_num", values_to = "administration_id")
 ```
 
+```{r}
+pairs |> distinct(dataset_name)
+
+pairs |> distinct(subject_id)
+
+```
 
 it has been observed that there are item distribution effects that could mess with some of these datasets.
 

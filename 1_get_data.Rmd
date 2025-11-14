@@ -106,6 +106,8 @@ ggplot(aoi_data_joined, aes(x = age, fill = dataset_name)) +
 
 We now have a `vanilla_trial` flag that we can use for filtering. 
 
+TODO CHECK: note that newman_genderdistractor is not vanilla for condition reasons. 
+
 
 Take only English familiar word data and also remove datasets that aren't ready for primetime.
 

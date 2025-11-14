@@ -85,7 +85,53 @@ d_aoi <- readRDS(here("cached_intermediates", "1_d_aoi.Rds"))
 t_increment <- 200
 ```
 
+
+```{r}
+datasets <- d_aoi |> select(trial_id, dataset_name, administration_id, subject_id) |> distinct() |> 
+  filter(!dataset_name%in% c("newman_genderdistractor"))
+
+datasets |> distinct(dataset_name)
+
+datasets |> distinct(administration_id)
+
+datasets |> distinct(trial_id)
+
+cdi_data <- readRDS(here("cached_intermediates", "1_cdi_subjects.Rds"))
+
+datasets |> left_join(cdi_data) |> distinct(administration_id, prod, comp) |> filter(!is.na(prod))
+
+datasets |> left_join(cdi_data) |> filter(!is.na(prod))
+
+datasets |> left_join(cdi_data) |> filter(!is.na(comp))
+```
+
 how much data do we have?
+
+```{r}
+# look at some individual trials
+
+d_aoi |> filter(dataset_name=="frank_tablet_2016") |> filter(target_label=="dog") |> distinct(distractor_label)
+
+
+relevant <- d_aoi |> filter(dataset_name=="frank_tablet_2016") |> filter(target_label=="dog")|>
+  filter(trial_id %in% c(
+    124998, 124182, 124589, 123365, 124158, 124301)) |>
+  mutate(aoi= ifelse(aoi %in% c("target", "distractor"), aoi, "other/missing")) 
+
+relevant |> 
+  ggplot(aes(x=t_norm, y=aoi, color=as.factor(trial_id)))+geom_line(aes(group=1), color="grey")+geom_point()+
+  geom_point(data=relevant |> filter(aoi=="other/missing"), color="grey")+facet_wrap(~trial_id)+
+  geom_vline(xintercept=0)+
+  theme_bw()+
+  theme(legend.position = "none", strip.text = element_blank())
+
+d_aoi |> filter(dataset_name=="frank_tablet_2016") |> filter(target_label=="dog")|> filter(trial_id==124806) |> ggplot(aes(x=t_norm, y=aoi))+geom_point()+geom_line(aes(group=1))
+
+#124806
+#124998
+#12
+```
+
 
 ```{r}
 #looks like all datasets have lots of trials
@@ -928,6 +974,133 @@ accs_kid_test_retest_summ |> ggplot(aes(x=t_start, y=estimate, ymin=ci.lb, ymax=
 ```
 Overall, test-retest reliability is higher for the longer window, but this is primarily driven by the adams-marchman dataset; other datasets don't show a big difference in either direction. No big differences based on onset window time. 
 
+# how much t/d looking on longer places (and in what datasets)
+
+```{r}
+d_aoi |> group_by(dataset_name, t_norm) |> mutate(has_data=aoi %in% c("target", "distractor")) |> 
+  summarize(s=sum(has_data),
+            n=n()) |> 
+  ggplot(aes(x=t_norm, y=n))+geom_col(fill="blue")+facet_wrap(~dataset_name, scales="free_y") +
+  coord_cartesian(xlim=c(0,4050))+geom_vline(xintercept=3800)
+
+d_aoi |> group_by(dataset_name, t_norm) |> mutate(has_data=aoi %in% c("target", "distractor")) |> 
+  summarize(s=sum(has_data),
+            n=n()) |> 
+  group_by(dataset_name) |> 
+  mutate(max_n=max(n)) |> 
+  ggplot(aes(x=t_norm, y=s/n, color=dataset_name))+geom_line()+facet_wrap(~dataset_name)+
+  coord_cartesian(xlim=c(-4000,4050), ylim=c(0, 1))+theme(legend.position ="none")+
+  geom_vline(xintercept=0)+geom_vline(xintercept=2000)
+
+d_aoi |> group_by(dataset_name, t_norm) |> mutate(has_data=aoi %in% c("target", "distractor")) |> 
+  summarize(s=sum(has_data),
+            n=n()) |> 
+  group_by(dataset_name) |> 
+  mutate(max_n=max(n)) |> 
+  ggplot(aes(x=t_norm, y=s, color=dataset_name))+geom_line()+facet_wrap(~dataset_name, scales="free_y")+
+  coord_cartesian(xlim=c(-4000,4050))+theme(legend.position ="none")+
+  geom_vline(xintercept=0)+geom_vline(xintercept=2000)
+
+d_aoi |> group_by(dataset_name, t_norm, aoi) |>
+  summarize(n=n()) |> 
+  group_by(dataset_name) |> 
+  ggplot(aes(x=t_norm, y=n, fill=aoi, color=aoi))+geom_col(position="stack")+facet_wrap(~dataset_name, scales="free_y")+
+  coord_cartesian(xlim=c(-4000,4050))+
+  geom_vline(xintercept=0)+geom_vline(xintercept=2000)+
+  scale_fill_manual(aesthetics=c("fill", "color"), values=c("target"="darkgreen", "distractor"="red", "missing"="grey", "other"="grey"))+theme(legend.position="bottom")
+
+
+by_age <- d_aoi |> mutate(age_bin=case_when(
+    age<24~"12-23",
+    age<36~"24-35",
+    age<48~"36-47",
+    age>=48~"48+"
+  )) |> group_by(dataset_name, t_norm, aoi, age_bin) |>
+  summarize(n=n()) |> 
+  group_by(dataset_name)
+
+by_age |> filter(age_bin=="12-23") |> 
+  ggplot(aes(x=t_norm, y=n, fill=aoi, color=aoi))+geom_col(position="stack")+facet_wrap(age_bin~dataset_name, scales="free_y")+
+  coord_cartesian(xlim=c(-4000,4050))+
+  geom_vline(xintercept=0)+geom_vline(xintercept=2000)+
+  scale_fill_manual(aesthetics=c("fill", "color"), values=c("target"="darkgreen", "distractor"="red", "missing"="grey", "other"="grey"))+theme(legend.position="bottom")
+
+by_age |> filter(age_bin=="24-35") |> 
+  ggplot(aes(x=t_norm, y=n, fill=aoi, color=aoi))+geom_col(position="stack")+facet_wrap(age_bin~dataset_name, scales="free_y")+
+  coord_cartesian(xlim=c(-4000,4050))+
+  geom_vline(xintercept=0)+geom_vline(xintercept=2000)+
+  scale_fill_manual(aesthetics=c("fill", "color"), values=c("target"="darkgreen", "distractor"="red", "missing"="grey", "other"="grey"))+theme(legend.position="bottom")
+
+by_age |> filter(age_bin%in%c("36-47", "48+")) |> 
+  ggplot(aes(x=t_norm, y=n, fill=aoi, color=aoi))+geom_col(position="stack")+facet_wrap(age_bin~dataset_name, scales="free_y")+
+  coord_cartesian(xlim=c(-4000,4050))+
+  geom_vline(xintercept=0)+geom_vline(xintercept=2000)+
+  scale_fill_manual(aesthetics=c("fill", "color"), values=c("target"="darkgreen", "distractor"="red", "missing"="grey", "other"="grey"))+theme(legend.position="bottom")
+```
+datasets with full data at 3800
+yurovsky_2017, weaver_zettersten, reflook_v4, potter_remix, pomper_yumme,
+pomper_salientme, pomper_saffron, pomper_prime
+garrison_bergelson
+frank tablet
+fmw
+fernald_marchman
+ferguson
+bacon
+adams_marchman
+
+```{r}
+acc_params <- expand_grid(
+  t_start = c(0, 200, 400, 500, 600),
+  t_end = c(2000, 4000),
+  object = c("administration")
+)
+long_dataset_list = c("adams_marchman_2018", "bacon_gendercues","baumgartner_2014",
+"ferguson_eyetrackingr","fernald_marchman_2012","fmw_2013","frank_tablet_2016",
+"garrison_bergelson_2020","pomper_prime","pomper_saffran_2016","pomper_salientme",
+"pomper_yumme","potter_remix","reflook_v4","weaver_zettersten_2024","yurovsky_2017"
+)
+
+icc_window_sim <- function(t_start = -500, t_end = 4000, object) {
+  print(paste(t_start, t_end))
+
+  df <- d_aoi |>
+    filter(dataset_name%in%long_dataset_list) |> 
+    filter(t_norm > t_start, t_norm < t_end) |>
+    group_by(dataset_name, dataset_id, administration_id, target_label, trial_id) |>
+    summarise(
+      accuracy = mean(correct, na.rm = TRUE),
+      prop_data = mean(!is.na(correct))
+    ) |>
+    filter(!is.na(accuracy)) |> 
+    group_by(dataset_name, dataset_id, administration_id, target_label) |>
+    mutate(repetition = row_number())
+
+  # compute ICCs
+  df |>
+    group_by(dataset_name) |>
+    nest() |>
+    mutate(icc = unlist(map(data, ~ get_icc(., "accuracy", object)))) |>
+    select(-data) |>
+    unnest(cols = c())
+}
+
+tic()
+accs <- acc_params |>
+  # partition(cluster) |>
+  mutate(icc = pmap(list(t_start, t_end, object), icc_window_sim)) |>
+  # collect() |>
+  unnest(col = icc)
+toc()
+```
+
+```{r}
+accs |> ggplot(aes(x=t_start, col=as.character(t_end), y=icc))+geom_point(position=position_dodge2(width=.5))+coord_flip()+facet_wrap(~dataset_name)+theme(legend.position = "bottom", )+labs(y="Correlation", x="Start time (ms)", color="End time")+scale_color_solarized()
+
+accs |> ggplot(aes(x=t_start, col=as.character(t_end), y=icc))+stat_summary(fun.data="mean_cl_boot", position=position_dodge(width=50))+coord_flip()+theme(legend.position = "bottom", )+labs(y="Correlation", x="Start time (ms)", color="End time")+scale_color_solarized()
+
+```
+
+
 # Summary
 
 Accuracy measures have reasonable ICC, reasonable correlation with CDI measures, and reasonable test-retest reliability. 
@@ -1147,7 +1320,7 @@ accs_boot_cdi <- acc_params |>
 saveRDS(accs_boot_cdi, "3_accs_boot_cdi.rds")
 
 ```
-
+-->
 ```{r, eval=F}
 accs_boot_cdi <- readRDS(here("cached_intermediates", "3_accs_boot_cdi.rds"))
 
@@ -1401,5 +1574,17 @@ which can happen with bootstraps, but still is weird!
 -->
 
 
+```{r}
+test_retest_boot <- function(data, indices) {
+  summ <- data |>
+    slice(indices) |>
+    group_by(administration_id, subject_id, pair_number, session_num) |>
+    summarize(mean_var = mean(accuracy, na.rm = T), .groups = "drop") |>
+    select(-administration_id) |>
+    pivot_wider(names_from = session_num, values_from = mean_var) |>
+    summarise(cor_test_retest = ifelse(sum(!is.na(first_admin) & !is.na(second_admin)) > 2, cor.test(first_admin, second_admin)$estimate, NA))
+  return(summ$cor_test_retest[1])
+}
+```
 
 
