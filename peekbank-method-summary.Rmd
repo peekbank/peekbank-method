@@ -231,15 +231,58 @@ acc_boot_summary_4 <- acc_boot |>
   select(-data) |> 
   mutate(coef=str_replace(coef, "condition", "")) |> 
   separate(coef, sep="_", c( "t_start", "t_end")) |> 
-  mutate(t_start=as.numeric(t_start), t_end=as.numeric(t_end)) |> mutate(type="4") |> filter(!is.na(t_start)) |> 
-  mutate(pred=.3419+estimate, ci.lb=.3419+ci.lb, ci.ub=.3419+ci.ub)
+  mutate(t_start=as.numeric(t_start), t_end=as.numeric(t_end)) |> mutate(type="4") |> filter(!is.na(t_start)) 
 
-acc_boot_summary_3 |> bind_rows(acc_boot_summary_2) |> bind_rows(acc_boot_summary_1)|>
+acc_boot_summary_5 <- acc_boot |> 
+   filter(!is.na(lower), !is.na(upper)) |>
+  mutate(
+    stdev = (upper - lower) / (1.96 * 2),
+    var = stdev**2,
+    condition=str_c(t_start, "_", t_end)
+  ) |> select(dataset_name, condition, var, est) |> 
+  group_by(dataset_name) |> 
+  mutate(dataset_mean=mean(est),
+         centered_est=est-dataset_mean)|> ungroup() |>  nest() |> 
+  mutate(icc = map(data, \(d){
+    rma.mv(yi=centered_est, V=var, mods=~0+condition, random=~1|dataset_name, data=d) |> summary() |> coef() |> as_tibble(rownames="coef")
+    })) |>
+  unnest(icc) |> 
+  select(-data) |> 
+  mutate(coef=str_replace(coef, "condition", "")) |> 
+  separate(coef, sep="_", c( "t_start", "t_end")) |> 
+  mutate(t_start=as.numeric(t_start), t_end=as.numeric(t_end)) |> mutate(type="5") |> filter(!is.na(t_start)) 
+
+acc_boot_summary_6 <- acc_boot |> 
+   filter(!is.na(lower), !is.na(upper)) |>
+  filter(t_end=="4000") |> 
+  mutate(
+    stdev = (upper - lower) / (1.96 * 2),
+    var = stdev**2,
+    condition=str_c(t_start, "_", t_end)
+  ) |> select(dataset_name, condition, var, est) |> 
+  group_by(dataset_name) |> 
+  mutate(dataset_mean=mean(est),
+         centered_est=est-dataset_mean)|> ungroup() |>  nest() |> 
+  mutate(icc = map(data, \(d){
+    rma.mv(yi=centered_est, V=var, mods=~0+condition, random=~1|dataset_name, data=d) |> summary() |> coef() |> as_tibble(rownames="coef")
+    })) |>
+  unnest(icc) |> 
+  select(-data) |> 
+  mutate(coef=str_replace(coef, "condition", "")) |> 
+  separate(coef, sep="_", c( "t_start", "t_end")) |> 
+  mutate(t_start=as.numeric(t_start), t_end=as.numeric(t_end)) |> mutate(type="6") |> filter(!is.na(t_start)) 
+  
+acc_boot_summary_3 |> bind_rows(acc_boot_summary_2)  |> bind_rows(acc_boot_summary_1)|>
   bind_rows(acc_boot_summary_4) |> ggplot(aes(x=t_start, col=type, y=pred, ymin=ci.lb, group=type, ymax=ci.ub))+geom_pointrange(position=position_dodge(70))+coord_flip()+theme(legend.position = "bottom", )+labs(y="Correlation", x="Window start time (ms)", color="Window end time (ms)")+scale_color_solarized()+facet_wrap(~t_end)
 
 
 acc_boot_summary_3 |> bind_rows(acc_boot_summary_2) |> bind_rows(acc_boot_summary_1)|>
   bind_rows(acc_boot_summary_4) |> ggplot(aes(x=t_start, col=as.character(t_end), y=pred, ymin=ci.lb, group=t_end, ymax=ci.ub))+geom_pointrange(position=position_dodge(70))+coord_flip()+theme(legend.position = "bottom", )+labs(y="Correlation", x="Window start time (ms)", color="Window end time (ms)")+scale_color_solarized()+facet_wrap(~type)
+
+acc_boot_summary_5|> bind_rows(acc_boot_summary_4) |> bind_rows(acc_boot_summary_6) |>  ggplot(aes(x=t_start, col=as.character(t_end), y=estimate, ymin=ci.lb, group=t_end, ymax=ci.ub))+geom_pointrange(position=position_dodge(70))+coord_flip()+theme(legend.position = "bottom", )+labs(y="Correlation", x="Window start time (ms)", color="Window end time (ms)")+scale_color_solarized()+ facet_wrap(~type)+geom_hline(yintercept=0)
+
+
+acc_boot_summary_5|> bind_rows(acc_boot_summary_4) |> bind_rows(acc_boot_summary_6) |>  ggplot(aes(x=t_start, col=type, y=estimate, ymin=ci.lb, group=type, ymax=ci.ub))+geom_pointrange(position=position_dodge(70))+coord_flip()+theme(legend.position = "bottom", )+labs(y="Correlation", x="Window start time (ms)", color="Window end time (ms)")+scale_color_solarized()+ facet_wrap(~t_end)+geom_hline(yintercept=0)
 ```
 
 ```{r, eval=F}
