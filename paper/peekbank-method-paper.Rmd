@@ -33,7 +33,7 @@ abstract: |
 keywords          : "keywords"
 wordcount         : "X"
 
-bibliography      : "r-references.bib"
+bibliography      : ["peekbank-methods-ref.bib", "r-references.bib"]
 
 floatsintext      : no
 linenumbers       : yes
@@ -83,7 +83,7 @@ One procedure that is used to capture these moment-to-moment processes is the â€
 mention that LWL is widely used in various paradigms (both longitudinal indiv-differences & experimental paradigms)
 LWL is used for individual differences and predicting later success, as well as widely used in experimental studies investigating priming, semantic similarity, generalization etc. etc. 
 
-[Measurement is important, but often is difficult with young children -- TODO Veronica]
+[Measurement is important, but often is difficult with young children]
 
 Reliability and validity of the measure is important. reliability prerequisite. But many early childhood measures have low reliability. 
 - byers-heinlein six solutions
@@ -102,7 +102,7 @@ From a psychometric perspective, the goal of these analyses should be to distill
 Peekbank offers a solution to this core issue by providing a large database of infant eye-tracking data from the looking-while-listening paradigm. Peekbank currently houses XX datasets from infants across a wide age range [xx - xx] and across a broad range of test words and materials, resulting in observations from over XXX infants participating in the looking-while-listening task. The Peekbank database is represented in a unified format to ease cross-dataset analyses and comparisons. The Peekbank database offers infant researchers for the first time a database large enough to systematically test the measurement properties that result from a variety of common analytic decisions. By evaluating these common decisions in a bottom-up, data-driven way, we can establish best practices in measuring infant word recognition.
 
 [scope]
-In the current work, While LWL studies and peekbank are used for a variety of conditions, here we focus only on items that test vocabulary directly with familiar targets, familiar distractors, and no informative carrier phrases or experimental manipulations. These items are the ones where there is the most conceptual clarity on what reliability and validity would mean since they are expected to reflect the construct of word knowledge and correlate with other measures of word knowledge. We have over XXX trials of this type in wordbank.  To measure reliability, we consider both intraclass correlation measuring inter-item reliability and test-retest reliability for administrations with the same child at close intervals. For validity, we compare to sumscores on another common assessment of children's early vocabulary, the MBCDI. [possibly citations on how CDI-LWL correlations are not as good as one would hope for...]
+In the current work, While LWL studies and peekbank are used for a variety of conditions, here we focus only on items that test vocabulary directly with familiar targets, familiar distractors, and no informative carrier phrases or experimental manipulations. These items are the ones where there is the most conceptual clarity on what reliability and validity would mean since they are expected to reflect the construct of word knowledge and correlate with other measures of word knowledge. We have over XXX trials of this type in wordbank.  To measure reliability, we consider both intraclass correlation measuring inter-item reliability and test-retest reliability for administrations with the same child at close intervals. For validity, we compare to sumscores on another common assessment of children's early vocabulary, the MBCDI. [possibly citations on how CDI-LWL correlations are not as good as one would hope for... especially for item-level correlations @lopezperez2025]
 
 We provide guidance on how to process LWL data (and design LWL studies) to maximize the reliability and validity of the resultant measures, based on a data-driven exploration of different options in peekbank. To foreshadow our results, we found that many common practices provide reasonable reliability and validity, but are not optimized to squeeze the most reliability out of the data. 
 <!--
@@ -128,7 +128,7 @@ Peekbank is an aggregation of datasets from a number of LWL studies. This work i
 We focus our exploration of data processing choices on a set of items where we have the clearest expectations around what we are trying to measure. While LWL is also used to study a variety of experimental effects, such as the effects of noise, novel word learning, expectations of mutual exclusivity, inferences from selective verbs, blah blah, these items may index different constructs. 
 We limit our analyses to trials where both the target and distractor are real nouns, the carrier phrase is neutral with no experimental manipulation. Some of these trials are from experiments focused on vocabulary learning, others are filler trials from novel word learning experiments, and others are the control conditions of experiments manipulating pronunciation or noise. 
 
-Filter to children less than 60 months 
+Filter to children less than 60 months [why again? probably not many vanilla trials on >60 ? not really doing "word learning" at that point?]
 ## Descriptives 
 Descriptives on datasets/number of trials -- TODO
 
