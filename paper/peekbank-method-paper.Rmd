@@ -1,5 +1,5 @@
 ---
-title             : "Peekbank Methods"
+title             : "Maximizing reliability and validity in measuring infant word recognition: Insights from the Peekbank dataset"
 shorttitle        : "Peekbank"
 
 author: 
@@ -33,7 +33,7 @@ abstract: |
 keywords          : "keywords"
 wordcount         : "X"
 
-bibliography      : ["peekbank-methods-ref.bib", "r-references.bib"]
+bibliography      : ["peekbank-methods-ref.bib"]
 
 floatsintext      : no
 linenumbers       : yes
@@ -47,6 +47,15 @@ footnotelist      : no
 classoption       : "man"
 output            : papaja::apa6_pdf
 ---
+<!-- (title ideas) -->
+
+
+<!-- Using a large-scale database to establish data-driven guidance… -->
+<!-- ... to evaluate measurement properties… -->
+<!-- Data-driven guidance for infant looking-while-listening methods -->
+<!-- Data-driven guidance for processing LWL data to maximize reliability and validity -->
+<!-- Data-driven guidance for extracting the most reliability and validity from LWL data  -->
+<!-- # Introduction -->
 
 ```{r setup, include = FALSE}
 library("papaja")
@@ -58,32 +67,16 @@ set.seed(42)
 knitr::opts_chunk$set(cache.extra = knitr::rand_seed)
 ```
 
-(title ideas)
-Using a large-scale database to establish data-driven guidance…
-... to evaluate measurement properties…
 
-Data-driven guidance for infant looking-while-listening methods
 
-Data-driven guidance for processing LWL data to maximize reliability and validity
+Over the first few months of life, children become experts on their native language, organizing the phonological system of the speech that they hear and parsing speech into meaningful units.  A bit later, children begin to show early signs of comprehension of words or phrases through simple behaviors like turning their head when their name is called (e.g., "Hey, Billy!") or by reaching for or pointing to an object that is named (e.g., "Where’s the ball?").  These everyday accomplishments mark important milestones in children’s development, yet such global assessments may miss continuous processes of growth in underlying skills and the millisecond-level processes that take place during real-time language comprehension. Children, like adults, process speech incrementally, as it unfolds in time [@fernald1998;@snedeker2013;@frank2026], and use features of the speech signal to extract meaning that will support language comprehension [@law2014;@fernald2016]. 
 
-Data-driven guidance for extracting the most reliability and validity from LWL data 
+These moment-to-moment processes are difficult to document without child-friendly procedures that allow precision in capturing how children’s behaviors are time-locked to speech. In particular, the "looking while listening" (LWL) procedure has emerged as a de facto standard for measuring language in infants and children, especially when they are younger than two years old, as other options for direct assessment during this period are limited [@frank2021].^[Here we adopt LWL as a convenient label while recognizing that the procedure goes by a number of different names in the literature including the "intermodal preferential looking procedure" [@hirsh1996intermodal;@reznick1990visual;@fernald2008].] In the standard version of LWL, children see two pictures on a screen and hear a referring expression, e.g. "look at the ball"; their time-locked eye-movements to the ball over the distractor image are then taken to be evidence for language comprehension [@fernald2008].
 
-# Introduction
+LWL has been a key tool for enhancing our understanding of infants’ language processing and knowledge. For example, using LWL methods, we can measure increases in speed and accuracy in responding to familiar words [@fernald2006;@frank2026] and increases in the detail of their phonological representations [@swingley2000;@moore2024] during the first years after birth. Moreover, measures of children’s skill in the LWL task have also proven useful as an index of individual differences. For example, children who show more efficient language processing at 18 months show larger vocabulary size and more rapid vocabulary growth over the second and third years than children with less efficient processing [@fernald2012;@fernald2006;@frank2026;@peter2019]. Language processing efficiency has also been shown to link to later language, cognitive, and non-verbal outcomes in both typically-developing [@peter2018;@law2014] and preterm children [@marchman2017;@marchman2022]. 
 
-[Early language is important.]
 
-Over the first few months of life, children become experts on their native language, organizing the phonological system of the speech that they hear and parsing speech into meaningful units.  A bit later, children begin to show early signs of comprehension of words or phrases through simple behaviors like turning their head when their name is called (e.g., “Hey, Billy!”) or by reaching for or pointing to an object that is named (e.g., “Where’s the ball?).  Documenting these everyday accomplishments marks important milestones in children’s development, yet such global assessments tell us little about the scope of children’s abilities and rely on particular behaviors (e.g., pointing) and a child who both understands and complies with instructions. Moreover, such global assessments gloss over the millisecond-level processes that take place during real-time language comprehension.  For example, decades of experimental work have shown us that children, like adults, process speech incrementally, as it unfolds in time (Jones & Rowland, 2017; Lew-Williams & Fernald, 2007), and use features of the speech signal to extract meaning that will support language comprehension (Law & Edwards, 2014; Fernald et al., 2016). These moment-to-moment processes would have been difficult to document without child-friendly procedures that allow precision in capturing how children’s behaviors are time-locked to speech. 
-
-TODO could add some citations that early language is crucial to longer term well being. 
-
-[LWL is a good method/measure for early language. -- low demands, wide age range, real time measure]. 
-
-One procedure that is used to capture these moment-to-moment processes is the “looking-while-listening” (LWL) procedure, a low-demand, eye-tracking task that assesses children’s eye-movements as they listen to speech in real time. This method has been a key tool in propelling forward our understanding of infants’ language processing and knowledge. For example, studies have shown that, over the first few years of life, children become faster and more accurate in responding to familiar words (e.g., Fernald et al., 2006) and are increasingly able to distinguish between phonologically well-formed words versus words that are mispronounced (e.g., Swingley & Aslin, 1993). Moreover, children become increasingly more skilled at distinguishing pictures of familiar objects between categories, like body parts vs. foods, as well as more fine-grained distinctions within categories, like toes vs. feet (e.g., Bergelson et al. XXX).  Measures of children’s skill in the LWL task have also proven useful as an index of individual differences. For example, children who show more efficient language processing at 18 months show larger vocabulary size and more rapid vocabulary growth over the second and third years than children with less efficient processing (Fernald & Marchman, 2012; Fernald et al. 2006; Peter et al. 2019). Language processing efficiency has also been shown to link to later language, cognitive, and non-verbal outcomes in both typically-developing (Peter et al., 2019; Law & Edwards, 2014) and preterm children (Marchman et al., 2017, 2022). 
-
-mention that LWL is widely used in various paradigms (both longitudinal indiv-differences & experimental paradigms)
-LWL is used for individual differences and predicting later success, as well as widely used in experimental studies investigating priming, semantic similarity, generalization etc. etc. 
-
-[Measurement is important, but often is difficult with young children]
+One key reason for the success of this research, arguably, is the attention that has been paid to measurement in developing the looking-while-listening method. Past work has articulated best practices in collecting and analyzing looking-while-listening measures with a particular focus on stimulus and design choices that make looking preferences maximally informative about word recognition processes and innovations in the analysis of looking data that allow researchers to draw inferences about how infants’ language processing is unfolding over time [@fernald2008]. However, despite widespread use of the looking-while-listening method in language development research, there is still tremendous variation and limited consensus on how to best process and analyze infant looking time data. One key reason for the lack of widespread consensus is that infant recruitment is time- and cost-intensive and datasets collected by individual labs are often small. This makes it difficult for any one researcher to systematically evaluate the consequences of specific analytic choices independently of the data collected for a particular study. Instead, researchers are often forced to make ad-hoc decisions or to adopt idiosyncratic lab practices that themselves originate from ad-hoc subjective judgments of what “seems to work”. How can we put the measurement and analysis of infant word recognition and online language processing on firmer empirical footing?
 
 Reliability and validity of the measure is important. reliability prerequisite. But many early childhood measures have low reliability. 
 - byers-heinlein six solutions
@@ -91,8 +84,6 @@ Reliability and validity of the measure is important. reliability prerequisite. 
 - MB test-retest
 
 
-[how to frame this as building on / complementing past work. Past work on methods was more on experiment design & stimulus & more theory driven.]
-One key reason for the success of this line of research, arguably, is the key attention paid to measurement in developing the looking-while-listening method. Past work has articulated best practices in collecting and analyzing looking-while-listening measures with a particular focus on stimulus and design choices that make looking preferences maximally informative about word recognition processes and innovations in the analysis of looking data that allow researchers to draw inferences about how infants’ language processing is unfolding over time [Fernald chapter; other core citations]. However, despite widespread use of the looking-while-listening method in language development research, there is still tremendous variation and limited consensus on how to best process and analyze infant looking time data. One key reason for the lack of widespread consensus is that infant recruitment is time- and cost-intensive and datasets collected by individual labs are often small. This makes it difficult for any one researcher to systematically evaluate the consequences of specific analytic choices independently of the data collected for a particular study. Instead, researchers are often forced to make ad-hoc decisions or to adopt idiosyncratic lab practices that themselves originate from ad-hoc subjective judgments of what “seems to work”. How can we put the measurement and analysis of infant word recognition and online language processing on firmer empirical footing?
 
 [define problem: how do we establish data analysis strategies that help us understand what we care about. Can we do this in a data-driven way]
 
