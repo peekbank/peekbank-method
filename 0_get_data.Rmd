@@ -1,7 +1,7 @@
 ---
-title: "Trial analysis 1: Data loading"
-author: "Mike"
-date: "2/19/2021, updated 4/15/25"
+title: "Data loading"
+author: "Veronica"
+date: "2/27/26"
 output: 
   html_document:
     toc: true
@@ -11,27 +11,27 @@ output:
 
 ---
 
-Note that this code is reproduced from the `peekbank-method` repository to remove an external dependency that could compromise the reproducibility of this particular packages. But it may go out of date from that repository, which could continue to evolve. 
 
 ```{r}
 library(here)
 library(peekbankr)
 source(here("helper","common.R"))
-# source(here("helper","rt_helper.R"))
 
-library(data.table)
-library(dtplyr)
 ```
 
 
 ## Get data
 
-```{r, eval=TRUE}
-con <- connect_to_peekbank(db_version = "2025.1")
+```{r, eval=F}
+con <- connect_to_peekbank(db_version = "2026.1")
 all_aoi_timepoints <- get_aoi_timepoints(connection = con, rle=FALSE)
+saveRDS(all_aoi_timepoints, here("all_aoi.rds"))
+```
 
+
+```{r, eval=F}
 # reload connection in case it is stale
-con <- connect_to_peekbank(db_version = "2025.1")
+con <- connect_to_peekbank(db_version = "2026.1")
 all_stimuli <- collect(get_stimuli(connection = con))
 all_administrations <- collect(get_administrations(connection = con))
 all_subjects <- unpack_aux_data(collect(get_subjects(connection = con)))
@@ -44,36 +44,32 @@ Now do the joins.
 
 Veronica notes that in the interest of being kind to RAM, some filters and selects have been moved up. 
 
-```{r}
-all_aoi_timepoints <- lazy_dt(all_aoi_timepoints)
+Filter criteria:
+* no restriction on language
+* vanilla trial only
+* age 12-60 months inclusive 
 
-all_administrations <- all_administrations |> select(administration_id, age, dataset_id, subject_id, dataset_name) |> filter(age <= 60)
+```{r, eval=F}
+
+all_aoi_timepoints <- readRDS(here("all_aoi.rds"))
+
+all_administrations <- all_administrations |> select(administration_id, age, dataset_id, subject_id, dataset_name) |> filter(age <= 60, age>=12)
 
 all_trials <- all_trials |> select(trial_id, trial_order, trial_type_id, dataset_id, dataset_name)
 
-all_trial_types <- all_trial_types |> select(trial_type_id, dataset_id, dataset_name, distractor_id, target_id, target_side, vanilla_trial) |> filter(vanilla_trial == TRUE)
+all_trial_types <- all_trial_types |> select(trial_type_id, dataset_id, dataset_name, distractor_id, target_id, target_side, vanilla_trial, full_phrase_language) |> filter(vanilla_trial == TRUE)
 
 all_stimuli <- all_stimuli |> select(stimulus_id, stimulus_novelty, english_stimulus_label, dataset_id) |> mutate(english_stimulus_label=str_to_lower(english_stimulus_label))
 
 aoi_data_joined <- all_aoi_timepoints |>
-  right_join(all_administrations) |>
-  #right_join(all_subjects) |>
+  inner_join(all_administrations) |>
   right_join(all_trials) |>
-  right_join(all_trial_types) |>
+  inner_join(all_trial_types) |>
   mutate(stimulus_id = target_id) |>
-  filter(!(dataset_name %in% c("casillas_tseltal_2015", # tseltsal
-                               "hurtado_2008", # spanish
-                               "kartushina_2019", # norwegian
-                               "weisleder_stl", # spanish
-                               "xsectional_2007", # spanish
-                               "gazetriggered_2020", # dutch
-                               "byers-heinlein_2017", # french bilinguals
-                               "moore_bergelson_2022_verb" #verbs
-  ))) |> 
   left_join(all_stimuli) |>
   select(dataset_name, subject_id, administration_id, trial_id, trial_order, dataset_id, 
          stimulus_id, distractor_id, t_norm, age, aoi, english_stimulus_label, 
-         stimulus_novelty, target_side, vanilla_trial) %>%
+         stimulus_novelty, target_side, vanilla_trial, full_phrase_language) %>%
   rename(target_label = english_stimulus_label, 
          target_id = stimulus_id) %>%
   left_join(all_stimuli %>%
@@ -83,19 +79,19 @@ aoi_data_joined <- all_aoi_timepoints |>
                      distractor_novelty = stimulus_novelty,
                      distractor_label = english_stimulus_label)) |> 
     select(dataset_name, subject_id, administration_id, trial_id, trial_order,
-         dataset_id, target_id, distractor_id, t_norm, age, aoi, target_label, distractor_label, target_side) |> 
-  as_tibble()
+         dataset_id, target_id, distractor_id, t_norm, age, aoi, target_label, distractor_label, target_side, full_phrase_language)
 
-saveRDS(aoi_data_joined, file= here("cached_intermediates","1_aoi_data_joined.Rds"))
+saveRDS(aoi_data_joined, file= here("cached_intermediates","0_aoi_data_joined.Rds"))
 ```
 
 Check on number of datasets. 
 
 ```{r}
-aoi_data_joined <- readRDS(here("cached_intermediates", "1_aoi_data_joined.Rds"))
+aoi_data_joined <- readRDS(here("cached_intermediates", "0_aoi_data_joined.Rds"))
 length(unique(aoi_data_joined$dataset_name))
 unique(aoi_data_joined$dataset_name)
 ```
+36 datasets -- dataset list checks on based on what we'd expect from vanillaness checks. 
 
 Age distribution. 
 
@@ -104,40 +100,6 @@ ggplot(aoi_data_joined, aes(x = age, fill = dataset_name)) +
   geom_histogram() 
 ```
 
-We now have a `vanilla_trial` flag that we can use for filtering. 
-
-TODO CHECK: note that newman_genderdistractor is not vanilla for condition reasons. 
-
-
-Take only English familiar word data and also remove datasets that aren't ready for primetime.
-
-```{r, eval=F}
-
-aoi_data_joined <- aoi_data_joined |> lazy_dt()
-d_joined <- aoi_data_joined |> 
-  filter(!(dataset_name %in% c("casillas_tseltal_2015", # tseltsal
-                               "hurtado_2008", # spanish
-                               "kartushina_2019", # norwegian
-                               "weisleder_stl", # spanish
-                               "xsectional_2007", # spanish
-                               "gazetriggered_2020", # dutch
-                               "byers-heinlein_2017", # french bilinguals
-                               "moore_bergelson_2022_verb" #verbs
-  )))
-  filter(age <= 60, 
-         vanilla_trial == TRUE,
-         # stimulus_novelty == "familiar", # these conditions should be redundant with "vanilla"
-         # distractor_novelty == "familiar" # these conditions should be redundant with "vanilla"
-         ((stimulus_novelty == "familiar" & distractor_novelty == "familiar") |
-            dataset_name == "fernald_totlot") # fix for error in dataset
-  ) |> 
-  select(dataset_name, subject_id, administration_id, trial_id, trial_order,
-         dataset_id, target_id, t_norm, age, aoi, target_label, distractor_label, target_side) |>
-  mutate(correct = ifelse(aoi == "target", 1, 
-                          ifelse(aoi == "distractor", 0, NA)), 
-         target_label = str_to_lower(target_label),
-         distractor_label = str_to_lower(distractor_label))
-```
 
 # Item cleanup
 
@@ -145,15 +107,15 @@ Do some further checks/cleanup of items.
 
 Output targets and distractors. 
 
-```{r}
-all_items <- tibble(item = sort(unique(c(d_joined$target_label, d_joined$distractor_label))))
-write_csv(all_items, here("metadata", "all_items_2025.1.csv"))
+```{r, eval=F}
+all_items <- tibble(item = sort(unique(c(aoi_data_joined$target_label, aoi_data_joined$distractor_label))))
+write_csv(all_items, here("metadata", "all_items_2026.1.csv"))
 ```
 
 Rename and exclude in a more general way. This is a manual step by which we have gone through and merged items by hand when we thought they should have the same general form. 
 
-```{r}
-included_items <- read_csv(here("metadata","included_items_2025.1.csv")) |> select(-item.2024)
+```{r, eval=F}
+included_items <- read_csv(here("metadata","included_items_2026.1.csv")) 
 
 d_aoi <- aoi_data_joined |>
   left_join(included_items, by = join_by(target_label == item)) |>
@@ -169,178 +131,75 @@ d_aoi <- aoi_data_joined |>
 
 # Timecourse cleanup
 
-So datasets vary in missingness of data at the trial level because of:
-
-1. internal exclusion decisions (e.g., fmw_2013, which excluded trials <50%)
-2. amount of data given (adams_marchman_2018, which didn't provide times before -500ms)
-3. padding of trials with NAs (e.g., pomper_saffran_2016, which has some padding later in the trials). 
-
-```{r}
-d_missing <- d_aoi |>
-  group_by(dataset_name, t_norm) |>
-  summarise(prop_data = mean(!is.na(correct)), 
-            n = n()) 
-
-ggplot(d_missing,
-       aes(x = t_norm, y = prop_data)) + 
-  facet_wrap(~dataset_name) + 
-  ylab("Proportion trials that are not missing") + 
-  geom_line() + 
-  geom_vline(xintercept = -4000, lty = 3) + 
-  geom_vline(xintercept = 4000, lty = 3)
-```
-
-Note - there is a bit of a ramp down in terms of amount of data for many datasets towards the end. Here we decide to keep this for now, but maybe we want to clean up starts and ends at some point per dataset? 
+Note - there is a bit of a ramp down in terms of amount of data for many datasets towards the end. 
+We clip at +/- 4000 because there is little data outside these windows. 
 
 
-```{r}
-d_missing_clipped <- d_missing |>
-  filter(t_norm >= -4000, t_norm <= 4000)
-
-ggplot(d_missing_clipped,
-       aes(x = t_norm, y = prop_data)) + 
-  facet_wrap(~dataset_name) + 
-  ylab("Proportion trials that are not missing") + 
-  geom_line() + 
-  geom_hline(yintercept = .5, lty = 2)
-```
-
-Previously we filtered by hand, but for several of our analyses, we want all the data. 
-
-```{r}
+```{r, eval=F}
 d_aoi <- d_aoi |>
   filter(t_norm >= -4000, t_norm <= 4000) |> 
-    mutate(correct = ifelse(aoi == "target", 1, 
-                          ifelse(aoi == "distractor", 0, NA))
+    mutate(correct = case_when(
+      aoi == "target"~ 1, 
+      aoi == "distractor"~ 0,
+      T ~ NA))
 
-saveRDS(d_aoi, file = here("cached_intermediates","1_d_aoi.Rds"))
-```
-
-## Distractor label version
-
-For the stimulus repetition anlaysis, we want just just distractor label, but also distractor id  which wasn't in the d_aoi
-
-```{r}
-#distractor_id <- aoi_data_joined |> select(trial_id, distractor_id, distractor_label) |> distinct()
-
-#d_aoi_distractor_id <- readRDS(here("cached_intermediates","1_d_aoi.Rds")) |> left_join(distractor_id)
-
-saveRDS(d_aoi_d, here("cached_intermediates", "1_d_aoi_distractor.rds"))
-```
-
-```{r}
-d_aoi <- readRDS(here("cached_intermediates","1_d_aoi.Rds")) 
-d_aoi_d <- readRDS(here("cached_intermediates", "1_d_aoi_distractor.rds"))
-
-d_aoi_d <- d_aoi_d |>   mutate(correct = ifelse(aoi == "target", 1, 
-                          ifelse(aoi == "distractor", 0, NA)))
+saveRDS(d_aoi, file = here("cached_intermediates","0_d_aoi.rds"))
 ```
 
 ## CDI data
 
 Add instrument length and a CDI percent column.
 
-
+TODO what are lengths of other instruments!!!
 ```{r}
 admin_info <- all_administrations %>% 
   distinct(subject_id, dataset_id, administration_id, age) |>
-  # mutate(floor_age = floor(age)) |>
-  # select(-age) |>
   left_join(all_datasets %>% select(dataset_id, dataset_name)) # get dataset names
 
-eng_cdi_admins <- all_subjects %>%
+subjects <- admin_info |> distinct(subject_id, dataset_name) |> left_join(all_subjects)
+cdi_admins <- subjects %>%
   unnest(subject_aux_data) %>% 
   filter(!is.na(cdi_responses)) %>%
-  unnest(cdi_responses) %>% 
-  filter(language == "English (American)") |>
-  # mutate(floor_age = floor(age)) %>%
-  mutate(instrument_length = case_when(instrument_type=="ws" ~ 680,
-                                       instrument_type=="wg" ~ 396,
-                                       instrument_type=="wsshort" ~ 100,
-                                       instrument_type=="wgshort" ~ 100,
-                                       .default = NA),
+  unnest(cdi_responses) |> 
+
+# cdi lengths sourced from Alvin doing some wordbank magic
+
+    mutate(instrument_length = case_when(
+      language=="English (American)" & instrument_type=="ws" ~ 680,
+      language=="English (American)" & instrument_type=="wg" ~ 396,
+      language=="English (American)" & instrument_type=="wsshort" ~ 100,
+      language=="English (American)" & instrument_type=="wgshort" ~ 100,
+      language=="Spanish (Mexican)" & instrument_type=="ws" ~ 680,
+      language=="Spanish (Mexican)" & instrument_type=="wg" ~ 428,
+      language=="French (Quebecois)" & instrument_type=="ws" ~ 664,
+      language=="French (Quebecois)" & instrument_type=="wg" ~ 408,
+      language=="Dutch" & instrument_type=="wg" ~ 441,
+      language=="Norwegian" & instrument_type=="wg" ~ 395,
+       .default = NA),
          CDI_percent = rawscore / instrument_length) |>
   select(subject_id, age, measure, CDI_percent) |> 
   pivot_wider(names_from = "measure", values_from = "CDI_percent", 
               values_fill = NA, values_fn = mean)
 ```
 
-Now we have one row per CDI administration - English only at the moment. 
+Now we have one row per CDI administration. 
 
 Let's try to join this with the administration data. 
 
-The issue is that we have no 1-1 relationship. Consider subject 289. They have many CDIs and many LWLs and they don't all match. 
 
 Our principles:
 * we want to join CDIs to LWLs, so that means that the LWL admins are our base data frame (e.g., `left_join(admins, cdis)` and not the reverse)
-* we want only one CDI per LWL admin, but we could in principle average for extra precision
+* we want only one CDI per LWL admin, but we could in principle average for extra precision. 
 
-Here's an example. Note that this example depends on the use of age for the join and only works because `adams_marchman_2018` provides rounded ages. 
+We average for extra precision. 
 
-```{r}
-left_join(filter(admin_info, subject_id == 289), 
-          filter(eng_cdi_admins, subject_id == 289))
-
-left_join(filter(admin_info, subject_id == 2709), 
-          filter(eng_cdi_admins, subject_id == 2709))
-
-```
-
-Let's try a fuzzy join. 
-
-```{r}
-fuzzyjoin::difference_left_join(filter(admin_info, subject_id == 289), 
-                                filter(eng_cdi_admins, subject_id == 289), 
-                                by = c("subject_id", "age"),
-                                max_dist = 1) 
-
-
-fuzzyjoin::difference_left_join(filter(admin_info, subject_id == 2709), 
-                                filter(eng_cdi_admins, subject_id == 2709), 
-                                by = c("subject_id", "age"),
-                                max_dist = 1) 
-```
-
-This results in too many rows because there could be multiple CDIs matching a single admin. We can fix this by averaging. 
+We do a hack where we multiply subject_id by 10 so we can do an up-to-off-by-one fuzzy join on age & subject id (creating an up to off-by-one join on age and an exact join on id) and then restore subject num.
+We then average CDI for admins that matched multiple CDI. 
 
 
 ```{r}
-fuzzyjoin::difference_left_join(filter(admin_info, subject_id == 289), 
-                                filter(eng_cdi_admins, subject_id == 289), 
-                                by = c("subject_id", "age"),
-                                max_dist = 1) |>
-  select(-age.y, -subject_id.y) |>
-  rename(age = age.x, subject_id = subject_id.x) |>
-  group_by(subject_id, administration_id, dataset_name, age) |>
-  summarise(prod = mean(prod, na.rm = TRUE), 
-            comp = mean(comp, na.rm = TRUE)) |>
-  mutate(across(c("prod","comp"), ~ifelse(is.nan(.x), NA, .x))) 
-```
-
-Here's the actual join. Problem, we need exact match on the subject ID and distance of 1 on the age. 
-
-Subject 2709 has a CDI age and subject-id less than 1 off and improperly matches 2710. we fix this by multiplying by 10 (hack!). 
-
-```{r}
-foo <- fuzzyjoin::difference_left_join(admin_info, eng_cdi_admins, 
-                                            by = c("subject_id", "age"),
-                                            max_dist = 1)
-filter(foo, subject_id.x == 2709)
-
-bar <- fuzzyjoin::difference_left_join(mutate(admin_info, subject_id = 10*subject_id),
-                                       mutate(eng_cdi_admins, subject_id = 10*subject_id), 
-                                            by = c("subject_id", "age"),
-                                            max_dist = 1)
-
-filter(bar, subject_id.x == 27090)
-
-```
-
-
-```{r}
-# cdi_data <- left_join(admin_info, eng_cdi_admins) 
 cdi_data <- fuzzyjoin::difference_left_join(mutate(admin_info, subject_id = 10*subject_id),
-                                            mutate(eng_cdi_admins, subject_id = 10*subject_id),
+                                            mutate(cdi_admins, subject_id = 10*subject_id),
                                             by = c("subject_id", "age"),
                                             max_dist = 1) |>
   select(-age.y, -subject_id.y) |>
@@ -352,82 +211,5 @@ cdi_data <- fuzzyjoin::difference_left_join(mutate(admin_info, subject_id = 10*s
   mutate(across(c("prod","comp"), ~ifelse(is.nan(.x), NA, .x))) |>
   ungroup()                     
 
-saveRDS(cdi_data, file=here("cached_intermediates", "1_cdi_subjects.Rds"))
+saveRDS(cdi_data, file=here("cached_intermediates", "0_cdi_subjects.Rds"))
 ```
-
-```{r}
-cdi_data |>
-  filter(!is.na(prod)) |>
-  ggplot(aes(x=age, y=prod)) +
-  geom_point(alpha=.2) + 
-  geom_smooth() + 
-  facet_wrap(~dataset_name)
-```
-
-```{r}
-cdi_data |>
-  filter(!is.na(comp)) |>
-  ggplot(aes(x=age, y=comp)) +
-  geom_point(alpha=.2) + 
-  geom_smooth() + 
-  facet_wrap(~dataset_name)
-
-# ggplot(aes(x=age, y=rawscore, color=language)) +
-#   facet_wrap(vars(instrument_type, dataset_name)) +
-#   geom_point(alpha=.5) 
-# >>>>>>> 9f838ecc75c2df3fb4ca309e808fd360af8a6724
-```
-
-# Units for ICC etc
-Here we have everything by "dataset", but in some cases datasets may contain multiple different item-banks/studies.
-
-things we can look for 
-```{r}
-d_aoi <- readRDS(here("cached_intermediates", "1_d_aoi.Rds"))
-
-trials <- d_aoi |> distinct(dataset_name, administration_id, subject_id, age, trial_id, target_label, distractor_label)
-```
-
-```{r}
-trials |> ggplot(aes(x=dataset_name, y=age))+geom_jitter(alpha=.1)+coord_flip()
-```
-```{r}
- plots <- trials |> distinct(dataset_name) |> pull(dataset_name) |> map( \(d) {
-   trials |> filter(dataset_name==d) |> ggplot(aes(x=target_label, y=reorder(administration_id, age)))+geom_jitter(width=.2,height=.1, alpha=.5)+coord_flip()+labs(title=d)
- })
-
-plots
-```
-Notes:
-
-homogenous:
-* ronfard
-* baumgartner
-* newman_genderdistractor
-* pomper_salient_me
-* ferguson_eyetrackingr
-* yurovsky
-* swingley-aslin
-* reflook
-* potter-remix
-* weaver-zettersten
-* mahr-coartic
-* bacon-gendercues
-* frank_tablet
-
-
-heterogenous:
-* perry_cowpig: either kids see 1 set of 3 pairs (6 items) or a different set of 3 pairs (6 items)
-* pomper_saffran_2016 -- something complicated where item co-occurrance isn't fully random, but not fully split into lists either
-*adams-marchman -- has 3 age groups with 2 lists/age -- 4 different list options, with some item overlaps between them
-* fernald totlot -- looks like 4 age groups, a different list option for each age group, some overlaps across them 
-* sander-montant -- 2 age groups with slightly overlapping lists
-* fmw -- 2 age groups , mostly overlapping lists
-* pomper_prime -- 2 sets of 2 item lists that also cross
-* potter_canine -- 2 mostly distinct lists
-* fernald marchman2012 -- 3 age mins with somewhat overlapping lists
-* garrison_bergelson -- just chaos
-
-Given this, I don't think it makes sense to make changes. We'll leave it as ICC/dataset. 
-
-
