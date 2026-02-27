@@ -14,6 +14,8 @@ The data-processing decision is what that window should be -- when should it sta
 ```{r, echo=F, include=F}
 knitr::opts_chunk$set(warning=F, message=F, echo=F)
 source(here::here("helper/common.R"))
+source(here::here("helper/notebook_helper.R"))
+
 
 d_aoi <- readRDS(here("cached_intermediates", "0_d_aoi.rds"))
 t_increment <- 200
@@ -35,30 +37,7 @@ cdi_data <- readRDS(here("cached_intermediates", "0_cdi_subjects.rds"))
 
 how much data do we have?
 
-```{r}
-# look at some individual trials
 
-d_aoi |> filter(dataset_name=="frank_tablet_2016") |> filter(target_label=="dog") |> distinct(distractor_label)
-
-
-relevant <- d_aoi |> filter(dataset_name=="frank_tablet_2016") |> filter(target_label=="dog")|>
-  filter(trial_id %in% c(
-    124998, 124182, 124589, 123365, 124158, 124301)) |>
-  mutate(aoi= ifelse(aoi %in% c("target", "distractor"), aoi, "other/missing")) 
-
-relevant |> 
-  ggplot(aes(x=t_norm, y=aoi, color=as.factor(trial_id)))+geom_line(aes(group=1), color="grey")+geom_point()+
-  geom_point(data=relevant |> filter(aoi=="other/missing"), color="grey")+facet_wrap(~trial_id)+
-  geom_vline(xintercept=0)+
-  theme_bw()+
-  theme(legend.position = "none", strip.text = element_blank())
-
-d_aoi |> filter(dataset_name=="frank_tablet_2016") |> filter(target_label=="dog")|> filter(trial_id==124806) |> ggplot(aes(x=t_norm, y=aoi))+geom_point()+geom_line(aes(group=1))
-
-#124806
-#124998
-#12
-```
 
 
 ```{r}
@@ -110,86 +89,42 @@ toc()
 saveRDS(accs, here("cached_intermediates", "1_acc_icc_noboot.rds"))
 ```
 
-# Visualizations
-
-# <-- Older stuff begins here -->
-# ICC Reliability
-
-To start with, we consider a range of window starts from -1000ms to 1500ms (0 is point of disambiguation), and window ends from 2000 to 4000ms. 
-
-```{r}
-accs <- readRDS(here("cached_intermediates/3_accs.Rds"))
-
-accs_summary <- accs |>
-  filter(object == "administration") |>
-  group_by(t_start, t_end, object) |>
-  summarize(
-    N = n(),
-    mean_icc = mean(icc, na.rm = TRUE)
-  ) |>
-  mutate(window_size = t_end - t_start)
-```
-
-
-Descriptive heatmap. 
-
-
-```{r}
-ggplot(accs_summary, aes(x = t_start, y = t_end, fill = mean_icc)) +
-  geom_tile(color = "white") +
-  scale_fill_viridis(name = "Mean ICC", option = "inferno") +
-  scale_x_continuous(breaks = c(-1000, -500, 0, 500, 1000, 1500)) +
-  xlab("Window Start Time (in ms)") +
-  ylab("Window End Time (in ms)")
-```
-The best ICC seems to be starting at 500-1000 and ending at 3000-4000ms. 
-
-Window-by-window. 
-
-
-```{r}
-ggplot(
-  accs_summary,
-  aes(color = mean_icc)
-) +
-  geom_vline(xintercept = 0, linetype = "dashed") +
-  geom_segment(aes(x = t_start, xend = t_end, y = mean_icc, yend = mean_icc)) +
-  geom_segment(aes(x = t_start, xend = t_start, y = mean_icc - 0.005, yend = mean_icc + 0.005)) +
-  geom_segment(aes(x = t_end, xend = t_end, y = mean_icc - 0.005, yend = mean_icc + 0.005)) +
-  scale_color_viridis(name = "Mean ICC", direction = -1) +
-  theme(legend.position = "none") +
-  ylab("Mean ICC") +
-  xlab("Analysis Window (in ms)")
-```
-
-
-
-## by age
-
-Let's do one more simulation where we check if this result holds across two ages. We'll break down age into > 24 months and < 24 months, which roughly splits the dataset. There are `r  length(unique(d_aoi$administration_id[d_aoi$age < 24]))` younger kids and `r length(unique(d_aoi$administration_id[d_aoi$age >= 24]))` older kids. 
+and by age
 
 ```{r, eval=F}
-#trials/dataset in each agebin
-d_aoi |> filter(!is.na(correct)) |> distinct(trial_id, age, dataset_name) |>    mutate(younger = age < 24) |>
-group_by(dataset_name, younger) |> tally() |> arrange(n)
-
-# bacon_gendercues only has 20 trials in older, ronfard_2021 only has 34 trials in older
-
 #admins/dataset in each agebin
-d_aoi |> filter(!is.na(correct)) |> distinct(administration_id, age, dataset_name) |>    mutate(younger = age < 24) |>
-group_by(dataset_name, younger) |> tally() |> arrange(n)
+d_aoi |> filter(!is.na(correct)) |> distinct(administration_id, age, dataset_name) |>    mutate(age_bin = case_when(
+  age< 18 ~ "<18",
+  age < 24~ "18-24",
+  age< 36~ "24-36",
+  age>=36~ ">=36")) |>
+group_by(dataset_name, age_bin) |> ggplot(aes(x=age_bin, fill=dataset_name))+geom_histogram(stat="count")
 
-# yep bacon_gendercues has 1 kid and ronfard_2021 has 2 kids  in the older bin
+
+d_aoi |> filter(!is.na(correct)) |> distinct(administration_id, age, dataset_name) |>    mutate(age_bin = case_when(
+  age< 18 ~ "<18",
+  age < 24~ "18-24",
+  age< 36~ "24-36",
+  age>=36~ ">=36")) |>
+group_by(dataset_name, age_bin) |> tally() |> arrange(n)
+
+# apply a cutoff of at least 5 kids going into an age-bin x paper
+
+age_bin_cutoff <-d_aoi |> filter(!is.na(correct)) |> distinct(administration_id, age, dataset_name) |>    mutate(age_bin = case_when(
+  age< 18 ~ "<18",
+  age < 24~ "18-24",
+  age< 36~ "24-36",
+  age>=36~ ">=36")) |>
+group_by(dataset_name, age_bin) |> mutate(count=n()) |> filter(count>=5) |> ungroup()
+
 ```
-
 
 ```{r, eval=F}
 icc_window_sim_age <- function(t_start = -1000, t_end = 4000, object) {
-  df <- d_aoi |>
-    mutate(younger = age < 24) |>
+  df <- d_aoi |> inner_join(age_bin_cutoff) |> 
     filter(t_norm > t_start, t_norm < t_end) |>
     group_by(
-      dataset_name, dataset_id, younger, administration_id,
+      dataset_name, dataset_id, age_bin, administration_id,
       target_label, trial_id
     ) |>
     summarise(
@@ -197,12 +132,12 @@ icc_window_sim_age <- function(t_start = -1000, t_end = 4000, object) {
       prop_data = mean(!is.na(correct))
     ) |> 
     filter(!is.na(accuracy)) |> 
-    group_by(dataset_name, younger, dataset_id, administration_id, target_label) |>
+    group_by(dataset_name, age_bin, dataset_id, administration_id, target_label) |>
     mutate(repetition = row_number())
 
   # compute ICCs
   df |>
-    group_by(dataset_name, younger) |>
+    group_by(dataset_name, age_bin) |>
     nest() |>
     mutate(icc = unlist(map(data, ~ get_icc(., "accuracy", object)))) |>
     select(-data) |>
@@ -217,55 +152,41 @@ acc_params <- expand_grid(
   object = c("administration")
 )
 
-library(multidplyr)
-cluster <- new_cluster(16)
-cluster_library(cluster, "dplyr")
-cluster_library(cluster, "tidyr")
-cluster_library(cluster, "purrr")
-cluster_library(cluster, "agreement")
-cluster_copy(cluster, "get_icc")
-cluster_copy(cluster, "d_aoi")
-cluster_copy(cluster, "icc_window_sim_age")
 
 accs_byage <- acc_params |>
-  #partition(cluster) |>
   mutate(icc = pmap(list(t_start, t_end, object), icc_window_sim_age)) |>
-  #collect() |>
   unnest(col = icc)
 
-saveRDS(accs_byage, here("cached_intermediates", "3_accs_byage.rds"))
+saveRDS(accs_byage, here("cached_intermediates", "1_acc_icc_noboot_byage.rds"))
 
-# note there are NAs for bacon_gendercues in the 24+ b/c they have exactly one child with age >=24mo
 ```
 
+
+# Visualizations
+
+## Heatmap noboot ICC
+
 ```{r}
-accs_byage <- readRDS(here("cached_intermediates", "3_accs_byage.rds")) |> filter(!(dataset_name%in% c("bacon_gendercues", "ronfard_2021") & younger==F))
-accs_byage_summary <- accs_byage |>
-  group_by(younger, t_start, t_end, object) |>
+icc_noboot <- readRDS(here("cached_intermediates", "1_acc_icc_noboot.rds"))
+
+icc_noboot_summary <- icc_noboot |>
+  group_by(t_start, t_end) |>
   summarize(
     N = n(),
     mean_icc = mean(icc, na.rm = TRUE)
   ) |>
-  mutate(window_size = t_end - t_start) |>
-  mutate(age = ifelse(younger, ">=24 months", "<24 months"))
-```
+  mutate(window_size = t_end - t_start)
 
-Heatmap split by age. 
 
-```{r}
-ggplot(accs_byage_summary, aes(x = t_start, y = t_end, fill = mean_icc)) +
+ggplot(icc_noboot_summary, aes(x = t_start, y = t_end, fill = mean_icc)) +
   geom_tile(color = "white") +
   scale_fill_viridis(name = "Mean ICC", option = "inferno") +
   scale_x_continuous(breaks = c(-1000, -500, 0, 500, 1000, 1500)) +
   xlab("Window Start Time (in ms)") +
-  ylab("Window End Time (in ms)") +
-  facet_wrap(~age)
-```
-Overall, the ICC for older kids is lower, but the "best" spots are still in a start at 500-1000 and go long. 
+  ylab("Window End Time (in ms)")
 
-```{r}
 ggplot(
-  accs_byage_summary,
+  icc_noboot_summary,
   aes(color = mean_icc)
 ) +
   geom_vline(xintercept = 0, linetype = "dashed") +
@@ -275,9 +196,49 @@ ggplot(
   scale_color_viridis(name = "Mean ICC", direction = -1) +
   theme(legend.position = "none") +
   ylab("Mean ICC") +
-  xlab("Analysis Window (in ms)") 
+  xlab("Analysis Window (in ms)")
 ```
-Here we see that the younger kids lose more reliability when the window is short, but otherwise the conclusions remain unchanged. 
+
+
+```{r}
+icc_noboot_byage <- readRDS(here("cached_intermediates", "1_acc_icc_noboot_byage.rds"))
+
+icc_noboot_byage_summary <- icc_noboot_byage |>
+  group_by(t_start, t_end, age_bin) |>
+  summarize(
+    N = n(),
+    mean_icc = mean(icc, na.rm = TRUE)
+  ) |>
+  mutate(window_size = t_end - t_start)
+
+
+ggplot(icc_noboot_byage_summary, aes(x = t_start, y = t_end, fill = mean_icc)) +
+  facet_wrap(~age_bin)+
+  geom_tile(color = "white") +
+  scale_fill_viridis(name = "Mean ICC", option = "inferno") +
+  scale_x_continuous(breaks = c(-1000, -500, 0, 500, 1000, 1500)) +
+  xlab("Window Start Time (in ms)") +
+  ylab("Window End Time (in ms)")
+
+ggplot(
+  icc_noboot_byage_summary,
+  aes(color = mean_icc)
+) +
+  facet_wrap(~age_bin)+
+  geom_vline(xintercept = 0, linetype = "dashed") +
+  geom_segment(aes(x = t_start, xend = t_end, y = mean_icc, yend = mean_icc)) +
+  geom_segment(aes(x = t_start, xend = t_start, y = mean_icc - 0.005, yend = mean_icc + 0.005)) +
+  geom_segment(aes(x = t_end, xend = t_end, y = mean_icc - 0.005, yend = mean_icc + 0.005)) +
+  scale_color_viridis(name = "Mean ICC", direction = -1) +
+  theme(legend.position = "none") +
+  ylab("Mean ICC") +
+  xlab("Analysis Window (in ms)")
+```
+
+
+# <-- Older stuff begins here -->
+
+
 
 ## Fine grained start time
 
@@ -364,29 +325,6 @@ From the wide survey of values above, we now want to check more closely on short
 We look at ends of 2000 and 4000 and starts in 0-1000 by each 100 ms increment. 
 
 ```{r, eval=F}
-icc_window_sim_age_bootstrap <- function(t_start = -500, t_end = 4000, object) {
-  print(paste(t_start, t_end))
-
-  df <- d_aoi |>
-    filter(t_norm > t_start, t_norm < t_end) |>
-    mutate(younger = age < 24) |>
-    group_by(dataset_name, dataset_id, administration_id, target_label, trial_id, younger) |>
-    summarise(
-      accuracy = mean(correct, na.rm = TRUE),
-      prop_data = mean(!is.na(correct))
-    ) |>
-    filter(!is.na(accuracy)) |>
-    group_by(dataset_name, dataset_id, administration_id, target_label, younger) |>
-    mutate(repetition = row_number())
-
-  # compute ICCs
-  df |>
-    group_by(dataset_name, younger) |>
-    nest() |>
-    mutate(icc = map(data, \(d) bootstrap_icc(d, "accuracy", 2000))) |>
-    select(-data) |>
-    unnest(icc)
-}
 
 icc_window_sim_bootstrap <- function(t_start = -500, t_end = 4000, object) {
   print(paste(t_start, t_end))

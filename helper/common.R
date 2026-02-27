@@ -1,27 +1,18 @@
 # source me for all analyses
 
-library(here)
-library(tidyverse)
-library(multidplyr)
-# library(ggpmisc)
-library(ggrepel)
-# library(ggthemes)
-library(viridis)
-# library(cowplot)
-# remotes::install_github("jmgirard/agreement")
+library(tidyr)
+library(dplyr)
+library(purrr)
+library(tibble)
+library(stringr)
+library(tibble)
 library(agreement)
-library(tictoc)
+library(multidplyr)
+# because we don't have full on tidyverse on the cluster, we specify the parts we actually need
 
 # Seed for random number generation
 set.seed(42)
-knitr::opts_chunk$set(
-  cache.extra = knitr::rand_seed, cache = TRUE,
-  message = FALSE, warning = FALSE, error = FALSE
-)
-options(dplyr.summarise.inform = FALSE)
 
-# load data
-# d_aoi <- readRDS(file = here("cached_intermediates","1_d_aoi.Rds"))
 
 # key ICC function
 get_icc <- function(x, column = "accuracy", object = "stimulus") {
@@ -79,22 +70,5 @@ bootstrap_icc <- function(x, column = "accuracy", bootstrap = 2000) {
   ci <- boot::boot.ci(boot.out = iccs$boot_results, t = t_no_na, t0 = t0, type = "basic")
   return(tibble(est = iccs$Inter_ICC, lower = ci$basic[4], upper = ci$basic[5]))
 }
+
 options(dplyr.summarise.inform = FALSE)
-
-
-# .font <- "Source Sans Pro"
-# theme_set(theme_bw(base_size = 14, base_family = .font))
-theme_set(theme_bw(base_size = 10))
-theme_update(
-  panel.grid = element_blank(),
-  strip.background = element_blank(),
-  legend.key = element_blank(),
-  panel.border = element_blank(),
-  axis.line = element_line(),
-  strip.text = element_text(face = "bold")
-)
-
-# helper function for scaling to the variance of a particular age group
-age_scale <- function(x, age, min = 16, max = 20) {
-  (x - mean(x, na.rm = TRUE)) / sd(x[age >= min & age <= max], na.rm = TRUE)
-}
