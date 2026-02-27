@@ -1,77 +1,11 @@
 ---
 title: "Accuracies"
-author: "Mike Frank"
-date: "2022-1-19 updated 2025-04-16"
+author: "Veronica"
+date: "27-Feb-2026"
 output: 
   html_document:
     toc: true
 ---
-
-# (Preamble) Overview of approach
-
-The goal of the peekbank-methods project is to give recommendations about the design and analysis of LWL studies. To do so, we need some criteria for what is a better outcome. Here, we take a "data-driven" approach to look at how different potential data-processing and (using simulation) study design factors affect reliability and validity. 
-
-We use "vanilla" (real word target, real word distractor, plain carrier phrase) trials from peekbank to explore how different look at different possible data-processing and methodological choices affect 3 outcomes measures. 
-
-* one outcome is ICC (intra-class correlation) which is a variance partition metric that is a generalization of correlation. This measures (within a dataset) how much different items (target labels) are consistent with each other in "rating" the subjects (kid-administrations). We think that LWL measures like accuracy and RT are getting at some kid-level properties of language processing speed (and receptive vocabulary). All else equal, we want to process the data (and design studies) in a way that maximizes the ability to get at this language knowledge. 
-
-* in addition to being reliable, we also want valid metrics. We don't want to just be measuring any kid-level-property, we want to be measuring something about kid *language*. For these datasets, we have CDI data (some production and some comprehension). We can check how well our metrics correlate with children's CDI sumscores from CDI administrations at roughly the same time. I also correlate with children's age, as a basic check. In general, correlating with production, comprehension, and age in the expected directions is desirable, although we also may expect that LWL measures are picking up on slightly different aspects of language learning. 
-
-* another reliability measure is test-retest reliability. For a few longitudinal datasets, we have repeated administrations within a couple months of one another. For these, we can do test-retest correlations across the pair of administrations. 
-
-For all these measures, we have to do them within each dataset, due to cross-dataset variability, but we can look at the mean correlations across the datasets. 
-
-## Rabbit hole 1: A digression on ICC
-There are a *ton* of different ICC measures, that vary in what assumptions they make and what sources of variance they compare. And different references list different subsets and label them differently (fun!).
-
-We are using the ICC for *inter*-rater reliability for a "random factorial model without interaction" measuring consistency and looking for the reliability of an average of raters. This is provided by the "agreement" package we use, but I don't think it is fully documented anywhere. 
-
-Basically, this ICC looks at the ratio between by-subject variance (by-subject variance + by-rater variance + error variance) 
-
-* inter-rater reliability means we want to know how well raters (i.e.) items correlate with each other (as opposed to with themselves)
-* the "random factorial model" (type 2 in standard ICC classification) is for when all raters rate all subjects (not quite true for us), but may have varying numbers of measures on each combination. Both raters and subjects are assumed to be sampled from a larger population of interest. 
-* the "without interaction" is a variant for when there are (or may frequently be) single ratings per subject and per rater and/or when subject-rater interactions are not of interest (and can be lumped into the overall error). (Using interaction or not can be a bias-variance trade-off; adding the interactions decreases bias but increases variance.) This version is documented in Gwet 2014 (Handbook of Inter-Rater Reliability, page 256) This measures the ratio of by-subject variance / (by-subject variance + by-rater variance + error variance) 
-* consistency. We aren't interested in exact agreement between raters but rather whether the slopes across raters for different subjects are the same, so it's okay if one rater is consistently lower (i.e. a later-learned word). This omits the by-rater variance from the denominator (I don't know that this is ever explicitly documented for the random factorial model, but it sort of aligns with later discussion of consistency on 272 of Gwet 2014 and is somewhat consistent with https://pmc.ncbi.nlm.nih.gov/articles/PMC4913118/ 's pattern of formulae for different types of ICC)
-* average across raters divides the error term by the number of raters (seems vaguely consistent with https://pmc.ncbi.nlm.nih.gov/articles/PMC4913118/)
-
-so, the overall formula for ICC is then by-subject variance / (by-subject variance + error variance / number of raters) 
-
-The package "agreement" that we use seems to be one of few that (by using Gwet's formulation) handles cases where there is missing or uneven data (very common in peekbank, especially for post-exclusion or RT data).
-
-The main point is to have an ICC measure can be used for comparison across the same datasets for different methodological questions. We don't try to interpret the ICC against external cutoffs for reliability. 
-
-## Handling uncertainty
-
-How do we tell what numerical differences in ICC or in correlations are substantial? The approach we take here is to use bootstrapping which lets us generate per-dataset confidence intervals around the point estimate. We then can use point-estimates and the bootstrapped CIs to calculate a variance-weighted meta-analytic estimate (and CI) to get an overall estimate. 
-
-### Rabbit hole 2: a digression on bootstrapping
-For ICC which is a trial-level measure, we do the bootstrap resampling over trials. For the test-retest and CDI correlations, the correlation used is between the mean value for that administration and another administration/the external CDI. 
-
-It turns out that "take the mean across trials then correlate" is a very biased statistic. So, if you do trial-wise bootstrapping on this statistic, the results from the bootstrap samples are not evenly distributed around the sample value, and in fact often are all lower than the sample mean. The easy way to think about this is that sampling trials from the population (bootstrapping) increases the noise on the means-across-trials, and with a noisier measure, the correlation will go down.
-
-Because of this, we do administration-level bootstrapping for the CDI and age correlations and pair-of-admins-level bootstrapping for the test-retest.
-
-In some cases, the ICC values also are somewhat biased (judging from the bootstrapped CIs), but this seems less severe. 
-
-(While bias sounds bad and makes for wonky plots, our main purpose for bootstrapping is to get measures of variance which we can use for meta-analytic CIs, which should work, biased estimators or not. )
-
-## Turning this into recommendations
-
-This project has a non-standard aim with the statistics. We are neither trying to do just estimation nor are we trying to do "traditional" inferential (p<.05) statistics. We are trying to make inferences as to what data practices to recommend (and how strongly). 
-
-Often in our other statistical applications, we like to see differences. Here, though, it's not a bad thing, if say, exactly where one starts an accuracy window doesn't make a difference. It would be surprising and worrying if small differences in window start dramatically altered results! 
-
-Other factors may also influence what data practices to choose (and to recommend). In particular, we probably prefer parsimony -- given two processes with equivalent goodness of outcome, we should prefer the simpler one. There may also be theoretical commitments that lead to preferences over one measure or another (ex: log vs raw RT). 
-
-## Structure of analyses
-
-There are two classes of decisions we're hoping to give recommendations about: ones that apply after the data has been collected and ones that apply before the data is collected. 
-
-For the "analytic" (really data-processing) decisions, how many trials are useable is probably correlated with various kid factors (maybe squirmy kids know fewer words because they're younger). 
-
-For the "design" decisions, we're simulating hypotheticals about what the data would look like with fewer or more (or differently structured) trials.
-
-# Accuracy options
 
 One common measure from LWL times is accuracy which is measured as the proportion of the time the child is looking at the target out of the time they are looking at either the distractor or the target. 
 
@@ -81,14 +15,13 @@ The data-processing decision is what that window should be -- when should it sta
 knitr::opts_chunk$set(warning=F, message=F, echo=F)
 source(here::here("helper/common.R"))
 
-d_aoi <- readRDS(here("cached_intermediates", "1_d_aoi.Rds"))
+d_aoi <- readRDS(here("cached_intermediates", "0_d_aoi.rds"))
 t_increment <- 200
 ```
 
 
 ```{r}
-datasets <- d_aoi |> select(trial_id, dataset_name, administration_id, subject_id) |> distinct() |> 
-  filter(!dataset_name%in% c("newman_genderdistractor"))
+datasets <- d_aoi |> select(trial_id, dataset_name, administration_id, subject_id) |> distinct() 
 
 datasets |> distinct(dataset_name)
 
@@ -96,13 +29,8 @@ datasets |> distinct(administration_id)
 
 datasets |> distinct(trial_id)
 
-cdi_data <- readRDS(here("cached_intermediates", "1_cdi_subjects.Rds"))
+cdi_data <- readRDS(here("cached_intermediates", "0_cdi_subjects.rds"))
 
-datasets |> left_join(cdi_data) |> distinct(administration_id, prod, comp) |> filter(!is.na(prod))
-
-datasets |> left_join(cdi_data) |> filter(!is.na(prod))
-
-datasets |> left_join(cdi_data) |> filter(!is.na(comp))
 ```
 
 how much data do we have?
@@ -139,7 +67,9 @@ d_aoi |> filter(!is.na(correct)) |> group_by(dataset_name, t_norm)|> tally() |> 
 
 ```
 
+# Data prep
 
+## No boot ICC
 ```{r, eval=F}
 icc_window_sim <- function(t_start = -500, t_end = 4000, object) {
   print(paste(t_start, t_end))
@@ -163,34 +93,26 @@ icc_window_sim <- function(t_start = -500, t_end = 4000, object) {
     select(-data) |>
     unnest(cols = c())
 }
-```
 
-```{r, eval=F}
 acc_params <- expand_grid(
   t_start = seq(-1000, 1500, t_increment),
   t_end = seq(2000, 4000, t_increment),
   object = c("administration")
 )
 
-# multidyplr attempt
-cluster <- new_cluster(14)
-cluster_library(cluster, "tidyverse")
-cluster_library(cluster, "agreement")
-cluster_copy(cluster, "icc_window_sim")
-cluster_copy(cluster, "get_icc")
-cluster_copy(cluster, "d_aoi")
 
 tic()
 accs <- acc_params |>
-  # partition(cluster) |>
   mutate(icc = pmap(list(t_start, t_end, object), icc_window_sim)) |>
-  # collect() |>
   unnest(col = icc)
 toc()
 
-saveRDS(accs, here("cached_intermediates", "3_accs.Rds"))
+saveRDS(accs, here("cached_intermediates", "1_acc_icc_noboot.rds"))
 ```
 
+# Visualizations
+
+# <-- Older stuff begins here -->
 # ICC Reliability
 
 To start with, we consider a range of window starts from -1000ms to 1500ms (0 is point of disambiguation), and window ends from 2000 to 4000ms. 
