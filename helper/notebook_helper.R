@@ -1,3 +1,8 @@
+library(tidyverse)
+library(here)
+library(tictoc)
+library(ggthemes)
+library(viridis)
 knitr::opts_chunk$set(
   cache.extra = knitr::rand_seed, cache = TRUE,
   message = FALSE, warning = FALSE, error = FALSE

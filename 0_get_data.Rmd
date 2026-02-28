@@ -16,6 +16,7 @@ output:
 library(here)
 library(peekbankr)
 source(here("helper","common.R"))
+source(here("helper", "notebook_helper.R"))
 
 ```
 
@@ -47,14 +48,14 @@ Veronica notes that in the interest of being kind to RAM, some filters and selec
 Filter criteria:
 * no restriction on language
 * vanilla trial only
-* age 12-60 months inclusive 
+* age <=60 months inclusive 
 
 
 ```{r, eval=F}
 
 all_aoi_timepoints <- readRDS(here("all_aoi.rds"))
 
-all_administrations <- all_administrations |> select(administration_id, age, dataset_id, subject_id, dataset_name) |> filter(age <= 60, age>=12)
+all_administrations <- all_administrations |> select(administration_id, age, dataset_id, subject_id, dataset_name) |> filter(age <= 60)
 
 all_trials <- all_trials |> select(trial_id, trial_order, trial_type_id, dataset_id, dataset_name)
 
@@ -92,7 +93,7 @@ aoi_data_joined <- readRDS(here("cached_intermediates", "0_aoi_data_joined.Rds")
 length(unique(aoi_data_joined$dataset_name))
 unique(aoi_data_joined$dataset_name)
 ```
-35 datasets -- dataset list checks on based on what we'd expect from vanillaness checks + age (note that kartushina has only << 12 month olds and is thus excluded)
+36 datasets -- dataset list checks on based on what we'd expect from vanillaness checks 
 
 ```{r}
 # how much do we expect from each
@@ -125,6 +126,8 @@ Rename and exclude in a more general way. This is a manual step by which we have
 ```{r, eval=F}
 included_items <- read_csv(here("metadata","included_items_2026.1.csv")) 
 
+#all_items |> left_join(included_items) |> filter(is.na(include))
+
 d_aoi <- aoi_data_joined |>
   left_join(included_items, by = join_by(target_label == item)) |>
   left_join(included_items, by = join_by(distractor_label == item), 
@@ -136,12 +139,7 @@ d_aoi <- aoi_data_joined |>
                                    distractor_label, rename_to_distractor)) |>
   select(-include_target, -include_distractor, -rename_to_distractor, -rename_to_target)
 ```
-```{r}
-# what we we losing
-foo <- aoi_data_joined |> left_join(included_items, by = join_by(target_label == item)) |>
-  left_join(included_items, by = join_by(distractor_label == item), 
-            suffix = c("_target","_distractor")) 
-```
+
 
 dropping 16 garrison_bergelson trials (baba/wubby)
 dropping 109 potter canine drink trials
@@ -168,22 +166,26 @@ saveRDS(d_aoi, file = here("cached_intermediates","0_d_aoi.rds"))
 
 confirm that we have expected about of changes and no more dropped trials 
 
-```{r}
-d_aoi |> distinct(dataset_name, trial_id) |> group_by(dataset_name) |> tally() |> rename(n_after=n) |> left_join(aoi_data_joined |> distinct(dataset_name, trial_id) |> group_by(dataset_name) |> tally()
-)
-```
-
 ## CDI data
 
 Add instrument length and a CDI percent column.
 
-TODO what are lengths of other instruments!!!
 ```{r}
 admin_info <- all_administrations %>% 
   distinct(subject_id, dataset_id, administration_id, age) |>
   left_join(all_datasets %>% select(dataset_id, dataset_name)) # get dataset names
 
+
+
 subjects <- admin_info |> distinct(subject_id, dataset_name) |> left_join(all_subjects)
+
+# which instruments
+
+subjects %>%
+  unnest(subject_aux_data) %>% 
+  filter(!is.na(cdi_responses)) %>%
+  unnest(cdi_responses) |> ungroup() |> distinct(language, instrument_type)
+
 cdi_admins <- subjects %>%
   unnest(subject_aux_data) %>% 
   filter(!is.na(cdi_responses)) %>%
