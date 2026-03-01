@@ -161,6 +161,7 @@ saveRDS(accs_byage, here("cached_intermediates", "1_acc_icc_noboot_byage.rds"))
 
 ```
 
+See also scripts folder for scripts starting with 1.
 
 # Visualizations
 
@@ -233,6 +234,84 @@ ggplot(
   theme(legend.position = "none") +
   ylab("Mean ICC") +
   xlab("Analysis Window (in ms)")
+```
+
+## Bootstrapped ICC
+
+
+```{r}
+acc_boot <- readRDS(here("cached_intermediates/1_acc_icc_boot.rds"))
+```
+
+
+```{r}
+acc_boot |> ggplot(aes(x = t_start, y = est, ymin = lower, ymax = upper, color = as.character(t_end))) +
+  geom_pointrange(position = position_dodge(width = 25)) +
+  facet_wrap(~dataset_name)+theme(legend.position = "bottom")
+```
+this is pretty hard to interpret, so we calculate meta-analytic means and ranges for each condition. 
+
+```{r}
+library(metafor)
+acc_boot_summary <- acc_boot |>
+  filter(!is.na(lower), !is.na(upper)) |>
+  mutate(
+    stdev = (upper - lower) / (1.96 * 2),
+    var = stdev**2
+  ) |>
+  group_by(t_start, t_end) |>
+  nest() |>
+  mutate(icc = map(data, \(d){
+    rma(d$est, d$var) |>
+      summary() |>
+      coef()
+  })) |>
+  select(-data) |>
+  unnest(icc)
+
+
+```
+
+Looking overall
+
+```{r}
+acc_boot_summary |> ggplot(aes(x = t_start, y = estimate, ymin = ci.lb, ymax = ci.ub, color = as.character(t_end))) +
+  geom_pointrange(position = position_dodge(width = 25))
+```
+Long windows are generally higher for ICC by a fairly substantial amount. The best starting point seems to be around 600ms, but we can at least confirm that ICC increases as one gets away from 0, but also decreases by 1000ms. This is consistent with the theoretical expectation that stimulus-driven behavior starts sometime around a few hundred milliseconds. 
+## CDI corr
+
+## Test retest
+
+
+```{r}
+accs_kid_test_retest <- readRDS(here("cached_intermediates", "1_acc_test_retest_boot.rds"))
+
+library(metafor)
+accs_kid_test_retest_summ <-  accs_kid_test_retest |>
+  mutate(
+    stdev = (upper - lower) / (1.96 * 2),
+    var = stdev**2,
+  ) |>
+  group_by(t_start, t_end) |>
+  nest() |>
+  mutate(corr= map(data, \(d){
+    rma(d$est, d$var) |>
+      summary() |>
+      coef()
+  })) |> 
+  unnest(corr)
+```
+
+
+```{r}
+accs_kid_test_retest |> ggplot(aes(x=t_start, y=est, ymin=lower, ymax=upper, color=as.character(t_end)))+geom_pointrange(position = position_dodge(width=50))+facet_wrap(~dataset_name)+geom_hline(yintercept=0)
+```
+
+
+```{r}
+accs_kid_test_retest_summ |> ggplot(aes(x=t_start, y=estimate, ymin=ci.lb, ymax=ci.ub, color=as.character(t_end)))+geom_pointrange(position = position_dodge(width=50))+geom_hline(yintercept=0)
+
 ```
 
 
@@ -672,164 +751,6 @@ Overall, there is a positive correlation with age that is not very effected by w
 
 Some of the variation in the extent of the age correlation in the dataset may be due to how much age variability the dataset has, but it's a bit strange that ferguson_eyetrackingr is negative (3 month range) and newman_genderdistractor is negative (15 month range). Perry and pomper_* datasets have 3-5 month ranges, so correlations may be less surprising there. 
 
-# Test-retest reliability
-
-Here, we consider all pairs of admins on the same child within 1.5 months for test-retest. In a few cases, this double-counts an administration -- when children had admins at 17, 18, and 19 months, we look at the test-retest of the 17 and 18 month admins and of the 18 and 19 month admins. 
-
-```{r, eval=F}
-source("cl_helper.R")
-
-d_aoi <- readRDS("d_aoi.Rds")
-library(tibble)
-library(multidplyr)
-
-admins <- d_aoi |>
-  select(dataset_name, subject_id, administration_id, age) |>
-  distinct()
-repeated <- admins |>
-  group_by(dataset_name, subject_id) |>
-  tally() |>
-  filter(n > 1)
-
-repeated_subjects <- admins |> inner_join(repeated)
-
-pairs <- repeated_subjects |>
-  group_by(dataset_name, subject_id) |>
-  mutate(
-    forward_age = lead(age),
-    forward_diff = forward_age - age,
-    test_num = case_when(
-      forward_diff < 1.5 ~ 1,
-    ),
-    mean_age = case_when(
-      test_num == 1 ~ (age + forward_age) / 2,
-    ),
-    second_admin = case_when(
-      test_num == 1 ~ lead(administration_id)
-    )
-  ) |>
-  filter(!is.na(test_num)) |>
-  rename(first_admin = administration_id) |>
-  select(-n, -age) |>
-  left_join(repeated_subjects |> select(-age, -n), by = c("dataset_name", "subject_id", "second_admin" = "administration_id")) |>
-  ungroup() |>
-  mutate(pair_number = row_number()) |>
-  select(-forward_age, -forward_diff, -test_num)
-
-pairs_long <- pairs |> pivot_longer(c("first_admin", "second_admin"), names_to = "session_num", values_to = "administration_id")
-
-pairs_aoi_data <- pairs_long |> left_join(d_aoi)
-
-
-test_retest_corr <- function(data, indices) {
-  summ <- data |>
-    slice(indices) |>
-    summarise(cor_test_retest = ifelse(sum(!is.na(first_admin) & !is.na(second_admin)) > 2, cor.test(first_admin, second_admin)$estimate, NA))
-  return(summ$cor_test_retest[1])
-}
-
-boot_test_retest <- function(data) {
-  data |>
-    select(-administration_id) |>
-    pivot_wider(names_from = session_num, values_from = mean_var) |>
-    group_by(dataset_name) |>
-    nest() |>
-    # head(1) |>
-    mutate(corr = map(data, \(d) {
-      b <- boot::boot(d, test_retest_corr, 2000)
-      ci <- boot::boot.ci(b, type = "basic")
-      print(ci)
-      tibble(est = b$t0, lower = ci$basic[4], upper = ci$basic[5])
-    })) |>
-    select(-data) |>
-    unnest(corr)
-}
-
-
-acc_test_retest <- function(t_start = -500, t_end = 4000) {
-  print(paste(t_start, t_end))
-
-  pairs_aoi_data |>
-    filter(t_norm > t_start, t_norm < t_end) |>
-    group_by(administration_id, dataset_name, subject_id, pair_number, session_num, target_label, trial_id) |>
-    summarise(
-      accuracy = mean(correct, na.rm = TRUE),
-      prop_data = mean(!is.na(correct)),
-      .groups = "drop"
-    ) |>
-    filter(!is.na(accuracy)) |>
-    group_by(administration_id, dataset_name, subject_id, pair_number, session_num) |>
-    summarize(mean_var = mean(accuracy, na.rm = T), .groups = "drop") |>
-    boot_test_retest()
-}
-
-library(multidplyr)
-library(boot)
-cluster <- new_cluster(16)
-cluster_library(cluster, "dplyr")
-cluster_library(cluster, "stringr")
-cluster_library(cluster, "purrr")
-cluster_library(cluster, "tidyr")
-cluster_library(cluster, "stats")
-cluster_library(cluster, "tibble")
-cluster_library(cluster, "boot")
-
-cluster_copy(cluster, "test_retest_corr")
-cluster_copy(cluster, "boot_test_retest")
-
-cluster_copy(cluster, "pairs_aoi_data")
-cluster_copy(cluster, "acc_test_retest")
-cluster_copy(cluster, "bc_acc_test_retest")
-
-
-acc_params <- expand_grid(
-  t_start = c(0, 100, 200, 300, 400, 500, 600, 700, 800, 900, 1000),
-  t_end = c(2000, 4000),
-)
-
-accs_boot_test_retest <- acc_params |>
-  partition(cluster) |>
-  # head(1) |>
-  mutate(corr = pmap(list(t_start, t_end), \(t_s, t_e) acc_test_retest(t_s, t_e))) |>
-  collect() |>
-  unnest(corr)
-
-saveRDS(accs_boot_test_retest, here("cached_intermediates", "3_accs_boot_kid_test_retest.rds"))
-
-```
-
-
-```{r}
-accs_kid_test_retest <- readRDS(here("cached_intermediates", "3_accs_boot_kid_test_retest.rds"))
-
-library(metafor)
-accs_kid_test_retest_summ <-  accs_kid_test_retest |>
-  mutate(
-    stdev = (upper - lower) / (1.96 * 2),
-    var = stdev**2,
-  ) |>
-  group_by(t_start, t_end) |>
-  nest() |>
-  mutate(corr= map(data, \(d){
-    rma(d$est, d$var) |>
-      summary() |>
-      coef()
-  })) |> 
-  unnest(corr)
-```
-
-
-```{r}
-accs_kid_test_retest |> ggplot(aes(x=t_start, y=est, ymin=lower, ymax=upper, color=as.character(t_end)))+geom_pointrange(position = position_dodge(width=50))+facet_wrap(~dataset_name)+geom_hline(yintercept=0)
-```
-
-
-```{r}
-accs_kid_test_retest_summ |> ggplot(aes(x=t_start, y=estimate, ymin=ci.lb, ymax=ci.ub, color=as.character(t_end)))+geom_pointrange(position = position_dodge(width=50))+geom_hline(yintercept=0)
-
-```
-Overall, test-retest reliability is higher for the longer window, but this is primarily driven by the adams-marchman dataset; other datasets don't show a big difference in either direction. No big differences based on onset window time. 
-
 # how much t/d looking on longer places (and in what datasets)
 
 ```{r}
@@ -1250,197 +1171,4 @@ accs_boot_cdi |> filter(!is.na(age_est)) |>  ggplot(aes(x = t_start, y = age_est
   facet_wrap(~dataset_name)
 ```
 no differences here either
-
-
-# test - retest on accuracy windowing trial level (deprecated)
-
-Goal is to find out how reliability (test-retest) varies with number of trials, within datasets. (ICC for cross dataset is covered elsewhere) 
-
-what dataset have repeated administrations?
-```{r, eval=F}
-admins <- d_aoi |>
-  select(dataset_name, subject_id, administration_id, age) |>
-  distinct()
-repeated <- admins |>
-  group_by(dataset_name, subject_id) |>
-  tally() |>
-  filter(n > 1)
-
-repeated_subjects <- admins |> inner_join(repeated)
-```
-
-adams_marchman has 2 admins for each age and up to 5 ages 
-fernald totlot has 1 admin at each of 4 ages
-fmw sometimes has 2 admins at 1 age and 2 ages
-weaver_zettersten has 2 admins at 1 age 
-potter_remix has 2 admins at 1 age 
-
-so, we can say a pair is "close enough" if the ages are within 1 month of each other and then we'll have a bunch of test-retest pairs. 
-
-* for those pairs, for each admin, we want # of trials (administered), trial accuracy, trial RT, # trials with RT
-and then we want the correlation between admin-1 and admin-2 ?
-
-I don't know how much there's item overlap (probably is), so might be able to do something finer grained? 
-
-```{r, eval=F}
-admins <- d_aoi |>
-  select(dataset_name, subject_id, administration_id, age) |>
-  distinct()
-repeated <- admins |>
-  group_by(dataset_name, subject_id) |>
-  tally() |>
-  filter(n > 1)
-
-repeated_subjects <- admins |> inner_join(repeated)
-# identify pairs
-# hmm, sometimes we have times with 3+ 1 month apart,
-# for now allow all the pairs that result so like 14-15 and 15-16 for the same kid
-
-pairs <- repeated_subjects |>
-  group_by(dataset_name, subject_id) |>
-  mutate(
-    forward_age = lead(age),
-    forward_diff = forward_age - age,
-    test_num = case_when(
-      forward_diff < 1.5 ~ 1,
-    ),
-    mean_age = case_when(
-      test_num == 1 ~ (age + forward_age) / 2,
-    ),
-    second_admin = case_when(
-      test_num == 1 ~ lead(administration_id)
-    )
-  ) |>
-  filter(!is.na(test_num)) |>
-  rename(first_admin = administration_id) |>
-  select(-n, -age) |>
-  left_join(repeated_subjects |> select(-age, -n), by = c("dataset_name", "subject_id", "second_admin" = "administration_id")) |>
-  ungroup() |>
-  mutate(pair_number = row_number()) |>
-  select(-forward_age, -forward_diff, -test_num)
-
-pairs_long <- pairs |> pivot_longer(c("first_admin", "second_admin"), names_to = "session_num", values_to = "administration_id")
-```
-
-
-since one of the things we want to optimize for is test-retest (as a measure of reliability, in addition to ICC, and CDI validity), we can check how window differences affect test-retest.
-
-```{r, eval=F}
-library(tibble)
-library(multidplyr)
-
-pairs_aoi_data <- pairs_long |> left_join(d_aoi)
-
-test_retest_boot <- function(data, indices) {
-  summ <- data |>
-    slice(indices) |>
-    group_by(administration_id, subject_id, pair_number, session_num) |>
-    summarize(mean_var = mean(accuracy, na.rm = T), .groups = "drop") |>
-    select(-administration_id) |>
-    pivot_wider(names_from = session_num, values_from = mean_var) |>
-    summarise(cor_test_retest = ifelse(sum(!is.na(first_admin) & !is.na(second_admin)) > 2, cor.test(first_admin, second_admin)$estimate, NA))
-  return(summ$cor_test_retest[1])
-}
-
-
-acc_test_retest <- function(t_start = -500, t_end = 4000) {
-  print(paste(t_start, t_end))
-
-  df <- pairs_aoi_data |>
-    filter(t_norm > t_start, t_norm < t_end) |>
-    group_by(administration_id, dataset_name, subject_id, pair_number, session_num, target_label, trial_id) |>
-    summarise(
-      accuracy = mean(correct, na.rm = TRUE),
-      prop_data = mean(!is.na(correct)),
-      .groups = "drop"
-    ) |>
-    filter(!is.na(accuracy))
-
-  # compute
-  df |>
-    group_by(dataset_name) |>
-    nest() |>
-    mutate(corr = map(data, \(d) {
-      b <- boot::boot(d, test_retest_boot, 2000)
-      ci <- boot::boot.ci(b, type = "basic")
-      print(ci)
-      tibble(est = b$t0, lower = ci$basic[4], upper = ci$basic[5])
-    })) |>
-    select(-data) |>
-    unnest(corr)
-}
-
-acc_params <- expand_grid(
-  t_start = c(0, 100, 200, 300, 400, 500, 600, 700, 800, 900, 1000),
-  t_end = c(2000, 4000),
-  object = c("administration")
-)
-library(multidplyr)
-library(boot)
-cluster <- new_cluster(16)
-cluster_library(cluster, "dplyr")
-cluster_library(cluster, "stringr")
-cluster_library(cluster, "purrr")
-cluster_library(cluster, "tidyr")
-cluster_library(cluster, "stats")
-cluster_library(cluster, "tibble")
-cluster_library(cluster, "boot")
-
-cluster_copy(cluster, "test_retest_boot")
-cluster_copy(cluster, "pairs_aoi_data")
-cluster_copy(cluster, "cdi_data")
-cluster_copy(cluster, "acc_test_retest")
-
-accs_boot_test_retest <- acc_params |>
-  partition(cluster) |>
-  mutate(corr = pmap(list(t_start, t_end), \(t_s, t_e) acc_test_retest(t_s, t_e))) |>
-  collect() |>
-  unnest(corr)
-
-saveRDS(accs_boot_test_retest, here("cached_intermediates", "accs_boot_test_retest.rds"))
-
-```
-
-
-```{r, eval=F}
-accs_boot_test_retest <- readRDS(here("cached_intermediates", "3_accs_boot_test_retest.rds"))
-
-library(metafor)
-accs_boot_test_retest_summ <-  accs_boot_test_retest |>
-  mutate(
-    stdev = (upper - lower) / (1.96 * 2),
-    var = stdev**2,
-  ) |>
-  group_by(t_start, t_end) |>
-  nest() |>
-  mutate(corr= map(data, \(d){
-    rma(d$est, d$var) |>
-      summary() |>
-      coef()
-  })) |> 
-  unnest(corr)
-  
-accs_boot_test_retest |> ggplot(aes(x=t_start, y=est, ymin=lower, ymax=upper, color=as.character(t_end)))+geom_pointrange(position = position_dodge(width=50))+facet_wrap(~dataset_name)
-
-accs_boot_test_retest_summ |> ggplot(aes(x=t_start, y=estimate, ymin=ci.lb, ymax=ci.ub, color=as.character(t_end)))+geom_pointrange(position = position_dodge(width=50))
-
-```
-something is weird because the 95Ci isn't always containing the point estimate
-which can happen with bootstraps, but still is weird!
--->
-
-
-```{r}
-test_retest_boot <- function(data, indices) {
-  summ <- data |>
-    slice(indices) |>
-    group_by(administration_id, subject_id, pair_number, session_num) |>
-    summarize(mean_var = mean(accuracy, na.rm = T), .groups = "drop") |>
-    select(-administration_id) |>
-    pivot_wider(names_from = session_num, values_from = mean_var) |>
-    summarise(cor_test_retest = ifelse(sum(!is.na(first_admin) & !is.na(second_admin)) > 2, cor.test(first_admin, second_admin)$estimate, NA))
-  return(summ$cor_test_retest[1])
-}
-```
-
 
