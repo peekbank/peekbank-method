@@ -466,16 +466,12 @@ ICC wise, best start time is like 600-700, but that may be different for validit
 Reliability measures like ICC tell us how consistently we're measuring *something*, but they don't tell us what the *something* we're measuring is. For that, we want a check on validity, so we look at the correlation between accuracy (measured on different windows) with each of CDI production measures, CDI comprehension measures, and age. 
 
 ```{r, eval=F}
-cdi_data <- readRDS(here("cached_intermediates", "1_cdi_subjects.Rds"))
+cdi_data <- readRDS(here("cached_intermediates", "0_cdi_subjects.rds"))
 
 relevant <- d_aoi |> distinct(dataset_name)
-cdi_data |> inner_join(relevant) |> group_by(dataset_name) |> summarize(across(c(comp, prod, age), \(c) sum(!is.na(c)))) |> arrange(age)
+cdi_data |> inner_join(relevant) |> group_by(dataset_name) |> summarize(across(c(comp, prod, age), \(c) sum(!is.na(c)))) |> arrange(prod)
 
-#comp, either 0 or 34+
-
-#prod -- we should exclude newman_genderdistractor, only 4 prod!!! (others either 0 or 28+)
-
-cdi_data |> inner_join(relevant) |> group_by(dataset_name) |> summarize(min_age=min(age, na.rm=T), max_age=max(age, na.rm=T), range=max_age-min_age) |> arrange(range) |> View()
+#comp, either 0 or 34+; 0 or 29+
 ```
 
 ```{r, eval=F}
