@@ -98,4 +98,4 @@ bc_boot_test_retest <- bc_acc_params |>
   collect() |>
   unnest(corr)
 
-saveRDS(accs_boot_test_retest, "../cached_intermediates/2_bc_test_retest_boot.rds")
+saveRDS(bc_boot_test_retest, "../cached_intermediates/2_bc_test_retest_boot.rds")

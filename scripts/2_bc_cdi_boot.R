@@ -52,7 +52,7 @@ bc_acc_cdi <- function(b_start = -2000, b_end = 0,
 
 
 
-bc_acc_cdi <- function(b_start = -2000, b_end = 0,
+bc_acc_cdi_age <- function(b_start = -2000, b_end = 0,
                        t_start = 500, t_end = 4000) {
   d_aoi_bc_age |>
     group_by(dataset_name, dataset_id, administration_id, trial_id, age_bin) |>
