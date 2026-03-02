@@ -9,8 +9,8 @@ output: html_document
 
 ```{r}
 source(here::here("helper/common.R"))
-
-d_aoi <- readRDS(here("cached_intermediates", "1_d_aoi.Rds"))
+source(here::here("helper/notebook_helper.R"))
+d_aoi <- readRDS(here("cached_intermediates", "0_d_aoi.rds"))
 ```
 
 
@@ -46,7 +46,119 @@ baseline_lengths <- d_aoi |>
   summarise(t_min = min(t_norm))
 ```
 
+# Data prep
+See scripts
+# Viz
+## ICC
 
+```{r}
+bc_boot <- readRDS(here("cached_intermediates", "2_bc_icc_boot.rds")) 
+no_bc_boot <- readRDS(here("cached_intermediates", "1_acc_icc_boot.rds")) |> filter(t_start == 400)
+```
+
+```{r, fig.width=10}
+boot_graph <- bc_boot |>
+  bind_rows(no_bc_boot) |>   inner_join(baseline_lengths |> filter(t_min < 0)) |>
+  mutate(b_start = ifelse(is.na(b_start), "none", as.character(b_start)))
+```
+```{r, fig.width=10}
+boot_graph |> ggplot(aes(x = b_start, color = as.character(b_end), y = est, ymin = lower, ymax = upper)) +
+  geom_pointrange(position = position_dodge(width = .25)) +
+  facet_wrap(~dataset_name)
+```
+
+```{r}
+baseline_lengths <- d_aoi |>
+  group_by(dataset_name) |>
+  summarise(t_min = min(t_norm))
+
+library(metafor)
+bc_boot_summ <- boot_graph |>
+  inner_join(baseline_lengths |> filter(t_min < 0)) |>
+  filter(!is.na(lower), !is.na(upper)) |>
+  mutate(
+    stdev = (upper - lower) / (1.96 * 2),
+    var = stdev**2
+  ) |>
+  group_by(b_start, b_end, t_start, t_end) |>
+  nest() |>
+  mutate(icc = map(data, \(d){
+    rma(d$est, d$var) |>
+      summary() |>
+      coef()
+  })) |>
+  select(-data) |>
+  unnest(icc)
+
+bc_boot_summ |> ggplot(aes(x = b_start, color = as.character(b_end), y = estimate, ymin = ci.lb, ymax = ci.ub)) +
+  geom_pointrange(position = position_dodge(width = .25))+facet_wrap(t_start~t_end)
+```
+
+```{r}
+bc_boot_early_summ <- boot_graph |>
+  inner_join(baseline_lengths |> filter(t_min <= -3000)) |>
+  filter(!is.na(lower), !is.na(upper)) |>
+  mutate(
+    stdev = (upper - lower) / (1.96 * 2),
+    var = stdev**2
+  ) |>
+  group_by(b_start, b_end, t_start, t_end) |>
+  nest() |>
+  mutate(icc = map(data, \(d){
+    rma(d$est, d$var) |>
+      summary() |>
+      coef()
+  })) |>
+  select(-data) |>
+  unnest(icc)
+
+bc_boot_early_summ |> ggplot(aes(x = b_start, color = as.character(b_end), y = estimate, ymin = ci.lb, ymax = ci.ub)) +
+  geom_pointrange(position = position_dodge(width = .25))+ facet_wrap(t_start~t_end)
+```
+
+### by age
+
+```{r}
+bc_boot_age <- readRDS(here("cached_intermediates", "2_bc_icc_boot_byage.rds"))
+no_bc_boot_age <- readRDS(here("cached_intermediates", "1_acc_icc_boot_byage.rds")) |> filter(t_start == 500)
+```
+
+```{r}
+boot_graph_age <- bc_boot_age |>
+  bind_rows(no_bc_boot_age) |>   inner_join(baseline_lengths |> filter(t_min < 0)) |>
+  mutate(b_start = ifelse(is.na(b_start), "none", as.character(b_start)))
+```
+
+```{r}
+baseline_lengths <- d_aoi |>
+  group_by(dataset_name) |>
+  summarise(t_min = min(t_norm))
+
+bc_boot_age_summ <- boot_graph_age |>
+  inner_join(baseline_lengths |> filter(t_min <= 0)) |>
+  filter(!is.na(lower), !is.na(upper)) |>
+  filter(lower!=upper) |> 
+  mutate(
+    stdev = (upper - lower) / (1.96 * 2),
+    var = stdev**2,
+  ) |>
+  group_by(b_start, b_end, age_bin, t_start, t_end) |>
+  nest() |>
+  mutate(icc = map(data, \(d){
+    rma(d$est, d$var) |>
+      summary() |>
+      coef()
+  })) |>
+  select(-data) |>
+  unnest(icc)
+
+bc_boot_age_summ |> ggplot(aes(x = b_start, color = as.character(b_end), y = estimate, ymin = ci.lb, ymax = ci.ub)) + facet_wrap(~age_bin)+
+  geom_pointrange(position = position_dodge(width = .25))
+```
+baseline correction is more of a mistake for older children (or older children tend to go with datasets with less baseline information)
+
+
+# < Old > 
 # Grid search ICC (reliability)
 
 ```{r, eval=F}
@@ -206,283 +318,6 @@ bc_accs |>
   facet_wrap(~dataset_name)
 ```
 so, looks like for the datasets with data before -3000 (5 datasets), then you get higher icc for baselining, but you want your baseline windows to start at -3000 or -4000 and go to -500 or 0.  
-
-# Bootstrapped ICC
-
-How consistent are these differences? We'll bootstrap to get some ranges. 
-
-All of these have 500-4000 as the main window.
-
-We try a range of pre-window starts, and either -500 or 0 as the pre-window end. 
-
-```{r, eval=F}
-icc_bc_window_bootstrap_sim <- function(b_start = -2000, b_end = 0,
-                                        t_start = 500, t_end = 4000,
-                                        object) {
-  # get trials with some baseline
-  baseline_lengths <- d_aoi |>
-    group_by(dataset_name, trial_id) |>
-    summarise(t_min = min(t_norm))
-
-  # get baseline corrected accuracies for all trials with ANY baseline info
-  df <- d_aoi |>
-    left_join(baseline_lengths) |>
-    filter(t_min < 0) |>
-    group_by(dataset_name, dataset_id, administration_id, target_label, trial_id) |>
-    summarise(
-      window_accuracy = mean(correct[t_norm >= t_start & t_norm <= t_end],
-        na.rm = TRUE
-      ),
-      baseline_accuracy = mean(correct[t_norm >= b_start & t_norm <= b_end],
-        na.rm = TRUE
-      ),
-      bc_accuracy = window_accuracy - baseline_accuracy
-    ) |>
-    filter(!is.na(bc_accuracy)) |>
-    group_by(dataset_id, dataset_name, administration_id, target_label) |>
-    mutate(repetition = row_number())
-
-  # compute ICCs
-  df |>
-    group_by(dataset_name) |>
-    nest() |>
-    mutate(icc = map(data, \(d) bootstrap_icc(d, "bc_accuracy", 2000))) |>
-    select(-data) |>
-    unnest(icc)
-}
-
-
-icc_bc_window_age_bootstrap_sim <- function(b_start = -2000, b_end = 0,
-                                            t_start = 500, t_end = 4000,
-                                            object) {
-  # get trials with some baseline
-  baseline_lengths <- d_aoi |>
-    group_by(dataset_name, trial_id) |>
-    summarise(t_min = min(t_norm))
-
-  # get baseline corrected accuracies for all trials with ANY baseline info
-  df <- d_aoi |>
-    left_join(baseline_lengths) |>
-    mutate(younger = age < 24) |>
-    filter(t_min < 0) |>
-    group_by(dataset_name, dataset_id, administration_id, target_label, trial_id, younger) |>
-    summarise(
-      window_accuracy = mean(correct[t_norm >= t_start & t_norm <= t_end],
-        na.rm = TRUE
-      ),
-      baseline_accuracy = mean(correct[t_norm >= b_start & t_norm <= b_end],
-        na.rm = TRUE
-      ),
-      bc_accuracy = window_accuracy - baseline_accuracy
-    ) |>
-    filter(!is.na(bc_accuracy)) |>
-    group_by(dataset_id, dataset_name, administration_id, target_label, younger) |>
-    mutate(repetition = row_number())
-
-  # compute ICCs
-  df |>
-    group_by(dataset_name, younger) |>
-    nest() |>
-    mutate(icc = map(data, \(d) bootstrap_icc(d, "bc_accuracy", 2000))) |>
-    select(-data) |>
-    unnest(icc)
-}
-
-bc_acc_params <- expand_grid(
-  t_start = 500,
-  t_end = c(4000),
-  b_start = seq(-4000, -1000, 1000),
-  b_end = c(-500, 0),
-  object = c("administration")
-)
-
-library(multidplyr)
-cluster <- new_cluster(16)
-cluster_library(cluster, "dplyr")
-cluster_library(cluster, "tidyr")
-cluster_library(cluster, "purrr")
-cluster_library(cluster, "agreement")
-cluster_copy(cluster, "bootstrap_icc")
-cluster_copy(cluster, "d_aoi")
-cluster_copy(cluster, "icc_bc_window_bootstrap_sim")
-cluster_copy(cluster, "icc_bc_window_age_bootstrap_sim")
-
-
-bc_accs <- bc_acc_params |>
-  partition(cluster) |>
-  mutate(icc = pmap(list(b_start, b_end, t_start, t_end, object), icc_bc_window_bootstrap_sim)) |>
-  collect() |>
-  unnest(col = icc)
-
-saveRDS(bc_accs, here("cached_intermediates", "7_bc_accs_icc_boot.rds"))
-
-bc_accs_age <- bc_acc_params |>
-  partition(cluster) |>
-  mutate(icc = pmap(list(b_start, b_end, t_start, t_end, object), icc_bc_window_age_bootstrap_sim)) |>
-  collect() |>
-  unnest(col = icc)
-
-saveRDS(bc_accs_age, here("cached_intermediates", "7_bc_accs_icc_boot_age.rds"))
-```
-
-```{r}
-bc_boot <- readRDS(here("cached_intermediates", "7_bc_accs_icc_boot.rds")) 
-no_bc_boot <- readRDS(here("cached_intermediates", "3_acc_icc_boot.rds")) |> filter(t_start == 500, t_end == 4000)
-
-bc_boot_age <- readRDS(here("cached_intermediates", "7_bc_accs_icc_boot_age.rds"))
-no_bc_boot_age <- readRDS(here("cached_intermediates", "3_acc_icc_boot_age.rds")) |> filter(t_start == 500, t_end == 4000)
-```
-
-
-```{r, fig.width=10}
-boot_graph <- bc_boot |>
-  bind_rows(no_bc_boot) |>   inner_join(baseline_lengths |> filter(t_min < 0)) |>
-  mutate(b_start = ifelse(is.na(b_start), "none", as.character(b_start)))
-```
-
-Across all ages of children, here's the outcome. 
-```{r, fig.width=10}
-boot_graph |> ggplot(aes(x = b_start, color = as.character(b_end), y = est, ymin = lower, ymax = upper)) +
-  geom_pointrange(position = position_dodge(width = .25)) +
-  facet_wrap(~dataset_name)
-```
-In some datasets, the baselines seem to hurt, but in other datasets it seems to not make a difference. 
-
-We can also look split by children's age. 
-
-just for the younger kids (< 24 months)
-
-```{r, fig.width=10}
-boot_graph_age <- bc_boot_age|>  
-  bind_rows(no_bc_boot_age) |>inner_join(baseline_lengths |> filter(t_min < 0)) |> 
-  mutate(b_start = ifelse(is.na(b_start), "none", as.character(b_start))) |> 
-  mutate(younger=ifelse(younger, "<24months", ">=24months"))
-
-boot_graph_age |> filter(younger=="<24months")  |> ggplot(aes(x = b_start, color = as.character(b_end), y = est, ymin = lower, ymax = upper)) +
-  geom_pointrange(position = position_dodge(width = .25)) +
-  facet_wrap(~dataset_name)
-
-```
-
-just for the older kids
-
-```{r, fig.width=10}
-
-boot_graph_age |> filter(younger==">=24months")  |> ggplot(aes(x = b_start, color = as.character(b_end), y = est, ymin = lower, ymax = upper)) +
-  geom_pointrange(position = position_dodge(width = .25)) +
-  facet_wrap(~dataset_name)
-
-```
-
-what about meta-analytic estimates?
-
-```{r}
-baseline_lengths <- d_aoi |>
-  group_by(dataset_name) |>
-  summarise(t_min = min(t_norm))
-
-library(metafor)
-bc_boot_summ <- boot_graph |>
-  inner_join(baseline_lengths |> filter(t_min < 0)) |>
-  filter(!is.na(lower), !is.na(upper)) |>
-  mutate(
-    stdev = (upper - lower) / (1.96 * 2),
-    var = stdev**2
-  ) |>
-  group_by(b_start, b_end) |>
-  nest() |>
-  mutate(icc = map(data, \(d){
-    rma(d$est, d$var) |>
-      summary() |>
-      coef()
-  })) |>
-  select(-data) |>
-  unnest(icc)
-
-bc_boot_summ |> ggplot(aes(x = b_start, color = as.character(b_end), y = estimate, ymin = ci.lb, ymax = ci.ub)) +
-  geom_pointrange(position = position_dodge(width = .25))
-```
-across the whole dataset, baseline-correction hurts reliability. 
-
-what about just for the datasets with long pre-windows?
-
-
-```{r}
-bc_boot_early_summ <- boot_graph |>
-  inner_join(baseline_lengths |> filter(t_min <= -3000)) |>
-  filter(!is.na(lower), !is.na(upper)) |>
-  mutate(
-    stdev = (upper - lower) / (1.96 * 2),
-    var = stdev**2
-  ) |>
-  group_by(b_start, b_end) |>
-  nest() |>
-  mutate(icc = map(data, \(d){
-    rma(d$est, d$var) |>
-      summary() |>
-      coef()
-  })) |>
-  select(-data) |>
-  unnest(icc)
-
-bc_boot_early_summ |> ggplot(aes(x = b_start, color = as.character(b_end), y = estimate, ymin = ci.lb, ymax = ci.ub)) +
-  geom_pointrange(position = position_dodge(width = .25))
-```
-again, we see that if you have data from before -3000ms then, baseline correcting using a long window (so 2-4 seconds worth of pre-window) gets the same ICC as doing no baseline-correction. No sign that it's better, but it's not worse. 
-
-for all the datasets, split by age
-
-```{r}
-baseline_lengths <- d_aoi |>
-  group_by(dataset_name) |>
-  summarise(t_min = min(t_norm))
-
-bc_boot_age_summ <- boot_graph_age |>
-  inner_join(baseline_lengths |> filter(t_min <= 0)) |>
-  filter(!is.na(lower), !is.na(upper)) |>
-  mutate(
-    stdev = (upper - lower) / (1.96 * 2),
-    var = stdev**2
-  ) |>
-  group_by(b_start, b_end, younger) |>
-  nest() |>
-  mutate(icc = map(data, \(d){
-    rma(d$est, d$var) |>
-      summary() |>
-      coef()
-  })) |>
-  select(-data) |>
-  unnest(icc)
-
-bc_boot_age_summ |> ggplot(aes(x = b_start, color = as.character(b_end), y = estimate, ymin = ci.lb, ymax = ci.ub)) + facet_wrap(~younger)+
-  geom_pointrange(position = position_dodge(width = .25))
-```
-baseline correction is more of a mistake for older children (or older children tend to go with datasets with less baseline information)
-
-if we only look at the 5 datasets with early looking information, 
-```{r}
-bc_boot_age_early_summ <- boot_graph_age |>
-  inner_join(baseline_lengths |> filter(t_min <= -3000)) |>
-  filter(!is.na(lower), !is.na(upper)) |>
-  mutate(
-    stdev = (upper - lower) / (1.96 * 2),
-    var = stdev**2
-  ) |>
-  group_by(b_start, b_end, younger) |>
-  nest() |>
-  mutate(icc = map(data, \(d){
-    rma(d$est, d$var) |>
-      summary() |>
-      coef()
-  })) |>
-  select(-data) |>
-  unnest(icc)
-
-bc_boot_age_early_summ |> ggplot(aes(x = b_start, color = as.character(b_end), y = estimate, ymin = ci.lb, ymax = ci.ub)) +facet_wrap(~younger)+
-  geom_pointrange(position = position_dodge(width = .25))
-```
-we get the same picture -- baseline-correction using a long baseline (roughly as long as the post accuracy window) is ~fine (but doesn't show benefits), baselne correcting on a shorter window just gives you an extra noisy accuracy estimate. 
-
 
 # Validity -- CDI correlations
 
