@@ -161,7 +161,14 @@ saveRDS(accs_byage, here("cached_intermediates", "1_acc_icc_noboot_byage.rds"))
 
 ```
 
-See also scripts folder for scripts starting with 1.
+## Scripts
+
+```{r, eval=F}
+source(here("scripts/1_acc_icc_boot.R"))
+source(here("scripts/1_acc_cdi_boot.R"))
+source(here("scripts/1_acc_test_retest_boot.R"))
+
+```
 
 # Visualizations
 
@@ -278,8 +285,126 @@ Looking overall
 acc_boot_summary |> ggplot(aes(x = t_start, y = estimate, ymin = ci.lb, ymax = ci.ub, color = as.character(t_end))) +
   geom_pointrange(position = position_dodge(width = 25))
 ```
-Long windows are generally higher for ICC by a fairly substantial amount. The best starting point seems to be around 600ms, but we can at least confirm that ICC increases as one gets away from 0, but also decreases by 1000ms. This is consistent with the theoretical expectation that stimulus-driven behavior starts sometime around a few hundred milliseconds. 
+### by age
+
+```{r}
+acc_boot_age <- readRDS(here("cached_intermediates/1_acc_icc_boot_byage.rds"))
+acc_boot_age_summary <- acc_boot_age |> 
+  filter(!is.na(lower), !is.na(upper)) |>
+  mutate(
+    stdev = (upper - lower) / (1.96 * 2),
+    var = stdev**2
+  ) |>
+  group_by(t_start, t_end, age_bin) |>
+  nest() |>
+  mutate(icc = map(data, \(d){
+    rma(d$est, d$var) |>
+      summary() |>
+      coef()
+  })) |>
+  select(-data) |>
+  unnest(icc)
+
+```
+
+
+```{r}
+acc_boot_age_summary |> ggplot(aes(x = t_start, y = estimate, ymin = ci.lb, ymax = ci.ub, color = as.character(t_end))) +
+  geom_pointrange(position = position_dodge(width = 50))+facet_wrap(~age_bin)+theme(legend.position = "bottom")
+
+```
+
+
 ## CDI corr
+
+Reliability measures like ICC tell us how consistently we're measuring *something*, but they don't tell us what the *something* we're measuring is. For that, we want a check on validity, so we look at the correlation between accuracy (measured on different windows) with each of CDI production measures, CDI comprehension measures, and age. 
+
+
+
+```{r}
+accs_cdi <- readRDS(here("cached_intermediates", "1_acc_cdi_boot.rds")) 
+
+library(metafor)
+
+accs_cdi_summ <-  accs_cdi |> 
+  mutate(
+    comp_stdev = (comp_upper - comp_lower) / (1.96 * 2),
+    comp_var = comp_stdev**2,
+    prod_stdev = (prod_upper - prod_lower) / (1.96 * 2),
+    prod_var = prod_stdev**2,
+    age_stdev = (age_upper - age_lower) / (1.96 * 2),
+    age_var = age_stdev**2
+  ) |>
+  group_by(t_start, t_end) |>
+  nest() |>
+  mutate(comp= map(data, \(d){
+    rma(d$comp_est, d$comp_var) |>
+      summary() |>
+      coef()
+  }),
+  prod= map(data, \(d){
+    rma(d$prod_est, d$prod_var) |>
+      summary() |>
+      coef()
+  }),
+  age= map(data, \(d){
+    rma(d$age_est, d$age_var) |>
+      summary() |>
+      coef()
+  })) |>
+  select(-data) |>
+  unnest(c(comp, prod, age), names_sep="_")
+```
+
+
+Correlation with production
+
+```{r}
+accs_cdi_summ |> ggplot(aes(x = t_start, y = prod_estimate, ymin=prod_ci.lb, ymax=prod_ci.ub, color=as.character(t_end))) +geom_pointrange(position=position_dodge(width=50))+coord_flip()
+
+
+accs_cdi |> filter(!is.na(prod_est)) |>  ggplot(aes(x = t_start, y = prod_est, ymin=prod_lower, ymax=prod_upper,  col=as.character(t_end))) +
+  geom_pointrange() +
+  coord_flip() +
+  theme(legend.position = "none") +
+  facet_wrap(~dataset_name)
+```
+All of these show the expected positive correlation between CDI production and accuracy. Kids who say more words are more accurate.
+Correlation with comprehension
+
+```{r}
+accs_cdi_summ |> ggplot(aes(x = t_start, y = comp_estimate, ymin=comp_ci.lb, ymax=comp_ci.ub, color=as.character(t_end))) +geom_pointrange(position=position_dodge(width=50))+coord_flip()
+
+
+accs_cdi |> filter(!is.na(comp_est)) |>  ggplot(aes(x = t_start, y = comp_est, ymin=comp_lower, ymax=comp_upper,  col=as.character(t_end))) +
+  geom_pointrange() +
+  coord_flip() +
+  theme(legend.position = "none") +
+  facet_wrap(~dataset_name)
+```
+Looking at comprehension, there aren't big differences, but we see higher correlations with shorter windows (peaking starting at 400ms). For long windows, peak seems to be for really long like 0-4000ms. 
+Again, correlation is positive, as expected!
+
+
+Correlation with age
+
+Correlating with age isn't a validity check per se, so much as a "if it doesn't correlate with age, we worry" check. 
+
+```{r}
+accs_cdi_summ |> ggplot(aes(x = t_start, y = age_estimate, ymin=age_ci.lb, ymax=age_ci.ub, color=as.character(t_end))) +geom_pointrange(position=position_dodge(width=50))+coord_flip()
+
+
+accs_cdi|> filter(!is.na(age_est)) |>  ggplot(aes(x = t_start, y = age_est, ymin=age_lower, ymax=age_upper,  col=as.character(t_end))) +
+  geom_pointrange() +
+  coord_flip() +
+  geom_hline(yintercept=0)+
+  theme(legend.position = "none") +
+  facet_wrap(~dataset_name)
+```
+Overall, there is a positive correlation with age that is not very effected by windowing choices. 
+
+### by age TODO
+
 
 ## Test retest
 
@@ -315,441 +440,7 @@ accs_kid_test_retest_summ |> ggplot(aes(x=t_start, y=estimate, ymin=ci.lb, ymax=
 ```
 
 
-# <-- Older stuff begins here -->
 
-
-
-## Fine grained start time
-
-From the above, it looks like long windows are preferable, so let's set the window end to 4000 and explore the start time region more closely. It's typical to start windows pretty early, based on how short it takes someone to respond to a stimulus, so let's look more closely at the 200-600ms start times. 
-
-```{r, eval=F}
-icc_window_sim <- function(t_start = -500, t_end = 4000, object) {
-  print(paste(t_start, t_end))
-
-  df <- d_aoi |>
-    filter(t_norm > t_start, t_norm < t_end) |>
-    group_by(dataset_name, dataset_id, administration_id, target_label, trial_id) |>
-    summarise(
-      accuracy = mean(correct, na.rm = TRUE),
-      prop_data = mean(!is.na(correct))
-    ) |>
-    filter(!is.na(accuracy)) |> 
-    group_by(dataset_name, dataset_id, administration_id, target_label) |>
-    mutate(repetition = row_number())
-
-  # compute ICCs
-  df |>
-    group_by(dataset_name) |>
-    nest() |>
-    mutate(icc = unlist(map(data, ~ get_icc(., "accuracy", object)))) |>
-    select(-data) |>
-    unnest(cols = c())
-}
-acc_params <- expand_grid(
-  t_start = c(200, 250, 300, 350, 400, 450, 500, 550, 600),
-  t_end = 4000,
-  object = c("administration")
-)
-library(multidplyr)
-# multidyplr attempt
-cluster <- new_cluster(14)
-cluster_library(cluster, "dplyr")
-cluster_library(cluster, "tidyr")
-cluster_library(cluster, "purrr")
-cluster_library(cluster, "agreement")
-cluster_copy(cluster, "icc_window_sim")
-cluster_copy(cluster, "get_icc")
-cluster_copy(cluster, "d_aoi")
-
-
-accs <- acc_params |>
-  #partition(cluster) |>
-  mutate(icc = pmap(list(t_start, t_end, object), icc_window_sim)) |>
-  #collect() |>
-  unnest(col = icc)
-
-
-saveRDS(accs, here("cached_intermediates", "3_acc_icc_finegrain.rds"))
-```
-
-```{r}
-accs_finegrain <- readRDS(here("cached_intermediates", "3_acc_icc_finegrain.rds"))
-```
-
-
-```{r}
-accs_finegrain |> ggplot(aes(x = t_start, y = icc)) +
-  geom_line(aes(col = dataset_name)) +
-  stat_summary()+
-  stat_summary(geom="line", size=1)+
-  theme(legend.position = "none")
-```
-Datasets vary a lot in what the ICC generally is, but in aggregate, the ICC doesn't seem sensitive to exactly when the window starts. 
-
-```{r}
-accs_finegrain |> ggplot(aes(x = t_start, y = icc)) +
-  geom_point(aes(col = dataset_name)) +
-  facet_wrap(~dataset_name) +
-  theme(legend.position = "none")
-```
-There is not a consistent pattern in which starting point in this range is best across datasets. 
-
-
-
-# Bootstrapped ICC
-
-From the wide survey of values above, we now want to check more closely on short versus long window, and a range of window starting values spanning commonly used values. 
-
-We look at ends of 2000 and 4000 and starts in 0-1000 by each 100 ms increment. 
-
-```{r, eval=F}
-
-icc_window_sim_bootstrap <- function(t_start = -500, t_end = 4000, object) {
-  print(paste(t_start, t_end))
-
-  df <- d_aoi |>
-    filter(t_norm > t_start, t_norm < t_end) |>
-    group_by(dataset_name, dataset_id, administration_id, target_label, trial_id) |>
-    summarise(
-      accuracy = mean(correct, na.rm = TRUE),
-      prop_data = mean(!is.na(correct))
-    ) |>
-    filter(!is.na(accuracy)) |>
-    group_by(dataset_name, dataset_id, administration_id, target_label) |>
-    mutate(repetition = row_number())
-
-  # compute ICCs
-  df |>
-    group_by(dataset_name) |>
-    nest() |>
-    mutate(icc = map(data, \(d) bootstrap_icc(d, "accuracy", 2000))) |>
-    select(-data) |>
-    unnest(icc)
-}
-
-acc_params <- expand_grid(
-  t_start = c(0, 100, 200, 300, 400, 500, 600, 700, 800, 900, 1000),
-  t_end = c(2000, 4000),
-  object = c("administration")
-)
-library(multidplyr)
-# multidyplr attempt
-cluster <- new_cluster(16)
-cluster_library(cluster, "dplyr")
-cluster_library(cluster, "tidyr")
-cluster_library(cluster, "purrr")
-cluster_library(cluster, "agreement")
-cluster_copy(cluster, "icc_window_sim_age_bootstrap")
-cluster_copy(cluster, "icc_window_sim_bootstrap")
-cluster_copy(cluster, "bootstrap_icc")
-cluster_copy(cluster, "d_aoi")
-
-
-accs_boot <- acc_params |>
-  partition(cluster) |>
-  # head(1) |>
-  mutate(icc = pmap(list(t_start, t_end, object), \(t_s, t_e, o) icc_window_sim_bootstrap(t_s, t_e, o))) |>
-  collect() |>
-  unnest(col = icc)
-
-
-saveRDS(accs_boot, here("cached_intermediates", "3_acc_icc_boot.rds"))
-
-accs_boot_age <- acc_params |>
-  partition(cluster) |>
-  # head(1) |>
-  mutate(icc = pmap(list(t_start, t_end, object), \(t_s, t_e, o) icc_window_sim_age_bootstrap(t_s, t_e, o))) |>
-  collect() |>
-  unnest(col = icc)
-
-saveRDS(accs_boot_age, here("cached_intermediates", "3_acc_icc_boot_age.rds"))
-
-```
-
-```{r}
-acc_boot <- readRDS(here("cached_intermediates", "3_acc_icc_boot.rds"))
-
-acc_boot_age <- readRDS(here("cached_intermediates", "3_acc_icc_boot_age.rds")) |> filter(!(dataset_name%in% c("bacon_gendercues", "ronfard_2021") & younger==F))
-```
-
-
-here are the per individual dataset results
-
-```{r}
-acc_boot |> ggplot(aes(x = t_start, y = est, ymin = lower, ymax = upper, color = as.character(t_end))) +
-  geom_pointrange(position = position_dodge(width = 25)) +
-  facet_wrap(~dataset_name)
-```
-this is pretty hard to interpret, so we calculate meta-analytic means and ranges for each condition. 
-
-```{r}
-library(metafor)
-acc_boot_summary <- acc_boot |>
-  filter(!is.na(lower), !is.na(upper)) |>
-  mutate(
-    stdev = (upper - lower) / (1.96 * 2),
-    var = stdev**2
-  ) |>
-  group_by(t_start, t_end) |>
-  nest() |>
-  mutate(icc = map(data, \(d){
-    rma(d$est, d$var) |>
-      summary() |>
-      coef()
-  })) |>
-  select(-data) |>
-  unnest(icc)
-
-
-acc_boot_age_summary <- acc_boot_age |> 
-  filter(!is.na(lower), !is.na(upper)) |>
-  mutate(
-    stdev = (upper - lower) / (1.96 * 2),
-    var = stdev**2
-  ) |>
-  group_by(t_start, t_end, younger) |>
-  nest() |>
-  mutate(icc = map(data, \(d){
-    rma(d$est, d$var) |>
-      summary() |>
-      coef()
-  })) |>
-  select(-data) |>
-  unnest(icc) |> 
-  mutate(younger=ifelse(younger, "<24months", ">=24months"))
-
-```
-
-Looking overall
-
-```{r}
-acc_boot_summary |> ggplot(aes(x = t_start, y = estimate, ymin = ci.lb, ymax = ci.ub, color = as.character(t_end))) +
-  geom_pointrange(position = position_dodge(width = 25))
-```
-Long windows are generally higher for ICC by a fairly substantial amount. The best starting point seems to be around 600ms, but we can at least confirm that ICC increases as one gets away from 0, but also decreases by 1000ms. This is consistent with the theoretical expectation that stimulus-driven behavior starts sometime around a few hundred milliseconds. 
-
-Checking for each age range
-
-```{r}
-acc_boot_age_summary |> ggplot(aes(x = t_start, y = estimate, ymin = ci.lb, ymax = ci.ub, color = as.character(t_end))) +
-  geom_pointrange(position = position_dodge(width = 50))+facet_wrap(~younger)
-
-```
-So, the benefit to longer windows is more pronounced for the older kids, but it's true for both younger and older. 
-
-ICC wise, best start time is like 600-700, but that may be different for validity. 
-
-# CDI Validity
-
-Reliability measures like ICC tell us how consistently we're measuring *something*, but they don't tell us what the *something* we're measuring is. For that, we want a check on validity, so we look at the correlation between accuracy (measured on different windows) with each of CDI production measures, CDI comprehension measures, and age. 
-
-```{r, eval=F}
-cdi_data <- readRDS(here("cached_intermediates", "0_cdi_subjects.rds"))
-
-relevant <- d_aoi |> distinct(dataset_name)
-cdi_data |> inner_join(relevant) |> group_by(dataset_name) |> summarize(across(c(comp, prod, age), \(c) sum(!is.na(c)))) |> arrange(prod)
-
-#comp, either 0 or 34+; 0 or 29+
-```
-
-```{r, eval=F}
-source("cl_helper.R")
-
-d_aoi <- readRDS("d_aoi.Rds")
-
-cdi_data <- readRDS("cdi.rds")
-
-do_cdi <- function(data, indices) {
-  summ <- data |>
-    slice(indices) |>
-    left_join(cdi_data) |>
-    ungroup() |>
-    summarise(
-      cor_comp = ifelse(sum(!is.na(comp) & !is.na(mean_var)) > 2, cor.test(mean_var, comp)$estimate, as.numeric(NA)),
-      cor_prod = ifelse(sum(!is.na(prod) & !is.na(mean_var)) > 2, cor.test(mean_var, prod)$estimate, as.numeric(NA)),
-      cor_age = ifelse(sum(!is.na(age) & !is.na(mean_var)) > 2, cor.test(mean_var, age)$estimate, as.numeric(NA))
-    )
-  cors <- c(summ$cor_comp[1], summ$cor_prod[1], summ$cor_age[1])
-  names(cors) <- c("cor_comp", "cor_prod", "cor_age")
-
-  return(cors)
-}
-
-boot_cdi <- function(data) {
-  data |>
-    group_by(dataset_name) |>
-    nest() |>
-    mutate(corr = map(data, \(d) {
-      b <- boot::boot(d, do_cdi, 2000)
-      if (is.na(b$t0[1])) {
-        comp_lower <- NA
-        comp_upper <- NA
-      } else {
-        ci_comp <- boot::boot.ci(b, index = 1, type = "basic")
-        comp_lower <- ci_comp$basic[4]
-        comp_upper <- ci_comp$basic[5]
-      }
-      if (is.na(b$t0[2])) {
-        prod_lower <- NA
-        prod_upper <- NA
-      } else {
-        ci_prod <- boot::boot.ci(b, index = 2, type = "basic")
-        prod_lower <- ci_prod$basic[4]
-        prod_upper <- ci_prod$basic[5]
-      }
-      if (is.na(b$t0[3])) {
-        age_lower <- NA
-        age_upper <- NA
-      } else {
-        ci_age <- boot::boot.ci(b, index = 3, type = "basic")
-        age_lower <- ci_age$basic[4]
-        age_upper <- ci_age$basic[5]
-      }
-      tibble(
-        comp_est = b$t0[1], comp_lower = comp_lower, comp_upper = comp_upper,
-        prod_est = b$t0[2], prod_lower = prod_lower, prod_upper = prod_upper,
-        age_est = b$t0[3], age_lower = age_lower, age_upper = age_upper,
-      )
-    })) |>
-    select(-data) |>
-    unnest(corr)
-}
-acc_cdi <- function(t_start = -500, t_end = 4000) {
-  d_aoi |>
-    filter(t_norm > t_start, t_norm < t_end) |>
-    group_by(dataset_name, dataset_id, administration_id, target_label, trial_id) |>
-    summarise(
-      accuracy = mean(correct, na.rm = TRUE),
-      prop_data = mean(!is.na(correct))
-    ) |>
-    group_by(dataset_name, dataset_id, administration_id, target_label) |>
-    filter(!is.na(accuracy)) |>
-    group_by(administration_id, dataset_name) |>
-    summarize(mean_var = mean(accuracy, na.rm = T)) |>
-    boot_cdi()
-}
-
-cluster <- new_cluster(16)
-cluster_library(cluster, "dplyr")
-cluster_library(cluster, "stringr")
-cluster_library(cluster, "purrr")
-cluster_library(cluster, "tidyr")
-cluster_library(cluster, "stats")
-cluster_library(cluster, "tibble")
-cluster_copy(cluster, "do_cdi")
-cluster_copy(cluster, "d_aoi")
-cluster_copy(cluster, "cdi_data")
-cluster_copy(cluster, "boot_cdi")
-cluster_copy(cluster, "acc_cdi")
-cluster_copy(cluster, "bc_acc_cdi")
-
-
-acc_params <- expand_grid(
-  t_start = c(0, 100, 200, 300, 400, 500, 600, 700, 800, 900, 1000),
-  t_end = c(2000, 4000),
-)
-
-
-accs_boot_cdi <- acc_params |>
-  partition(cluster) |>
-  mutate(cdi = pmap(list(t_start, t_end), \(t_s, t_e) acc_cdi(t_s, t_e))) |>
-  collect() |>
-  unnest(cdi)
-
-saveRDS(accs_boot_cdi, here("cached_intermediates", "3_accs_kid_cdi.rds"))
-
-```
-
-```{r}
-#newman_genderdistractor only has 4 kids with prod! all others have either 0 or  28+
-accs_cdi_kid <- readRDS(here("cached_intermediates", "3_accs_kid_cdi.rds")) |> mutate(
-  prod_est = ifelse(dataset_name=="newman_genderdistractor", NA, prod_est),
-  prod_lower = ifelse(dataset_name=="newman_genderdistractor", NA, prod_lower),
-  prod_upper = ifelse(dataset_name=="newman_genderdistractor", NA, prod_upper),
-)
-
-library(metafor)
-
-accs_cdi_kid_summ <-  accs_cdi_kid |> 
-  mutate(
-    comp_stdev = (comp_upper - comp_lower) / (1.96 * 2),
-    comp_var = comp_stdev**2,
-    prod_stdev = (prod_upper - prod_lower) / (1.96 * 2),
-    prod_var = prod_stdev**2,
-    age_stdev = (age_upper - age_lower) / (1.96 * 2),
-    age_var = age_stdev**2
-  ) |>
-  group_by(t_start, t_end) |>
-  nest() |>
-  mutate(comp= map(data, \(d){
-    rma(d$comp_est, d$comp_var) |>
-      summary() |>
-      coef()
-  }),
-  prod= map(data, \(d){
-    rma(d$prod_est, d$prod_var) |>
-      summary() |>
-      coef()
-  }),
-  age= map(data, \(d){
-    rma(d$age_est, d$age_var) |>
-      summary() |>
-      coef()
-  })) |>
-  select(-data) |>
-  unnest(c(comp, prod, age), names_sep="_")
-```
-
-
-Correlation with production
-
-```{r}
-accs_cdi_kid_summ |> ggplot(aes(x = t_start, y = prod_estimate, ymin=prod_ci.lb, ymax=prod_ci.ub, color=as.character(t_end))) +geom_pointrange(position=position_dodge(width=50))+coord_flip()
-
-
-accs_cdi_kid |> filter(!is.na(prod_est)) |>  ggplot(aes(x = t_start, y = prod_est, ymin=prod_lower, ymax=prod_upper,  col=as.character(t_end))) +
-  geom_pointrange() +
-  coord_flip() +
-  theme(legend.position = "none") +
-  facet_wrap(~dataset_name)
-```
-All of these show the expected positive correlation between CDI production and accuracy. Kids who say more words are more accurate. We don't seem much difference at all based on windowing decisions, but if we had to say what's best, it's a long window with a moderate start (400ms?). 
-
-Correlation with comprehension
-
-```{r}
-accs_cdi_kid_summ |> ggplot(aes(x = t_start, y = comp_estimate, ymin=comp_ci.lb, ymax=comp_ci.ub, color=as.character(t_end))) +geom_pointrange(position=position_dodge(width=50))+coord_flip()
-
-
-accs_cdi_kid |> filter(!is.na(comp_est)) |>  ggplot(aes(x = t_start, y = comp_est, ymin=comp_lower, ymax=comp_upper,  col=as.character(t_end))) +
-  geom_pointrange() +
-  coord_flip() +
-  theme(legend.position = "none") +
-  facet_wrap(~dataset_name)
-```
-Looking at comprehension, there aren't big differences, but we see higher correlations with shorter windows (peaking starting at 400ms). For long windows, peak seems to be for really long like 0-4000ms. 
-Again, correlation is positive, as expected!
-
-
-Correlation with age
-
-Correlating with age isn't a validity check per se, so much as a "if it doesn't correlate with age, we worry" check. 
-
-```{r}
-accs_cdi_kid_summ |> ggplot(aes(x = t_start, y = age_estimate, ymin=age_ci.lb, ymax=age_ci.ub, color=as.character(t_end))) +geom_pointrange(position=position_dodge(width=50))+coord_flip()
-
-
-accs_cdi_kid|> filter(!is.na(age_est)) |>  ggplot(aes(x = t_start, y = age_est, ymin=age_lower, ymax=age_upper,  col=as.character(t_end))) +
-  geom_pointrange() +
-  coord_flip() +
-  geom_hline(yintercept=0)+
-  theme(legend.position = "none") +
-  facet_wrap(~dataset_name)
-```
-Overall, there is a positive correlation with age that is not very effected by windowing choices. 
-
-Some of the variation in the extent of the age correlation in the dataset may be due to how much age variability the dataset has, but it's a bit strange that ferguson_eyetrackingr is negative (3 month range) and newman_genderdistractor is negative (15 month range). Perry and pomper_* datasets have 3-5 month ranges, so correlations may be less surprising there. 
 
 # how much t/d looking on longer places (and in what datasets)
 
@@ -783,37 +474,69 @@ d_aoi |> group_by(dataset_name, t_norm, aoi) |>
   group_by(dataset_name) |> 
   ggplot(aes(x=t_norm, y=n, fill=aoi, color=aoi))+geom_col(position="stack")+facet_wrap(~dataset_name, scales="free_y")+
   coord_cartesian(xlim=c(-4000,4050))+
-  geom_vline(xintercept=0)+geom_vline(xintercept=2000)+
+  geom_vline(xintercept=0)+geom_vline(xintercept=2000)+geom_vline(xintercept=3000)+geom_vline(xintercept=4000)+
   scale_fill_manual(aesthetics=c("fill", "color"), values=c("target"="darkgreen", "distractor"="red", "missing"="grey", "other"="grey"))+theme(legend.position="bottom")
 
 
-by_age <- d_aoi |> mutate(age_bin=case_when(
-    age<24~"12-23",
-    age<36~"24-35",
-    age<48~"36-47",
-    age>=48~"48+"
-  )) |> group_by(dataset_name, t_norm, aoi, age_bin) |>
+by_age <- d_aoi |> mutate(age_bin = case_when(
+  age<12 ~ "<12",
+  age< 18 ~ "12-18",
+  age < 24~ "18-24",
+  age< 36~ "24-36",
+  age<48~ "36-48",
+  age>=48~ ">=48")) |>
+   group_by(dataset_name, t_norm, aoi, age_bin) |>
   summarize(n=n()) |> 
   group_by(dataset_name)
-
-by_age |> filter(age_bin=="12-23") |> 
-  ggplot(aes(x=t_norm, y=n, fill=aoi, color=aoi))+geom_col(position="stack")+facet_wrap(age_bin~dataset_name, scales="free_y")+
-  coord_cartesian(xlim=c(-4000,4050))+
-  geom_vline(xintercept=0)+geom_vline(xintercept=2000)+
-  scale_fill_manual(aesthetics=c("fill", "color"), values=c("target"="darkgreen", "distractor"="red", "missing"="grey", "other"="grey"))+theme(legend.position="bottom")
-
-by_age |> filter(age_bin=="24-35") |> 
-  ggplot(aes(x=t_norm, y=n, fill=aoi, color=aoi))+geom_col(position="stack")+facet_wrap(age_bin~dataset_name, scales="free_y")+
-  coord_cartesian(xlim=c(-4000,4050))+
-  geom_vline(xintercept=0)+geom_vline(xintercept=2000)+
-  scale_fill_manual(aesthetics=c("fill", "color"), values=c("target"="darkgreen", "distractor"="red", "missing"="grey", "other"="grey"))+theme(legend.position="bottom")
-
-by_age |> filter(age_bin%in%c("36-47", "48+")) |> 
-  ggplot(aes(x=t_norm, y=n, fill=aoi, color=aoi))+geom_col(position="stack")+facet_wrap(age_bin~dataset_name, scales="free_y")+
-  coord_cartesian(xlim=c(-4000,4050))+
-  geom_vline(xintercept=0)+geom_vline(xintercept=2000)+
-  scale_fill_manual(aesthetics=c("fill", "color"), values=c("target"="darkgreen", "distractor"="red", "missing"="grey", "other"="grey"))+theme(legend.position="bottom")
 ```
+
+
+```{r}
+by_age |> filter(age_bin=="<12") |> 
+  ggplot(aes(x=t_norm, y=n, fill=aoi, color=aoi))+geom_col(position="stack")+facet_wrap(age_bin~dataset_name, scales="free_y")+
+  coord_cartesian(xlim=c(-4000,4050))+
+  geom_vline(xintercept=0)+geom_vline(xintercept=2000)+geom_vline(xintercept=3000)+geom_vline(xintercept=4000)+  scale_fill_manual(aesthetics=c("fill", "color"), values=c("target"="darkgreen", "distractor"="red", "missing"="grey", "other"="grey"))+theme(legend.position="bottom")
+```
+
+```{r}
+by_age |> filter(age_bin=="12-18") |> 
+  ggplot(aes(x=t_norm, y=n, fill=aoi, color=aoi))+geom_col(position="stack")+facet_wrap(age_bin~dataset_name, scales="free_y")+
+  coord_cartesian(xlim=c(-4000,4050))+
+  geom_vline(xintercept=0)+geom_vline(xintercept=2000)+geom_vline(xintercept=3000)+geom_vline(xintercept=4000)+  scale_fill_manual(aesthetics=c("fill", "color"), values=c("target"="darkgreen", "distractor"="red", "missing"="grey", "other"="grey"))+theme(legend.position="bottom")
+```
+```{r}
+by_age |> filter(age_bin=="18-24") |> 
+  ggplot(aes(x=t_norm, y=n, fill=aoi, color=aoi))+geom_col(position="stack")+facet_wrap(age_bin~dataset_name, scales="free_y")+
+  coord_cartesian(xlim=c(-4000,4050))+
+  geom_vline(xintercept=0)+geom_vline(xintercept=2000)+geom_vline(xintercept=3000)+geom_vline(xintercept=4000)+  scale_fill_manual(aesthetics=c("fill", "color"), values=c("target"="darkgreen", "distractor"="red", "missing"="grey", "other"="grey"))+theme(legend.position="bottom")
+```
+
+
+```{r}
+by_age |> filter(age_bin=="24-36") |> 
+  ggplot(aes(x=t_norm, y=n, fill=aoi, color=aoi))+geom_col(position="stack")+facet_wrap(age_bin~dataset_name, scales="free_y")+
+  coord_cartesian(xlim=c(-4000,4050))+
+  geom_vline(xintercept=0)+geom_vline(xintercept=2000)+geom_vline(xintercept=3000)+geom_vline(xintercept=4000)+  scale_fill_manual(aesthetics=c("fill", "color"), values=c("target"="darkgreen", "distractor"="red", "missing"="grey", "other"="grey"))+theme(legend.position="bottom")
+```
+
+
+```{r}
+by_age |> filter(age_bin%in%c("36-48")) |> 
+  ggplot(aes(x=t_norm, y=n, fill=aoi, color=aoi))+geom_col(position="stack")+facet_wrap(age_bin~dataset_name, scales="free_y")+
+  coord_cartesian(xlim=c(-4000,4050))+
+  geom_vline(xintercept=0)+geom_vline(xintercept=2000)+geom_vline(xintercept=3000)+geom_vline(xintercept=4000)+  scale_fill_manual(aesthetics=c("fill", "color"), values=c("target"="darkgreen", "distractor"="red", "missing"="grey", "other"="grey"))+theme(legend.position="bottom")
+```
+
+```{r}
+by_age |> filter(age_bin%in%c(">=48")) |> 
+  ggplot(aes(x=t_norm, y=n, fill=aoi, color=aoi))+geom_col(position="stack")+facet_wrap(age_bin~dataset_name, scales="free_y")+
+  coord_cartesian(xlim=c(-4000,4050))+
+  geom_vline(xintercept=0)+geom_vline(xintercept=2000)+geom_vline(xintercept=3000)+geom_vline(xintercept=4000)+  scale_fill_manual(aesthetics=c("fill", "color"), values=c("target"="darkgreen", "distractor"="red", "missing"="grey", "other"="grey"))+theme(legend.position="bottom")
+```
+
+# <-- Older stuff begins here -->
+
+
 datasets with full data at 3800
 yurovsky_2017, weaver_zettersten, reflook_v4, potter_remix, pomper_yumme,
 pomper_salientme, pomper_saffron, pomper_prime
@@ -876,299 +599,4 @@ accs |> ggplot(aes(x=t_start, col=as.character(t_end), y=icc))+geom_point(positi
 accs |> ggplot(aes(x=t_start, col=as.character(t_end), y=icc))+stat_summary(fun.data="mean_cl_boot", position=position_dodge(width=50))+coord_flip()+theme(legend.position = "bottom", )+labs(y="Correlation", x="Start time (ms)", color="End time")+scale_color_solarized()
 
 ```
-
-
-# Summary
-
-Accuracy measures have reasonable ICC, reasonable correlation with CDI measures, and reasonable test-retest reliability. 
-
-* ICC measures favor long windows in the roughly 600-4000. We are fairly confident that 4000 is better than 2000, the exact window start point doesn't matter much.
-* Production CDI doesn't distinguish. Comprehension CDI correlates a little better with shorter windows (but not by much). 
-* Test-retest favors long windows a little. 
-
-A possible interpretation is that longer windows apparently index information about the child beyond what's captured by parent report. This could be language-related but not captured by CDIs - for example, late emerging or more fragmentary word knowledge, or it could be something like attention or memory or sticky fixation. Some users might want to get this information, while others might not. 
-
-Possible recommendation: roughly 500-4000, but other reasonable measures also have reasonable outcomes. 
-<!--
-
-(Old -- to update) Validity via experimental effect
-
-We're going to use the size and significance of the Swingley & Aslin (2002) mispronunciation effect as our simulation target instead of ICCs. 
-
-This is with younger kids. 
-
-We have to reload data because our working dataframe is only "vanilla" familiar word trials. 
-
-
-```{r, eval=F}
-library(peekbankr)
-subjects <- get_subjects()
-sa_administrations <- get_administrations(dataset_name = "swingley_aslin_2002")
-sa_trial_types <- get_trial_types(dataset_name = "swingley_aslin_2002")
-sa_trials <- get_trials(dataset_name = "swingley_aslin_2002")
-sa_aoi_timepoints <- get_aoi_timepoints(dataset_name = "swingley_aslin_2002")
-
-sa_data <- sa_aoi_timepoints |>
-  left_join(sa_administrations) |>
-  left_join(sa_trials) |>
-  left_join(sa_trial_types) |>
-  left_join(subjects) |>
-  filter(condition != "filler") |>
-  mutate(condition = if_else(condition == "cp", "Correct", "Mispronounced"))
-```
-visualize the curves:
-
-```{r, eval=F}
-correct_accuracy <- sa_data |>
-  group_by(t_norm, condition) |>
-  summarise(correct = sum(aoi == "target") /
-    sum(aoi %in% c("target", "distractor")))
-
-ggplot(correct_accuracy, aes(x = t_norm, y = correct, col = condition)) +
-  geom_point() +
-  geom_smooth() +
-  geom_hline(yintercept = .5, lty = 2, col = "black")
-```
-
-
-```{r, eval=F}
-sa_sim <- function(t_start = -500, t_end = 4000) {
-  by_subject_accuracies <- sa_data |>
-    filter(t_norm >= t_start, t_norm <= t_end) |>
-    group_by(condition, t_norm, administration_id) |>
-    summarize(correct = sum(aoi == "target") /
-      sum(aoi %in% c("target", "distractor")))
-
-  mean_accuracies <- by_subject_accuracies |>
-    group_by(administration_id, condition) |>
-    summarize(mean_correct = mean(correct)) |>
-    group_by(administration_id) |>
-    summarise(diff = mean_correct[condition == "Correct"] -
-      mean_correct[condition == "Mispronounced"])
-
-  tibble(
-    acc_diff = mean(mean_accuracies$diff),
-    p_val = t.test(mean_accuracies$diff)$p.value
-  )
-}
-```
-
-```{r, eval=F}
-sa_acc_params <- expand_grid(
-  t_start = seq(-1000, 1500, 100),
-  t_end = seq(2000, 3000, 100)
-)
-tic()
-sa_accs <- sa_acc_params |>
-  # partition(cluster) |>
-  mutate(icc = pmap(list(t_start, t_end), sa_sim)) |>
-  # collect() |>
-  unnest(col = icc)
-toc()
-
-save(file = "cached_intermediates/3_accs_sa.Rds", sa_accs)
-```
-Visualize.
-
-```{r, eval=F}
-load(file = "cached_intermediates/3_accs_sa.Rds")
-
-ggplot(sa_accs, aes(col = p_val)) +
-  geom_vline(xintercept = 0, linetype = "dashed") +
-  geom_hline(yintercept = 0.05, lty = 3) +
-  geom_segment(aes(x = t_start, xend = t_end, y = p_val, yend = p_val)) +
-  # geom_segment(aes(x=t_start,xend=t_start,y=mean_icc-0.005,yend=mean_icc+0.005))+
-  # geom_segment(aes(x=t_end,xend=t_end,y=mean_icc-0.005,yend=mean_icc+0.005))+
-  scale_color_viridis(name = "Mean ICC", direction = -1) +
-  scale_y_log10() +
-  theme(legend.position = "none") +
-  ylab("Log p-value on key test") +
-  xlab("Analysis Window (in ms)")
-```
-
-Conclusion: if you cherry pick the window that has the biggest difference, you will get the lowest p-value. We should have known that before the simulation. 
-
-So really the question is when this window is, A PRIORI. Because of course the issue is that this analysis has a horrible false positive problem. Hence permutation-based analyses. 
-
-
-Validity via MB-CDI trial level (deprecated)
-
-```{r, eval=F}
-cdi_data <- readRDS("cdi.rds")
-
-
-
-acc_params <- expand_grid(
-  t_start = c(0, 100, 200, 300, 400, 500, 600, 700, 800, 900, 1000),
-  t_end = c(2000, 4000),
-)
-
-
-do_cdi_accuracy <- function(data, indices) {
-  summ <- data |>
-    slice(indices) |>
-    group_by(administration_id) |>
-    summarize(mean_var = mean(accuracy, na.rm = T)) |>
-    left_join(cdi_data) |>
-    ungroup() |>
-    summarise(
-      cor_comp = ifelse(sum(!is.na(comp) & !is.na(mean_var)) > 2, cor.test(mean_var, comp)$estimate, as.numeric(NA)),
-      cor_prod = ifelse(sum(!is.na(prod) & !is.na(mean_var)) > 2, cor.test(mean_var, prod)$estimate, as.numeric(NA)),
-      cor_age = ifelse(sum(!is.na(age) & !is.na(mean_var)) > 2, cor.test(mean_var, age)$estimate, as.numeric(NA))
-    )
-  cors <- c(summ$cor_comp[1], summ$cor_prod[1], summ$cor_age[1])
-  names(cors) <- c("cor_comp", "cor_prod", "cor_age")
-
-  return(cors)
-}
-
-acc_cdi <- function(t_start = -500, t_end = 4000) {
-  df <- d_aoi |>
-    filter(t_norm > t_start, t_norm < t_end) |>
-    group_by(dataset_name, dataset_id, administration_id, target_label, trial_id) |>
-    summarise(
-      accuracy = mean(correct, na.rm = TRUE),
-      prop_data = mean(!is.na(correct))
-    ) |>
-    group_by(dataset_name, dataset_id, administration_id, target_label) |>
-    filter(!is.na(accuracy))
-
-  # compute ICCs
-  df |>
-    group_by(dataset_name) |>
-    nest() |>
-    # head(5) |>
-    mutate(corr = map(data, \(d) {
-      b <- boot::boot(d, do_cdi_accuracy, 2000)
-      if (is.na(b$t0[1])) {
-        comp_lower <- NA
-        comp_upper <- NA
-      } else {
-        ci_comp <- boot::boot.ci(b, index = 1, type = "basic")
-        comp_lower <- ci_comp$basic[4]
-        comp_upper <- ci_comp$basic[5]
-      }
-      if (is.na(b$t0[2])) {
-        prod_lower <- NA
-        prod_upper <- NA
-      } else {
-        ci_prod <- boot::boot.ci(b, index = 2, type = "basic")
-        prod_lower <- ci_prod$basic[4]
-        prod_upper <- ci_prod$basic[5]
-      }
-      if (is.na(b$t0[3])) {
-        age_lower <- NA
-        age_upper <- NA
-      } else {
-        ci_age <- boot::boot.ci(b, index = 3, type = "basic")
-        age_lower <- ci_age$basic[4]
-        age_upper <- ci_age$basic[5]
-      }
-      tibble(
-        comp_est = b$t0[1], comp_lower = comp_lower, comp_upper = comp_upper,
-        prod_est = b$t0[2], prod_lower = prod_lower, prod_upper = prod_upper,
-        age_est = b$t0[3], age_lower = age_lower, age_upper = age_upper,
-      )
-    })) |>
-    select(-data) |>
-    unnest(corr)
-}
-
-
-cluster <- new_cluster(16)
-cluster_library(cluster, "dplyr")
-cluster_library(cluster, "stringr")
-cluster_library(cluster, "purrr")
-cluster_library(cluster, "tidyr")
-cluster_library(cluster, "stats")
-cluster_library(cluster, "tibble")
-cluster_copy(cluster, "do_cdi_accuracy")
-cluster_copy(cluster, "d_aoi")
-cluster_copy(cluster, "cdi_data")
-cluster_copy(cluster, "acc_cdi")
-
-accs_boot_cdi <- acc_params |>
-  partition(cluster) |>
-  # head(1) |>
-  mutate(cdi = pmap(list(t_start, t_end), \(t_s, t_e) acc_cdi(t_s, t_e))) |>
-  collect() |>
-  unnest(cdi)
-
-saveRDS(accs_boot_cdi, "3_accs_boot_cdi.rds")
-
-```
--->
-```{r, eval=F}
-accs_boot_cdi <- readRDS(here("cached_intermediates", "3_accs_boot_cdi.rds"))
-
-library(metafor)
-
-accs_boot_cdi_summ <-  accs_boot_cdi |>
-  mutate(
-    comp_stdev = (comp_upper - comp_lower) / (1.96 * 2),
-    comp_var = comp_stdev**2,
-    prod_stdev = (prod_upper - prod_lower) / (1.96 * 2),
-    prod_var = prod_stdev**2,
-    age_stdev = (age_upper - age_lower) / (1.96 * 2),
-    age_var = age_stdev**2
-  ) |>
-  group_by(t_start, t_end) |>
-  nest() |>
-  mutate(comp= map(data, \(d){
-    rma(d$comp_est, d$comp_var) |>
-      summary() |>
-      coef()
-  }),
-  prod= map(data, \(d){
-    rma(d$prod_est, d$prod_var) |>
-      summary() |>
-      coef()
-  }),
-  age= map(data, \(d){
-    rma(d$age_est, d$age_var) |>
-      summary() |>
-      coef()
-  })) |>
-  select(-data) |>
-  unnest(c(comp, prod, age), names_sep="_")
-```
-
-Correlation with production
-```{r, eval=F}
-accs_boot_cdi_summ |> ggplot(aes(x = t_start, y = prod_estimate, ymin=prod_ci.lb, ymax=prod_ci.ub, color=as.character(t_end))) +geom_pointrange(position=position_dodge(width=50))+coord_flip()
-
-
-accs_boot_cdi |> filter(!is.na(prod_est)) |>  ggplot(aes(x = t_start, y = prod_est, ymin=prod_lower, ymax=prod_upper,  col=as.character(t_end))) +
-  geom_pointrange() +
-  coord_flip() +
-  theme(legend.position = "none") +
-  facet_wrap(~dataset_name)
-```
-not much difference either for short or long window, and definitely not within start times. 
-
-Correlation with comprehension
-```{r, eval=F}
-accs_boot_cdi_summ |> ggplot(aes(x = t_start, y = comp_estimate, ymin=comp_ci.lb, ymax=comp_ci.ub, color=as.character(t_end))) +geom_pointrange(position=position_dodge(width=50))+coord_flip()
-
-
-accs_boot_cdi |> filter(!is.na(comp_est)) |>  ggplot(aes(x = t_start, y = comp_est, ymin=comp_lower, ymax=comp_upper,  col=as.character(t_end))) +
-  geom_pointrange() +
-  coord_flip() +
-  theme(legend.position = "none") +
-  facet_wrap(~dataset_name)
-```
-again, differences are not big!
-
-Correlation with age
-```{r, eval=F}
-accs_boot_cdi_summ |> ggplot(aes(x = t_start, y = age_estimate, ymin=age_ci.lb, ymax=age_ci.ub, color=as.character(t_end))) +geom_pointrange(position=position_dodge(width=50))+coord_flip()
-
-
-accs_boot_cdi |> filter(!is.na(age_est)) |>  ggplot(aes(x = t_start, y = age_est, ymin=age_lower, ymax=age_upper,  col=as.character(t_end))) +
-  geom_pointrange() +
-  coord_flip() +
-  theme(legend.position = "none") +
-  facet_wrap(~dataset_name)
-```
-no differences here either
 

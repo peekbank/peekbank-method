@@ -38,22 +38,32 @@ pairs <- repeated_subjects |>
 
 pairs_long <- pairs |> pivot_longer(c("first_admin", "second_admin"), names_to = "session_num", values_to = "administration_id")
 
-pairs_aoi_data <- pairs_long |> left_join(d_aoi)
+baseline_lengths <- d_aoi |>
+  group_by(dataset_name, trial_id) |>
+  summarise(t_min = min(t_norm))
 
-acc_test_retest <- function(t_start = -500, t_end = 4000) {
-  print(paste(t_start, t_end))
+d_aoi_bc <- d_aoi |>
+  left_join(baseline_lengths) |>
+  filter(t_min < 0)
 
-  pairs_aoi_data |>
-    filter(t_norm > t_start, t_norm < t_end) |>
-    group_by(administration_id, dataset_name, subject_id, pair_number, session_num, target_label, trial_id) |>
+pairs_aoi_data_bc <- pairs_long |> left_join(d_aoi_bc)
+
+
+
+bc_test_retest <- function(b_start, b_end, t_start = -500, t_end = 4000,) {
+
+  pairs_aoi_data_bc |>
+    group_by(dataset_name, dataset_id, administration_id, subject_id, pair_number, session_num, trial_id) |>
     summarise(
-      accuracy = mean(correct, na.rm = TRUE),
-      prop_data = mean(!is.na(correct)),
-      .groups = "drop"
-    ) |>
-    filter(!is.na(accuracy)) |>
+      window_accuracy = mean(correct[t_norm >= t_start & t_norm <= t_end],
+                             na.rm = TRUE
+      ),
+      baseline_accuracy = mean(correct[t_norm >= b_start & t_norm <= b_end],
+                               na.rm = TRUE
+      ),
+      bc_accuracy = window_accuracy - baseline_accuracy) |> 
     group_by(administration_id, dataset_name, subject_id, pair_number, session_num) |>
-    summarize(mean_var = mean(accuracy, na.rm = T), .groups = "drop") |>
+    summarize(mean_var = mean(bc_accuracy, na.rm = T), .groups = "drop") |>
     boot_test_retest()
 }
 
@@ -71,19 +81,21 @@ cluster_library(cluster, "boot")
 
 cluster_copy(cluster, "test_retest_corr")
 cluster_copy(cluster, "boot_test_retest")
-cluster_copy(cluster, "pairs_aoi_data")
-cluster_copy(cluster, "acc_test_retest")
+cluster_copy(cluster, "pairs_aoi_data_bc")
+cluster_copy(cluster, "bc_test_retest")
 
 
-acc_params <- expand_grid(
-  t_start = c(0, 100, 200, 300, 400, 500, 600, 700, 800, 900, 1000),
+bc_acc_params <- expand_grid(
+  t_start = 400,
   t_end = c(2000, 3000, 4000),
+  b_start = seq(-4000, -1000, 1000),
+  b_end = c(-500, 0),
 )
-accs_boot_test_retest <- acc_params |>
+
+bc_boot_test_retest <- bc_acc_params |>
   partition(cluster) |>
-  # head(1) |>
-  mutate(corr = pmap(list(t_start, t_end), \(t_s, t_e) acc_test_retest(t_s, t_e))) |>
+  mutate(corr = pmap(list(b_start, b_end, t_start, t_end), \(b_s, b_e, t_s, t_e) bc_test_retest(b_s, b_e, t_s, t_e))) |>
   collect() |>
   unnest(corr)
 
-saveRDS(accs_boot_test_retest, "../cached_intermediates/1_acc_test_retest_boot.rds")
+saveRDS(accs_boot_test_retest, "../cached_intermediates/2_bc_test_retest_boot.rds")

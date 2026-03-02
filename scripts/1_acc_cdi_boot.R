@@ -20,61 +20,6 @@ d_aoi_age <- d_aoi |> inner_join(age_bin_cutoff)
 
 cdi_data <- readRDS("../cached_intermediates/0_cdi_subjects.rds")
 
-do_cdi <- function(data, indices) {
-  summ <- data |>
-    slice(indices) |>
-    left_join(cdi_data) |>
-    ungroup() |>
-    summarise(
-      cor_comp = ifelse(sum(!is.na(comp) & !is.na(mean_var)) > 2, cor.test(mean_var, comp)$estimate, as.numeric(NA)),
-      cor_prod = ifelse(sum(!is.na(prod) & !is.na(mean_var)) > 2, cor.test(mean_var, prod)$estimate, as.numeric(NA)),
-      cor_age = ifelse(sum(!is.na(age) & !is.na(mean_var)) > 2, cor.test(mean_var, age)$estimate, as.numeric(NA))
-    )
-  cors <- c(summ$cor_comp[1], summ$cor_prod[1], summ$cor_age[1])
-  names(cors) <- c("cor_comp", "cor_prod", "cor_age")
-
-  return(cors)
-}
-
-boot_cdi <- function(data) {
-  data |>
-    group_by(dataset_name) |>
-    nest() |>
-    mutate(corr = map(data, \(d) {
-      b <- boot::boot(d, do_cdi, 2000)
-      if (is.na(b$t0[1])) {
-        comp_lower <- NA
-        comp_upper <- NA
-      } else {
-        ci_comp <- boot::boot.ci(b, index = 1, type = "basic")
-        comp_lower <- ci_comp$basic[4]
-        comp_upper <- ci_comp$basic[5]
-      }
-      if (is.na(b$t0[2])) {
-        prod_lower <- NA
-        prod_upper <- NA
-      } else {
-        ci_prod <- boot::boot.ci(b, index = 2, type = "basic")
-        prod_lower <- ci_prod$basic[4]
-        prod_upper <- ci_prod$basic[5]
-      }
-      if (is.na(b$t0[3])) {
-        age_lower <- NA
-        age_upper <- NA
-      } else {
-        ci_age <- boot::boot.ci(b, index = 3, type = "basic")
-        age_lower <- ci_age$basic[4]
-        age_upper <- ci_age$basic[5]
-      }
-      tibble(
-        comp_est = b$t0[1], comp_lower = comp_lower, comp_upper = comp_upper,
-        prod_est = b$t0[2], prod_lower = prod_lower, prod_upper = prod_upper,
-        age_est = b$t0[3], age_lower = age_lower, age_upper = age_upper,
-      )
-    })) |>
-    select(-data) |>
-    unnest(corr)
-}
 
 acc_cdi <- function(t_start = -500, t_end = 4000) {
   d_aoi |>
@@ -92,45 +37,6 @@ acc_cdi <- function(t_start = -500, t_end = 4000) {
 }
 
 
-boot_cdi_age <- function(data) {
-  data |>
-    group_by(dataset_name, age_bin) |>
-    nest() |>
-    mutate(corr = map(data, \(d) {
-      b <- boot::boot(d, do_cdi, 2000)
-      if (is.na(b$t0[1])) {
-        comp_lower <- NA
-        comp_upper <- NA
-      } else {
-        ci_comp <- boot::boot.ci(b, index = 1, type = "basic")
-        comp_lower <- ci_comp$basic[4]
-        comp_upper <- ci_comp$basic[5]
-      }
-      if (is.na(b$t0[2])) {
-        prod_lower <- NA
-        prod_upper <- NA
-      } else {
-        ci_prod <- boot::boot.ci(b, index = 2, type = "basic")
-        prod_lower <- ci_prod$basic[4]
-        prod_upper <- ci_prod$basic[5]
-      }
-      if (is.na(b$t0[3])) {
-        age_lower <- NA
-        age_upper <- NA
-      } else {
-        ci_age <- boot::boot.ci(b, index = 3, type = "basic")
-        age_lower <- ci_age$basic[4]
-        age_upper <- ci_age$basic[5]
-      }
-      tibble(
-        comp_est = b$t0[1], comp_lower = comp_lower, comp_upper = comp_upper,
-        prod_est = b$t0[2], prod_lower = prod_lower, prod_upper = prod_upper,
-        age_est = b$t0[3], age_lower = age_lower, age_upper = age_upper,
-      )
-    })) |>
-    select(-data) |>
-    unnest(corr)
-}
 
 acc_cdi_age <- function(t_start = -500, t_end = 4000) {
   d_aoi_age |>
@@ -147,8 +53,7 @@ acc_cdi_age <- function(t_start = -500, t_end = 4000) {
     boot_cdi_age()
 }
 
-
-
+library(boot)
 cluster <- new_cluster(16)
 cluster_library(cluster, "dplyr")
 cluster_library(cluster, "stringr")
@@ -156,6 +61,7 @@ cluster_library(cluster, "purrr")
 cluster_library(cluster, "tidyr")
 cluster_library(cluster, "stats")
 cluster_library(cluster, "tibble")
+cluster_library(cluster, "boot")
 cluster_copy(cluster, "do_cdi")
 cluster_copy(cluster, "d_aoi")
 cluster_copy(cluster, "d_aoi_age")
