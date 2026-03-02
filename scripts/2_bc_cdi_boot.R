@@ -71,7 +71,7 @@ bc_acc_cdi <- function(b_start = -2000, b_end = 0,
 }
 
 library(boot)
-cluster <- new_cluster(16)
+cluster <- new_cluster(36)
 cluster_library(cluster, "dplyr")
 cluster_library(cluster, "stringr")
 cluster_library(cluster, "purrr")

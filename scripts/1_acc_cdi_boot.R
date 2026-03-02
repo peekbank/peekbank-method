@@ -54,7 +54,7 @@ acc_cdi_age <- function(t_start = -500, t_end = 4000) {
 }
 
 library(boot)
-cluster <- new_cluster(16)
+cluster <- new_cluster(36)
 cluster_library(cluster, "dplyr")
 cluster_library(cluster, "stringr")
 cluster_library(cluster, "purrr")
@@ -77,13 +77,13 @@ acc_params <- expand_grid(
   t_end = c(2000, 3000, 4000),
 )
 
-accs_boot_cdi <- acc_params |>
-  partition(cluster) |>
-  mutate(cdi = pmap(list(t_start, t_end), \(t_s, t_e) acc_cdi(t_s, t_e))) |>
-  collect() |>
-  unnest(cdi)
+#accs_boot_cdi <- acc_params |>
+#  partition(cluster) |>
+#  mutate(cdi = pmap(list(t_start, t_end), \(t_s, t_e) acc_cdi(t_s, t_e))) |>
+#  collect() |>
+#  unnest(cdi)
 
-saveRDS(accs_boot_cdi, "../cached_intermediates/1_acc_cdi_boot.rds")
+#saveRDS(accs_boot_cdi, "../cached_intermediates/1_acc_cdi_boot.rds")
 
 accs_boot_cdi_byage <- acc_params |>
   partition(cluster) |>

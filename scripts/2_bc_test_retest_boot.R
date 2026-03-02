@@ -50,7 +50,7 @@ pairs_aoi_data_bc <- pairs_long |> left_join(d_aoi_bc)
 
 
 
-bc_test_retest <- function(b_start, b_end, t_start = -500, t_end = 4000,) {
+bc_test_retest <- function(b_start, b_end, t_start = -500, t_end = 4000) {
 
   pairs_aoi_data_bc |>
     group_by(dataset_name, dataset_id, administration_id, subject_id, pair_number, session_num, trial_id) |>
