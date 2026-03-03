@@ -44,7 +44,7 @@ rts <- rle_data %>%
   select(-data) |>
   unnest(cols = c(rts)) |>
   left_join(d_aoi %>%
-    select(administration_id, dataset_name, subject_id, trial_id, trial_order, target_label) %>%
+    select(administration_id, dataset_name, subject_id, trial_id, trial_order, target_label, age) %>%
     distinct())
 
 saveRDS(rts, "../cached_intermediates/3_rts.rds")

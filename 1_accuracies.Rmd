@@ -251,6 +251,8 @@ acc_boot <- readRDS(here("cached_intermediates/1_acc_icc_boot.rds"))
 ```
 
 
+
+
 ```{r}
 acc_boot |> ggplot(aes(x = t_start, y = est, ymin = lower, ymax = upper, color = as.character(t_end))) +
   geom_pointrange(position = position_dodge(width = 25)) +
@@ -322,8 +324,11 @@ Reliability measures like ICC tell us how consistently we're measuring *somethin
 
 
 ```{r}
-accs_cdi <- readRDS(here("cached_intermediates", "1_acc_cdi_boot.rds")) 
+accs_cdi <- readRDS(here("cached_intermediates", "1_acc_cdi_boot.rds"))
+```
 
+
+```{r}
 library(metafor)
 
 accs_cdi_summ <-  accs_cdi |> 

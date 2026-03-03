@@ -31,7 +31,7 @@ here, we always require that children not look at the target during the window, 
 * using different window lengths 
 
 ```{r, echo=F, include=F}
-knitr::opts_chunk$set(warning=F, message=F, echo=F)
+knitr::opts_chunk$set(warning = F, message = F, echo = F)
 source(here::here("helper/common.R"))
 source(here::here("helper/notebook_helper.R"))
 ```
@@ -41,56 +41,47 @@ source(here::here("helper/notebook_helper.R"))
 d_aoi <- readRDS(here("cached_intermediates", "0_d_aoi.rds"))
 
 source("helper/rt_helper.R")
+source("scripts/4_rts.R")
 ```
 
+not all datasets are appropriate for RT analyses -- in particular
+
+```{r}
+d_rt <- readRDS(here("cached_intermediates", "3_rts.rds")) |> filter(window == 0, time_0 == T)
+```
+
+```{r}
+d_rt |>
+  group_by(dataset_name, shift_type) |>
+  tally() |>
+  group_by(dataset_name) |>
+  mutate(n = n / sum(n)) |>
+  pivot_wider(names_from = shift_type, values_from = n) |>
+  View()
+```
+
+```{r}
+d_aoi |>
+  filter(!is.na(correct)) |>
+  group_by(dataset_name, t_norm) |>
+  tally() |>
+  ggplot(aes(x = t_norm, y = n, fill = dataset_name, color = dataset_name)) +
+  geom_col() +
+  coord_cartesian(xlim=c(-100, 1050))+
+  geom_vline(xintercept=0)+geom_vline(xintercept=1000)+
+  facet_wrap(~dataset_name, scales = "free_y") +
+  theme(legend.position = "none")
+```
+We need there to be data at t=0 to do RT, so we exclude the borovsky dataset. 
 
 ```{r, eval=F}
-rle_data <- d_aoi %>%
-  filter(
-    any(t_norm == 0), # must have data at 0
-    t_norm >= 0
-  ) %>% # only pass data after 0
-  group_by(administration_id, trial_id, trial_order, dataset_name) %>%
-  reframe(
-    lengths = rle(aoi)$lengths,
-    values = rle(aoi)$values
-  )
-
-grid_options <- expand_grid(
-  window = c(200, 250, 300, 350, 375, 400, 425, 450, 500, 600, 700, 800, 900, 1000),
-  time_0 = c(F, T), time_end = c(F, T), during = T, frac = c(0, .5, .75)
-) |>
-  bind_rows(expand_grid(
-    window = c(0),
-    time_0 = c(F, T), time_end = c(F), during = T, frac = c(0)
-  )) |>
-  bind_rows(expand_grid(
-    window = c(200, 250, 300, 350, 375, 400, 425, 450, 500, 600, 700, 800, 900, 1000),
-    time_0 = c(T), time_end = c(T), during = T, frac = c(1)
-  ))
-
-rts <- rle_data %>%
-  group_by(administration_id, trial_id, trial_order) %>%
-  nest() |>
-  cross_join(grid_options) |>
-  mutate(rts = pmap(
-    list(data, time_0, window, time_end, during, frac),
-    \(d, t0, w, te, dur, fr){
-      get_rt(d,
-        t_0 = t0, window_length = w,
-        t_end = te, window_mostly_region = dur, mostly_fraction = fr
-      )
-    }
-  )) |>
-  select(-data) |>
-  unnest(cols = c(rts)) |> saveRDS(here("cached_intermediates", "3_test_RTs."))
-
-#   left_join(d_aoi %>%
-#     select(administration_id, dataset_name, subject_id, trial_id, trial_order, target_label) %>%
-#     distinct())
-# 
-# saveRDS(rts, here("cached_intermediates", "4_rts.rds"))
+readRDS(here("cached_intermediates", "3_rts.rds")) |> filter(dataset_name!="borovsky_2019") |> left_join(d_aoi |> distinct(administration_id, age)) |> saveRDS(here("cached_intermediates", "3_rts.rds"))
 ```
+
+
+
+# < Old >
+
 
 ```{r, eval=F}
 library(multidplyr)
@@ -171,7 +162,7 @@ saveRDS(rt_iccs, here("cached_intermediates", "rt_iccs.rds"))
 given that there are different possible ways of calculating RT and different levels of strictness for inclusion, it is first useful to look at how often these choices could be relevant. 
 
 ```{r}
-d_rt <- readRDS(here("cached_intermediates", "4_rts.rds")) |> filter(window == 0, time_0 == T)
+d_rt <- readRDS(here("cached_intermediates", "3_rts.rds")) |> filter(window == 0, time_0 == T)
 ```
  
  here we're looking at D-T transitions, where the child was on D at time 0
@@ -255,7 +246,8 @@ early_dist <- d_aoi |>
     distractor == 0 & target > 8 ~ "t+m (mostly t)",
     distractor == 0 ~ "t+m (mostly m)",
     T ~ "both"
-  )) |> filter(!is.na(t_0_aoi))
+  )) |>
+  filter(!is.na(t_0_aoi))
 
 ggplot(early_dist, aes(x = t_0_aoi, fill = type)) +
   facet_wrap(~t_375_aoi) +
@@ -356,13 +348,17 @@ how do we determine that the kid is sufficiently on D at the relevant time:
 ```{r}
 # identify datasets/combos with too little data to be reliable!
 
-# we require 10 trials and 5 kids 
-rt_dist <- readRDS(here("cached_intermediates", "4_rts.rds")) |> filter(shift_type=="D-T") |> 
-  group_by(time_0, time_end, during, frac, dataset_name, window) |> summarize(trials=n(), admins=administration_id |> unique() |> length()) 
-  
-icc_cutoff <- rt_dist |> filter(trials>9, admins>4) |> select(dataset_name, time_0, time_end, during, frac, window)
+# we require 10 trials and 5 kids
+rt_dist <- readRDS(here("cached_intermediates", "4_rts.rds")) |>
+  filter(shift_type == "D-T") |>
+  group_by(time_0, time_end, during, frac, dataset_name, window) |>
+  summarize(trials = n(), admins = administration_id |> unique() |> length())
 
-#ggplot(rts, aes(x=trials, y=admins, color=dataset_name))+geom_point()
+icc_cutoff <- rt_dist |>
+  filter(trials > 9, admins > 4) |>
+  select(dataset_name, time_0, time_end, during, frac, window)
+
+# ggplot(rts, aes(x=trials, y=admins, color=dataset_name))+geom_point()
 ```
 
 ```{r}
@@ -390,7 +386,6 @@ rt_iccs_coded <- rt_iccs |> mutate(
 rt_iccs_summ <- rt_iccs_coded |>
   group_by(type, logged, trimming, window, time_0, time_end, during, frac) |>
   summarize(mean_icc = mean(icc, na.rm = T), datapoints = sum(n_total))
-
 ```
 
 there are a lot of combinations to look at!
@@ -587,8 +582,9 @@ saveRDS(rt_iccs, here("cached_intermediates", "4_rt_iccs_boot.rds"))
 ```
 
 ```{r}
-rt_boot <- readRDS(here("cached_intermediates", "4_rt_iccs_boot.rds")) |> inner_join(icc_cutoff) |> 
-    mutate(
+rt_boot <- readRDS(here("cached_intermediates", "4_rt_iccs_boot.rds")) |>
+  inner_join(icc_cutoff) |>
+  mutate(
     type = case_when(
       str_detect(measure, "first_launch_rt") ~ "first_launch",
       str_detect(measure, "last_launch_rt") ~ "last_launch",
@@ -609,11 +605,12 @@ rt_boot <- readRDS(here("cached_intermediates", "4_rt_iccs_boot.rds")) |> inner_
     type == "land" & trimming == "untrimmed" & frac == "1" ~ "trad_land",
     type == "first_launch" & trimming == "trim_first" & frac == "1" ~ "trad_launch"
   )) |>
-  filter(!is.na(approach)) |> 
-  group_by(dataset_name) |> 
-  mutate(options_count=n()) |> 
-  filter(dataset_name!="ferguson_eyetrackingr") |> 
-  select(-options_count) |> ungroup()
+  filter(!is.na(approach)) |>
+  group_by(dataset_name) |>
+  mutate(options_count = n()) |>
+  filter(dataset_name != "ferguson_eyetrackingr") |>
+  select(-options_count) |>
+  ungroup()
 
 library(metafor)
 rt_boot_summ <- rt_boot |>
@@ -640,7 +637,7 @@ here we look at the overall CIs across datasets.
 rt_boot_summ |> ggplot(aes(x = approach, color = as.character(window), y = estimate, ymin = ci.lb, ymax = ci.ub)) +
   geom_pointrange(position = position_dodge(width = .5)) +
   coord_flip() +
-  geom_hline(yintercept=.7)+
+  geom_hline(yintercept = .7) +
   facet_wrap(~logged) +
   scale_color_viridis(discrete = T)
 ```
@@ -651,7 +648,7 @@ faceting the other way
 ```{r}
 rt_boot_summ |> ggplot(aes(x = approach, color = approach, y = estimate, ymin = ci.lb, ymax = ci.ub)) +
   geom_pointrange() +
-    geom_hline(yintercept=.7)+
+  geom_hline(yintercept = .7) +
   coord_flip() +
   facet_grid(window ~ logged)
 ```
@@ -663,7 +660,7 @@ rt_boot |>
   filter(window == 400, logged == "raw") |>
   ggplot(aes(x = approach, color = approach, y = est, ymin = lower, ymax = upper)) +
   geom_pointrange() +
-    geom_hline(yintercept=.7)+
+  geom_hline(yintercept = .7) +
   coord_flip() +
   facet_wrap(~dataset_name)
 
@@ -671,7 +668,7 @@ rt_boot |>
   filter(window == 400, logged == "log") |>
   ggplot(aes(x = approach, color = approach, y = est, ymin = lower, ymax = upper)) +
   geom_pointrange() +
-    geom_hline(yintercept=.7)+
+  geom_hline(yintercept = .7) +
   coord_flip() +
   facet_wrap(~dataset_name)
 ```
@@ -753,21 +750,24 @@ rt_iccs_age <- d_rt_dt |>
   unnest(foo)
 
 saveRDS(rt_iccs_age, here("cached_intermediates", "4_rt_iccs_age_boot.rds"))
-
 ```
 
 
 ```{r}
-rt_dist <- readRDS(here("cached_intermediates", "4_rts.rds")) |> filter(shift_type=="D-T") |> 
-    left_join(d_aoi |> select(age, administration_id) |> distinct()) |>
-    mutate(younger = age < 24) |>
-  group_by(time_0, time_end, during, frac, dataset_name, window, younger) |> summarize(trials=n(), admins=administration_id |> unique() |> length()) 
+rt_dist <- readRDS(here("cached_intermediates", "4_rts.rds")) |>
+  filter(shift_type == "D-T") |>
+  left_join(d_aoi |> select(age, administration_id) |> distinct()) |>
+  mutate(younger = age < 24) |>
+  group_by(time_0, time_end, during, frac, dataset_name, window, younger) |>
+  summarize(trials = n(), admins = administration_id |> unique() |> length())
 
-age_cutoff <- rt_dist |> filter(trials>9, admins>4) |> select(dataset_name, younger)
+age_cutoff <- rt_dist |>
+  filter(trials > 9, admins > 4) |>
+  select(dataset_name, younger)
 
 
 rt_age_boot <- readRDS(here("cached_intermediates", "4_rt_iccs_age_boot.rds")) |>
-  inner_join(age_cutoff) |> 
+  inner_join(age_cutoff) |>
   mutate(
     type = case_when(
       str_detect(measure, "first_launch_rt") ~ "first_launch",
@@ -789,10 +789,12 @@ rt_age_boot <- readRDS(here("cached_intermediates", "4_rt_iccs_age_boot.rds")) |
     type == "land" & trimming == "untrimmed" & frac == "1" ~ "trad_land",
     type == "first_launch" & trimming == "trim_first" & frac == "1" ~ "trad_launch"
   )) |>
-  filter(!is.na(approach)) |> 
-  mutate(younger=ifelse(younger, "<24months", ">=24months")) |> 
-  group_by(younger, dataset_name) |> mutate(counts=n()) |> 
-  filter(counts==42) |> select(-counts)
+  filter(!is.na(approach)) |>
+  mutate(younger = ifelse(younger, "<24months", ">=24months")) |>
+  group_by(younger, dataset_name) |>
+  mutate(counts = n()) |>
+  filter(counts == 42) |>
+  select(-counts)
 
 library(metafor)
 rt_age_boot_summ <- rt_age_boot |>
@@ -804,7 +806,7 @@ rt_age_boot_summ <- rt_age_boot |>
   group_by(window, during, logged, approach, younger) |>
   nest() |>
   mutate(icc = map(data, \(d){
-    rma(d$est, d$var, control=list(stepadj=0.5)) |>
+    rma(d$est, d$var, control = list(stepadj = 0.5)) |>
       summary() |>
       coef()
   })) |>
@@ -817,13 +819,13 @@ rt_age_boot_summ <- rt_age_boot |>
 rt_age_boot_summ |> ggplot(aes(x = approach, color = as.character(window), y = estimate, ymin = ci.lb, ymax = ci.ub)) +
   geom_pointrange(position = position_dodge(width = .5)) +
   coord_flip() +
-  facet_grid(younger~logged) +
+  facet_grid(younger ~ logged) +
   scale_color_viridis(discrete = T)
 ```
 
 
 ```{r}
-rt_age_boot_summ |> ggplot(aes(x = str_c(approach,"_", logged), color = approach, y = estimate, ymin = ci.lb, ymax = ci.ub)) +
+rt_age_boot_summ |> ggplot(aes(x = str_c(approach, "_", logged), color = approach, y = estimate, ymin = ci.lb, ymax = ci.ub)) +
   geom_pointrange() +
   coord_flip() +
   facet_grid(window ~ younger)
@@ -1014,7 +1016,6 @@ rt_bootstrap_cdi <- rt_params |>
   unnest(cdi)
 
 saveRDS(rt_bootstrap_cdi, here("cached_intermediates", "4_rt_kid_cdi.rds"))
-
 ```
 
 ```{r, eval=F}
@@ -1022,19 +1023,18 @@ saveRDS(rt_bootstrap_cdi, here("cached_intermediates", "4_rt_kid_cdi.rds"))
 
 cdi_data <- readRDS(here("cached_intermediates", "1_cdi_subjects.Rds"))
 
-rt_dist <- readRDS(here("cached_intermediates", "4_rts.rds")) |> filter(shift_type=="D-T") |> 
-  left_join(cdi_data)|> 
+rt_dist <- readRDS(here("cached_intermediates", "4_rts.rds")) |>
+  filter(shift_type == "D-T") |>
+  left_join(cdi_data) |>
   group_by(time_0, time_end, during, frac, dataset_name, window)
-
-
 ```
 
 ```{r}
-rt_kid_cdi <- readRDS(here("cached_intermediates", "4_rt_kid_cdi.rds")) |> filter(dataset_name!="ferguson_eyetrackingr")
+rt_kid_cdi <- readRDS(here("cached_intermediates", "4_rt_kid_cdi.rds")) |> filter(dataset_name != "ferguson_eyetrackingr")
 
 library(metafor)
 
-rt_kid_cdi_summ <-  rt_kid_cdi |>
+rt_kid_cdi_summ <- rt_kid_cdi |>
   mutate(
     comp_stdev = (comp_upper - comp_lower) / (1.96 * 2),
     comp_var = comp_stdev**2,
@@ -1045,40 +1045,45 @@ rt_kid_cdi_summ <-  rt_kid_cdi |>
   ) |>
   group_by(approach, window, logged) |>
   nest() |>
-  mutate(comp= map(data, \(d){
-    rma(d$comp_est, d$comp_var) |>
-      summary() |>
-      coef()
-  }),
-  prod= map(data, \(d){
-    rma(d$prod_est, d$prod_var) |>
-      summary() |>
-      coef()
-  }),
-  age= map(data, \(d){
-    rma(d$age_est, d$age_var) |>
-      summary() |>
-      coef()
-  })) |>
+  mutate(
+    comp = map(data, \(d){
+      rma(d$comp_est, d$comp_var) |>
+        summary() |>
+        coef()
+    }),
+    prod = map(data, \(d){
+      rma(d$prod_est, d$prod_var) |>
+        summary() |>
+        coef()
+    }),
+    age = map(data, \(d){
+      rma(d$age_est, d$age_var) |>
+        summary() |>
+        coef()
+    })
+  ) |>
   select(-data) |>
-  unnest(c(comp, prod, age), names_sep="_")
-
+  unnest(c(comp, prod, age), names_sep = "_")
 ```
 
 Correlating with production
 ```{r}
-rt_kid_cdi_summ |> ggplot(aes(x = str_c(approach, "_", logged), y = prod_estimate, ymin=prod_ci.lb, ymax=prod_ci.ub, color=as.character(window))) +geom_pointrange(position=position_dodge(width=.5))+
-  scale_color_viridis(discrete=T)+
+rt_kid_cdi_summ |> ggplot(aes(x = str_c(approach, "_", logged), y = prod_estimate, ymin = prod_ci.lb, ymax = prod_ci.ub, color = as.character(window))) +
+  geom_pointrange(position = position_dodge(width = .5)) +
+  scale_color_viridis(discrete = T) +
   coord_flip()
 ```
 
 correlating with production on a per-dataset basis, for window=400
 
 ```{r}
-rt_kid_cdi |>filter(window==400) |> filter(!is.na(prod_est)) |>  ggplot(aes(x = str_c(approach, "_", logged), y = prod_est, ymin=prod_lower, ymax=prod_upper,  col=approach)) +
+rt_kid_cdi |>
+  filter(window == 400) |>
+  filter(!is.na(prod_est)) |>
+  ggplot(aes(x = str_c(approach, "_", logged), y = prod_est, ymin = prod_lower, ymax = prod_upper, col = approach)) +
   geom_pointrange() +
   coord_flip() +
-  geom_hline(yintercept=0)+
+  geom_hline(yintercept = 0) +
   theme(legend.position = "none") +
   facet_wrap(~dataset_name)
 ```
@@ -1088,18 +1093,22 @@ all correlations are negative as expected!
 
 correlating with comprehension
 ```{r}
-rt_kid_cdi_summ |> ggplot(aes(x = str_c(approach, "_", logged), y = comp_estimate, ymin=comp_ci.lb, ymax=comp_ci.ub, color=as.character(window))) +geom_pointrange(position=position_dodge(width=.5))+
-  scale_color_viridis(discrete=T)+
+rt_kid_cdi_summ |> ggplot(aes(x = str_c(approach, "_", logged), y = comp_estimate, ymin = comp_ci.lb, ymax = comp_ci.ub, color = as.character(window))) +
+  geom_pointrange(position = position_dodge(width = .5)) +
+  scale_color_viridis(discrete = T) +
   coord_flip()
 ```
 
 per-dataset basis, at window==400
 
 ```{r}
-rt_kid_cdi |>filter(window==400) |> filter(!is.na(comp_est)) |>  ggplot(aes(x = str_c(approach, "_", logged), y = comp_est, ymin=comp_lower, ymax=comp_upper,  col=approach)) +
+rt_kid_cdi |>
+  filter(window == 400) |>
+  filter(!is.na(comp_est)) |>
+  ggplot(aes(x = str_c(approach, "_", logged), y = comp_est, ymin = comp_lower, ymax = comp_upper, col = approach)) +
   geom_pointrange() +
   coord_flip() +
-  geom_hline(yintercept=0)+
+  geom_hline(yintercept = 0) +
   theme(legend.position = "none") +
   facet_wrap(~dataset_name)
 ```
@@ -1108,17 +1117,21 @@ it's a little strange that estimates are positive for baumgartner and fernald_ma
 We can check on correlation with age as well, just to confirm. 
 
 ```{r}
-rt_kid_cdi_summ |> ggplot(aes(x = str_c(approach, "_", logged), y = age_estimate, ymin=age_ci.lb, ymax=age_ci.ub, color=as.character(window))) +geom_pointrange(position=position_dodge(width=.5))+
-  scale_color_viridis(discrete=T)+
+rt_kid_cdi_summ |> ggplot(aes(x = str_c(approach, "_", logged), y = age_estimate, ymin = age_ci.lb, ymax = age_ci.ub, color = as.character(window))) +
+  geom_pointrange(position = position_dodge(width = .5)) +
+  scale_color_viridis(discrete = T) +
   coord_flip()
 ```
 
 
 ```{r}
-rt_kid_cdi |>filter(window==400) |> filter(!is.na(age_est)) |>  ggplot(aes(x = str_c(approach, "_", logged), y = age_est, ymin=age_lower, ymax=age_upper,  col=approach)) +
+rt_kid_cdi |>
+  filter(window == 400) |>
+  filter(!is.na(age_est)) |>
+  ggplot(aes(x = str_c(approach, "_", logged), y = age_est, ymin = age_lower, ymax = age_upper, col = approach)) +
   geom_pointrange() +
   coord_flip() +
-geom_hline(yintercept=0)+
+  geom_hline(yintercept = 0) +
   theme(legend.position = "none") +
   facet_wrap(~dataset_name)
 ```
@@ -1278,39 +1291,46 @@ rt_bootstrap_test_retest <- rt_params |>
   unnest(cdi)
 
 saveRDS(rt_bootstrap_test_retest, here("cached_intermediates", "4_rt_kid_test_retest.rds"))
-
 ```
 
 ```{r}
-rt_kid_test_retest <- readRDS(here("cached_intermediates", "4_rt_kid_test_retest.rds")) 
+rt_kid_test_retest <- readRDS(here("cached_intermediates", "4_rt_kid_test_retest.rds"))
 
 library(metafor)
-rt_kid_test_retest_summ <-  rt_kid_test_retest |>
+rt_kid_test_retest_summ <- rt_kid_test_retest |>
   mutate(
     stdev = (upper - lower) / (1.96 * 2),
     var = stdev**2,
   ) |>
   group_by(approach, window, logged) |>
   nest() |>
-  mutate(corr= map(data, \(d){
+  mutate(corr = map(data, \(d){
     rma(d$est, d$var) |>
       summary() |>
       coef()
-  })) |> 
+  })) |>
   unnest(corr)
 ```
 
 Looking at test-retest, at a 400 ms window, we are getting some amount of reliability (varying by dataset), no big differences between approaches. 
 
 ```{r}
-rt_kid_test_retest |> filter(window==400) |> ggplot(aes(x=str_c(approach, "_", logged), y=est, ymin=lower, ymax=upper, color=as.character(approach)))+geom_pointrange(position = position_dodge(width=.5))+facet_wrap(~dataset_name)+coord_flip()+geom_hline(yintercept=0)
+rt_kid_test_retest |>
+  filter(window == 400) |>
+  ggplot(aes(x = str_c(approach, "_", logged), y = est, ymin = lower, ymax = upper, color = as.character(approach))) +
+  geom_pointrange(position = position_dodge(width = .5)) +
+  facet_wrap(~dataset_name) +
+  coord_flip() +
+  geom_hline(yintercept = 0)
 ```
 
 let's look at window (across all datasets)
 
 ```{r}
-rt_kid_test_retest_summ |> ggplot(aes(x=str_c(approach, "_", logged), y=estimate, ymin=ci.lb, ymax=ci.ub, color=as.character(window)))+geom_pointrange(position = position_dodge(width=.5))+coord_flip()+scale_color_viridis(discrete=T)
-
+rt_kid_test_retest_summ |> ggplot(aes(x = str_c(approach, "_", logged), y = estimate, ymin = ci.lb, ymax = ci.ub, color = as.character(window))) +
+  geom_pointrange(position = position_dodge(width = .5)) +
+  coord_flip() +
+  scale_color_viridis(discrete = T)
 ```
 strangely, the shortest windows we're considering (200ms) have better test-retest (even though they have worse properties on other accounts)
 
@@ -1318,18 +1338,39 @@ let's check this dataset by dataset
 
 looking at raw trad-launch
 ```{r}
-rt_kid_test_retest |> filter(approach=="trad_launch", logged=="raw") |> ggplot(aes(x=window, y=est, ymin=lower, ymax=upper, color=as.character(window)))+geom_pointrange()+facet_wrap(~dataset_name)+coord_flip()+scale_color_viridis(discrete=T)+geom_hline(yintercept=0)
+rt_kid_test_retest |>
+  filter(approach == "trad_launch", logged == "raw") |>
+  ggplot(aes(x = window, y = est, ymin = lower, ymax = upper, color = as.character(window))) +
+  geom_pointrange() +
+  facet_wrap(~dataset_name) +
+  coord_flip() +
+  scale_color_viridis(discrete = T) +
+  geom_hline(yintercept = 0)
 ```
 looking at raw trad land
 
 ```{r}
-rt_kid_test_retest |> filter(approach=="trad_land", logged=="raw") |> ggplot(aes(x=window, y=est, ymin=lower, ymax=upper, color=as.character(window)))+geom_pointrange()+facet_wrap(~dataset_name)+coord_flip()+scale_color_viridis(discrete=T)+geom_hline(yintercept=0)
+rt_kid_test_retest |>
+  filter(approach == "trad_land", logged == "raw") |>
+  ggplot(aes(x = window, y = est, ymin = lower, ymax = upper, color = as.character(window))) +
+  geom_pointrange() +
+  facet_wrap(~dataset_name) +
+  coord_flip() +
+  scale_color_viridis(discrete = T) +
+  geom_hline(yintercept = 0)
 ```
 looking at generous
 
 
 ```{r}
-rt_kid_test_retest |> filter(approach=="generous", logged=="raw") |> ggplot(aes(x=window, y=est, ymin=lower, ymax=upper, color=as.character(window)))+geom_pointrange()+facet_wrap(~dataset_name)+coord_flip()+scale_color_viridis(discrete=T)+geom_hline(yintercept=0)
+rt_kid_test_retest |>
+  filter(approach == "generous", logged == "raw") |>
+  ggplot(aes(x = window, y = est, ymin = lower, ymax = upper, color = as.character(window))) +
+  geom_pointrange() +
+  facet_wrap(~dataset_name) +
+  coord_flip() +
+  scale_color_viridis(discrete = T) +
+  geom_hline(yintercept = 0)
 ```
 still not huge differences, but what is favored for test-retest reliability might not be quite the same as what is favored for ICC
 
@@ -1344,7 +1385,7 @@ Depending on data pre-processing, if there's a little missing data in the 0-400m
 Overall, the range of common and reasonable choices lead to reasonable results. 
 
 ```{r, eval=F}
-canonical_rt <- readRDS(here("cached_intermediates", "4_rts.rds"))  |>
+canonical_rt <- readRDS(here("cached_intermediates", "4_rts.rds")) |>
   filter(window %in% c(400)) |>
   filter(frac %in% c(0, 1)) |>
   filter(time_0 == T, time_end == T) |>
@@ -1366,7 +1407,7 @@ canonical_rt <- readRDS(here("cached_intermediates", "4_rts.rds"))  |>
     ),
   ) |>
   select(-rt, -shift_start_rt, -last_shift_rt) |>
-  group_by(dataset_name, time_0, window, time_end, during, frac, administration_id, target_label) |> 
+  group_by(dataset_name, time_0, window, time_end, during, frac, administration_id, target_label) |>
   pivot_longer(ends_with("rt"), names_to = "measure", values_to = "rt") |>
   mutate(
     type = case_when(
@@ -1388,8 +1429,8 @@ canonical_rt <- readRDS(here("cached_intermediates", "4_rts.rds"))  |>
     type == "land" & trimming == "untrimmed" & frac == "1" ~ "trad_land",
     type == "first_launch" & trimming == "trim_first" & frac == "1" ~ "trad_launch"
   )) |>
-  filter(!is.na(approach)) |> 
-  left_join(d_aoi%>%
+  filter(!is.na(approach)) |>
+  left_join(d_aoi %>%
     select(administration_id, dataset_name, subject_id, trial_id, trial_order, target_label) %>%
     distinct())
 
@@ -1563,7 +1604,6 @@ bootstrap_cdi <- d_rt_dt_long |>
   unnest(corr)
 
 saveRDS(bootstrap_cdi, "4_rt_cdi_boot.rds")
-
 ```
 
 analyse
@@ -1573,7 +1613,7 @@ bootstrap_cdi <- readRDS(here("cached_intermediates", "4_rt_cdi_boot.rds"))
 
 library(metafor)
 
-bootstrap_cdi_summ <-  bootstrap_cdi |>
+bootstrap_cdi_summ <- bootstrap_cdi |>
   mutate(
     comp_stdev = (comp_upper - comp_lower) / (1.96 * 2),
     comp_var = comp_stdev**2,
@@ -1584,34 +1624,39 @@ bootstrap_cdi_summ <-  bootstrap_cdi |>
   ) |>
   group_by(approach, window, logged) |>
   nest() |>
-  mutate(comp= map(data, \(d){
-    rma(d$comp_est, d$comp_var) |>
-      summary() |>
-      coef()
-  }),
-  prod= map(data, \(d){
-    rma(d$prod_est, d$prod_var) |>
-      summary() |>
-      coef()
-  }),
-  age= map(data, \(d){
-    rma(d$age_est, d$age_var) |>
-      summary() |>
-      coef()
-  })) |>
+  mutate(
+    comp = map(data, \(d){
+      rma(d$comp_est, d$comp_var) |>
+        summary() |>
+        coef()
+    }),
+    prod = map(data, \(d){
+      rma(d$prod_est, d$prod_var) |>
+        summary() |>
+        coef()
+    }),
+    age = map(data, \(d){
+      rma(d$age_est, d$age_var) |>
+        summary() |>
+        coef()
+    })
+  ) |>
   select(-data) |>
-  unnest(c(comp, prod, age), names_sep="_")
-
+  unnest(c(comp, prod, age), names_sep = "_")
 ```
 correlation with production: note that shorter RT are associated with more knowledge, so we expect negative correlations with production 
 
 ```{r, eval=F}
-bootstrap_cdi_summ |> ggplot(aes(x = str_c(approach, "_", logged), y = prod_estimate, ymin=prod_ci.lb, ymax=prod_ci.ub, color=as.character(window))) +geom_pointrange(position=position_dodge(width=.5))+
-  scale_color_viridis(discrete=T)+
+bootstrap_cdi_summ |> ggplot(aes(x = str_c(approach, "_", logged), y = prod_estimate, ymin = prod_ci.lb, ymax = prod_ci.ub, color = as.character(window))) +
+  geom_pointrange(position = position_dodge(width = .5)) +
+  scale_color_viridis(discrete = T) +
   coord_flip()
 
 
-bootstrap_cdi |>filter(window==400) |> filter(!is.na(prod_est)) |>  ggplot(aes(x = str_c(approach, "_", logged), y = prod_est, ymin=prod_lower, ymax=prod_upper,  col=approach)) +
+bootstrap_cdi |>
+  filter(window == 400) |>
+  filter(!is.na(prod_est)) |>
+  ggplot(aes(x = str_c(approach, "_", logged), y = prod_est, ymin = prod_lower, ymax = prod_upper, col = approach)) +
   geom_pointrange() +
   coord_flip() +
   theme(legend.position = "none") +
@@ -1623,12 +1668,16 @@ some effect based on window, but it looks like (when we look at the per-dataset 
 
 correlation with comprehension
 ```{r, eval=F}
-bootstrap_cdi_summ |> ggplot(aes(x = str_c(approach, "_", logged), y = comp_estimate, ymin=comp_ci.lb, ymax=comp_ci.ub, color=as.character(window))) +geom_pointrange(position=position_dodge(width=.5))+
-  scale_color_viridis(discrete=T)+
+bootstrap_cdi_summ |> ggplot(aes(x = str_c(approach, "_", logged), y = comp_estimate, ymin = comp_ci.lb, ymax = comp_ci.ub, color = as.character(window))) +
+  geom_pointrange(position = position_dodge(width = .5)) +
+  scale_color_viridis(discrete = T) +
   coord_flip()
 
 
-bootstrap_cdi |>filter(window==400) |> filter(!is.na(comp_est)) |>  ggplot(aes(x = str_c(approach, "_", logged), y = comp_est, ymin=comp_lower, ymax=comp_upper,  col=approach)) +
+bootstrap_cdi |>
+  filter(window == 400) |>
+  filter(!is.na(comp_est)) |>
+  ggplot(aes(x = str_c(approach, "_", logged), y = comp_est, ymin = comp_lower, ymax = comp_upper, col = approach)) +
   geom_pointrange() +
   coord_flip() +
   theme(legend.position = "none") +
@@ -1637,12 +1686,16 @@ bootstrap_cdi |>filter(window==400) |> filter(!is.na(comp_est)) |>  ggplot(aes(x
 
 correlation with age
 ```{r, eval=F}
-bootstrap_cdi_summ |> ggplot(aes(x = str_c(approach, "_", logged), y = age_estimate, ymin=age_ci.lb, ymax=age_ci.ub, color=as.character(window))) +geom_pointrange(position=position_dodge(width=.5))+
-  scale_color_viridis(discrete=T)+
+bootstrap_cdi_summ |> ggplot(aes(x = str_c(approach, "_", logged), y = age_estimate, ymin = age_ci.lb, ymax = age_ci.ub, color = as.character(window))) +
+  geom_pointrange(position = position_dodge(width = .5)) +
+  scale_color_viridis(discrete = T) +
   coord_flip()
 
 
-bootstrap_cdi |>filter(window==400) |> filter(!is.na(age_est)) |>  ggplot(aes(x = str_c(approach, "_", logged), y = age_est, ymin=age_lower, ymax=age_upper,  col=approach)) +
+bootstrap_cdi |>
+  filter(window == 400) |>
+  filter(!is.na(age_est)) |>
+  ggplot(aes(x = str_c(approach, "_", logged), y = age_est, ymin = age_lower, ymax = age_upper, col = approach)) +
   geom_pointrange() +
   coord_flip() +
   theme(legend.position = "none") +
@@ -1808,32 +1861,43 @@ rt_boot_test_retest <- pairs_long |>
   unnest(corr)
 
 saveRDS(rt_boot_test_retest, here("cached_intermediates", "4_rt_boot_test_retest.rds"))
-
 ```
 
 ```{r, eval=F}
-rt_boot_test_retest <- readRDS(here("cached_intermediates", "4_rt_boot_test_retest.rds")) |> filter(!is.na(approach)) #idk why there are nas here
+rt_boot_test_retest <- readRDS(here("cached_intermediates", "4_rt_boot_test_retest.rds")) |> filter(!is.na(approach)) # idk why there are nas here
 
 library(metafor)
-rt_boot_test_retest_summ <-  rt_boot_test_retest |>
+rt_boot_test_retest_summ <- rt_boot_test_retest |>
   mutate(
     stdev = (upper - lower) / (1.96 * 2),
     var = stdev**2,
   ) |>
   group_by(approach, window, logged) |>
   nest() |>
-  mutate(corr= map(data, \(d){
+  mutate(corr = map(data, \(d){
     rma(d$est, d$var) |>
       summary() |>
       coef()
-  })) |> 
+  })) |>
   unnest(corr)
-  
-rt_boot_test_retest |> filter(window==400) |> ggplot(aes(x=str_c(approach, "_", logged), y=est, ymin=lower, ymax=upper, color=as.character(approach)))+geom_pointrange(position = position_dodge(width=.5))+facet_wrap(~dataset_name)+coord_flip()
 
-rt_boot_test_retest |> filter(approach=="trad_launch", logged=="raw") |> ggplot(aes(x=window, y=est, ymin=lower, ymax=upper, color=as.character(window)))+geom_pointrange()+facet_wrap(~dataset_name)+coord_flip()+scale_color_viridis(discrete=T)
+rt_boot_test_retest |>
+  filter(window == 400) |>
+  ggplot(aes(x = str_c(approach, "_", logged), y = est, ymin = lower, ymax = upper, color = as.character(approach))) +
+  geom_pointrange(position = position_dodge(width = .5)) +
+  facet_wrap(~dataset_name) +
+  coord_flip()
 
-rt_boot_test_retest_summ |> ggplot(aes(x=str_c(approach, "_", logged), y=estimate, ymin=ci.lb, ymax=ci.ub, color=as.character(window)))+geom_pointrange(position = position_dodge(width=.5))+coord_flip()+scale_color_viridis(discrete=T)
+rt_boot_test_retest |>
+  filter(approach == "trad_launch", logged == "raw") |>
+  ggplot(aes(x = window, y = est, ymin = lower, ymax = upper, color = as.character(window))) +
+  geom_pointrange() +
+  facet_wrap(~dataset_name) +
+  coord_flip() +
+  scale_color_viridis(discrete = T)
 
+rt_boot_test_retest_summ |> ggplot(aes(x = str_c(approach, "_", logged), y = estimate, ymin = ci.lb, ymax = ci.ub, color = as.character(window))) +
+  geom_pointrange(position = position_dodge(width = .5)) +
+  coord_flip() +
+  scale_color_viridis(discrete = T)
 ```
-
