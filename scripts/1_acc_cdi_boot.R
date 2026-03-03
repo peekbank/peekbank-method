@@ -32,8 +32,7 @@ acc_cdi <- function(t_start = -500, t_end = 4000) {
     group_by(dataset_name, dataset_id, administration_id, target_label) |>
     filter(!is.na(accuracy)) |>
     group_by(administration_id, dataset_name) |>
-    summarize(mean_var = mean(accuracy, na.rm = T)) |>
-    boot_cdi()
+    summarize(mean_var = mean(accuracy, na.rm = T))
 }
 
 
@@ -49,12 +48,11 @@ acc_cdi_age <- function(t_start = -500, t_end = 4000) {
     group_by(dataset_name, dataset_id, administration_id, target_label, age_bin) |>
     filter(!is.na(accuracy)) |>
     group_by(administration_id, dataset_name, age_bin) |>
-    summarize(mean_var = mean(accuracy, na.rm = T)) |>
-    boot_cdi_age()
+    summarize(mean_var = mean(accuracy, na.rm = T))
 }
 
 library(boot)
-cluster <- new_cluster(36)
+cluster <- new_cluster(16)
 cluster_library(cluster, "dplyr")
 cluster_library(cluster, "stringr")
 cluster_library(cluster, "purrr")
@@ -63,13 +61,9 @@ cluster_library(cluster, "stats")
 cluster_library(cluster, "tibble")
 cluster_library(cluster, "boot")
 cluster_copy(cluster, "do_cdi")
-cluster_copy(cluster, "d_aoi")
-cluster_copy(cluster, "d_aoi_age")
 cluster_copy(cluster, "cdi_data")
 cluster_copy(cluster, "boot_cdi")
-cluster_copy(cluster, "acc_cdi")
 cluster_copy(cluster, "boot_cdi_age")
-cluster_copy(cluster, "acc_cdi_age")
 
 
 acc_params <- expand_grid(
@@ -77,17 +71,19 @@ acc_params <- expand_grid(
   t_end = c(2000, 3000, 4000),
 )
 
-#accs_boot_cdi <- acc_params |>
-#  partition(cluster) |>
-#  mutate(cdi = pmap(list(t_start, t_end), \(t_s, t_e) acc_cdi(t_s, t_e))) |>
-#  collect() |>
-#  unnest(cdi)
+accs_boot_cdi <- acc_params |>
+  mutate(summary_data = pmap(list(t_start, t_end), \(t_s, t_e) acc_cdi(t_s, t_e))) |>
+  partition() |>
+  mutate(cdi = map(summary_data, boot_cdi)) |>
+  collect() |>
+  unnest(cdi)
 
-#saveRDS(accs_boot_cdi, "../cached_intermediates/1_acc_cdi_boot.rds")
+saveRDS(accs_boot_cdi, "../cached_intermediates/1_acc_cdi_boot.rds")
 
 accs_boot_cdi_byage <- acc_params |>
-  partition(cluster) |>
-  mutate(cdi = pmap(list(t_start, t_end), \(t_s, t_e) acc_cdi_age(t_s, t_e))) |>
+  mutate(summary_data = pmap(list(t_start, t_end), \(t_s, t_e) acc_cdi_age(t_s, t_e))) |>
+  partition() |>
+  mutate(cdi = map(summary_data, boot_cdi_age)) |>
   collect() |>
   unnest(cdi)
 

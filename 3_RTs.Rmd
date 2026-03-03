@@ -33,11 +33,12 @@ here, we always require that children not look at the target during the window, 
 ```{r, echo=F, include=F}
 knitr::opts_chunk$set(warning=F, message=F, echo=F)
 source(here::here("helper/common.R"))
+source(here::here("helper/notebook_helper.R"))
 ```
 
 (no need to run)
 ```{r, eval=F}
-d_aoi <- readRDS(here("cached_intermediates", "1_d_aoi.Rds"))
+d_aoi <- readRDS(here("cached_intermediates", "0_d_aoi.rds"))
 
 source("helper/rt_helper.R")
 ```
@@ -75,7 +76,6 @@ rts <- rle_data %>%
   mutate(rts = pmap(
     list(data, time_0, window, time_end, during, frac),
     \(d, t0, w, te, dur, fr){
-      print(window)
       get_rt(d,
         t_0 = t0, window_length = w,
         t_end = te, window_mostly_region = dur, mostly_fraction = fr
@@ -83,12 +83,13 @@ rts <- rle_data %>%
     }
   )) |>
   select(-data) |>
-  unnest(cols = c(rts)) |>
-  left_join(d_aoi %>%
-    select(administration_id, dataset_name, subject_id, trial_id, trial_order, target_label) %>%
-    distinct())
+  unnest(cols = c(rts)) |> saveRDS(here("cached_intermediates", "3_test_RTs."))
 
-saveRDS(rts, here("cached_intermediates", "4_rts.rds"))
+#   left_join(d_aoi %>%
+#     select(administration_id, dataset_name, subject_id, trial_id, trial_order, target_label) %>%
+#     distinct())
+# 
+# saveRDS(rts, here("cached_intermediates", "4_rts.rds"))
 ```
 
 ```{r, eval=F}

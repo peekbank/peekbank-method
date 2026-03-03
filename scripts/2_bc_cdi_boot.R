@@ -46,14 +46,13 @@ bc_acc_cdi <- function(b_start = -2000, b_end = 0,
       bc_accuracy = window_accuracy - baseline_accuracy
     ) |>
     group_by(administration_id, dataset_name) |>
-    summarize(mean_var = mean(bc_accuracy, na.rm = T)) |>
-    boot_cdi()
+    summarize(mean_var = mean(bc_accuracy, na.rm = T))
 }
 
 
 
 bc_acc_cdi_age <- function(b_start = -2000, b_end = 0,
-                       t_start = 500, t_end = 4000) {
+                           t_start = 500, t_end = 4000) {
   d_aoi_bc_age |>
     group_by(dataset_name, dataset_id, administration_id, trial_id, age_bin) |>
     summarise(
@@ -66,12 +65,11 @@ bc_acc_cdi_age <- function(b_start = -2000, b_end = 0,
       bc_accuracy = window_accuracy - baseline_accuracy
     ) |>
     group_by(administration_id, dataset_name, age_bin) |>
-    summarize(mean_var = mean(bc_accuracy, na.rm = T)) |>
-    boot_cdi()
+    summarize(mean_var = mean(bc_accuracy, na.rm = T))
 }
 
 library(boot)
-cluster <- new_cluster(36)
+cluster <- new_cluster(16)
 cluster_library(cluster, "dplyr")
 cluster_library(cluster, "stringr")
 cluster_library(cluster, "purrr")
@@ -84,8 +82,6 @@ cluster_copy(cluster, "d_aoi_bc")
 cluster_copy(cluster, "d_aoi_bc_age")
 cluster_copy(cluster, "cdi_data")
 cluster_copy(cluster, "boot_cdi")
-cluster_copy(cluster, "bc_acc_cdi")
-cluster_copy(cluster, "bc_acc_cdi_age")
 
 
 bc_acc_params <- expand_grid(
@@ -96,16 +92,18 @@ bc_acc_params <- expand_grid(
 )
 
 bc_boot_cdi <- bc_acc_params |>
+  mutate(summary_data = pmap(list(b_start, b_end, t_start, t_end), \(b_s, b_e, t_s, t_e) bc_acc_cdi(b_s, b_e, t_s, t_e))) |>
   partition(cluster) |>
-  mutate(cdi = pmap(list(b_start, b_end, t_start, t_end), \(b_s, b_e, t_s, t_e) bc_acc_cdi(b_s, b_e, t_s, t_e))) |>
+  mutate(cdi = map(summary_data, boot_cdi)) |>
   collect() |>
   unnest(cdi)
 
 saveRDS(bc_boot_cdi, "../cached_intermediates/2_bc_cdi_boot.rds")
 
 bc_boot_cdi_age <- bc_acc_params |>
+  mutate(summary_data = pmap(list(b_start, b_end, t_start, t_end), \(b_s, b_e, t_s, t_e) bc_acc_cdi_age(b_s, b_e, t_s, t_e))) |>
   partition(cluster) |>
-  mutate(cdi = pmap(list(b_start, b_end, t_start, t_end), \(b_s, b_e, t_s, t_e) bc_acc_cdi_age(b_s, b_e, t_s, t_e))) |>
+  mutate(cdi = map(summary_data, boot_cdi_age)) |>
   collect() |>
   unnest(cdi)
 
