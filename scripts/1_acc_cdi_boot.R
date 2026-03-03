@@ -76,6 +76,7 @@ accs_boot_cdi <- acc_params |>
   partition() |>
   mutate(cdi = map(summary_data, boot_cdi)) |>
   collect() |>
+  select(-summary_data) |>
   unnest(cdi)
 
 saveRDS(accs_boot_cdi, "../cached_intermediates/1_acc_cdi_boot.rds")
@@ -85,6 +86,7 @@ accs_boot_cdi_byage <- acc_params |>
   partition() |>
   mutate(cdi = map(summary_data, boot_cdi_age)) |>
   collect() |>
+  select(-summary_data) |>
   unnest(cdi)
 
 saveRDS(accs_boot_cdi_byage, "../cached_intermediates/1_acc_cdi_boot_byage.rds")
