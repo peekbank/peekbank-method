@@ -16,7 +16,7 @@ rle_data <- d_aoi %>%
   )
 
 grid_options <- expand_grid(
-  window = c(200, 250, 300, 350, 375, 400, 425, 450, 500, 600, 700, 800, 900, 1000),
+  window = c(200, 300, 400, 500),
   time_0 = c(F, T), time_end = c(F, T), during = T, frac = c(0, .5, .75)
 ) |>
   bind_rows(expand_grid(
@@ -36,7 +36,7 @@ rts <- rle_data %>%
     list(data, time_0, window, time_end, during, frac),
     \(d, t0, w, te, dur, fr){
       get_rt(d,
-        t_0 = t0, window_length = w,
+        t_0 = t0, window_length_ms = w,
         t_end = te, window_mostly_region = dur, mostly_fraction = fr
       )
     }

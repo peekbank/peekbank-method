@@ -27,7 +27,7 @@ d_rt_dt <- rts |>
     first_launch_rt = shift_start_rt,
   ) |>
   mutate(
-    across(c("land_rt", "first_launch_rt"), log, .names = "log_{.col}"),
+    across(c("land_rt", "first_launch_rt"), \(x) ifelse(x > 0, log(x), NA_real_), .names = "log_{.col}"),
     across(
       c(
         "land_rt", "first_launch_rt",
@@ -58,7 +58,7 @@ d_rt_dt_byage <- rts |>
     first_launch_rt = shift_start_rt,
   ) |>
   mutate(
-    across(c("land_rt", "first_launch_rt"), log, .names = "log_{.col}"),
+    across(c("land_rt", "first_launch_rt"), \(x) ifelse(x > 0, log(x), NA_real_), .names = "log_{.col}"),
     across(
       c(
         "land_rt", "first_launch_rt",
@@ -101,6 +101,7 @@ cluster_copy(cluster, "boot_cdi_age")
 rt_boot_cdi <- d_rt_dt |>
   group_by(time_0, window, time_end, during, frac) |>
   nest() |>
+  partition(cluster) |>
   mutate(cdi = map(data, boot_cdi)) |>
   collect() |>
   select(-data) |>
@@ -111,10 +112,10 @@ saveRDS(rt_boot_cdi, "../cached_intermediates/3_rt_cdi_boot.rds")
 rt_boot_cdi_byage <- d_rt_dt_byage |>
   group_by(age_bin, time_0, window, time_end, during, frac) |>
   nest() |>
+  partition(cluster) |>
   mutate(cdi = map(data, boot_cdi)) |>
   collect() |>
   select(-data) |>
   unnest(cdi)
 
 saveRDS(rt_boot_cdi_byage, "../cached_intermediates/3_rt_cdi_boot_byage.rds")
-

@@ -32,7 +32,8 @@ acc_cdi <- function(t_start = -500, t_end = 4000) {
     group_by(dataset_name, dataset_id, administration_id, target_label) |>
     filter(!is.na(accuracy)) |>
     group_by(administration_id, dataset_name) |>
-    summarize(mean_var = mean(accuracy, na.rm = T))
+    summarize(mean_var = mean(accuracy, na.rm = T)) |>
+    filter(!is.na(mean_var))
 }
 
 
@@ -48,7 +49,8 @@ acc_cdi_age <- function(t_start = -500, t_end = 4000) {
     group_by(dataset_name, dataset_id, administration_id, target_label, age_bin) |>
     filter(!is.na(accuracy)) |>
     group_by(administration_id, dataset_name, age_bin) |>
-    summarize(mean_var = mean(accuracy, na.rm = T))
+    summarize(mean_var = mean(accuracy, na.rm = T)) |>
+    filter(!is.na(mean_var))
 }
 
 library(boot)

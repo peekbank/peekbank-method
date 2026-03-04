@@ -62,7 +62,7 @@ d_rt_dt_long <- rts |>
     first_launch_rt = shift_start_rt,
   ) |>
   mutate(
-    across(c("land_rt", "first_launch_rt"), log, .names = "log_{.col}"),
+    across(c("land_rt", "first_launch_rt"), \(x) ifelse(x > 0, log(x), NA_real_), .names = "log_{.col}"),
     across(
       c(
         "land_rt", "first_launch_rt",

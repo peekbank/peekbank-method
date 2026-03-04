@@ -46,7 +46,8 @@ bc_acc_cdi <- function(b_start = -2000, b_end = 0,
       bc_accuracy = window_accuracy - baseline_accuracy
     ) |>
     group_by(administration_id, dataset_name) |>
-    summarize(mean_var = mean(bc_accuracy, na.rm = T))
+    summarize(mean_var = mean(bc_accuracy, na.rm = T)) |>
+    filter(!is.na(mean_var))
 }
 
 
@@ -65,7 +66,8 @@ bc_acc_cdi_age <- function(b_start = -2000, b_end = 0,
       bc_accuracy = window_accuracy - baseline_accuracy
     ) |>
     group_by(administration_id, dataset_name, age_bin) |>
-    summarize(mean_var = mean(bc_accuracy, na.rm = T))
+    summarize(mean_var = mean(bc_accuracy, na.rm = T)) |>
+    filter(!is.na(mean_var))
 }
 
 library(boot)

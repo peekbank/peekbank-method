@@ -60,7 +60,8 @@ acc_trial_cdi <- function(t_start, t_end, exclude_less_than, look_both) {
     filter(prop_data >= exclude_less_than) |>
     filter(!is.na(accuracy)) |>
     group_by(administration_id, dataset_name) |>
-    summarize(mean_var = mean(accuracy, na.rm = T))
+    summarize(mean_var = mean(accuracy, na.rm = T)) |>
+    filter(!is.na(mean_var))
 }
 
 
@@ -82,7 +83,8 @@ acc_trial_cdi_age <- function(t_start, t_end, exclude_less_than, look_both) {
     filter(prop_data >= exclude_less_than) |>
     filter(!is.na(accuracy)) |>
     group_by(administration_id, dataset_name, age_bin) |>
-    summarize(mean_var = mean(accuracy, na.rm = T))
+    summarize(mean_var = mean(accuracy, na.rm = T)) |>
+    filter(!is.na(mean_var))
 }
 
 library(boot)

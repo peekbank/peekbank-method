@@ -5,7 +5,6 @@ library(dplyr)
 library(purrr)
 library(tibble)
 library(stringr)
-library(tibble)
 library(agreement)
 library(multidplyr)
 library(boot)
@@ -72,6 +71,25 @@ bootstrap_icc <- function(x, column = "accuracy", bootstrap = 2000) {
   return(tibble(est = iccs$Inter_ICC, lower = ci$basic[4], upper = ci$basic[5]))
 }
 
+safe_boot_ci <- function(b, index) {
+  t0 <- b$t0[index]
+  if (is.na(t0)) {
+    return(list(lower = NA_real_, upper = NA_real_))
+  }
+  t_vals <- b$t[, index]
+  t_no_na <- t_vals[!is.na(t_vals)]
+  if (length(t_no_na) == 0) {
+    return(list(lower = NA_real_, upper = NA_real_))
+  }
+  b$R <- length(t_no_na)
+  ci <- boot::boot.ci(boot.out = b, t = t_no_na, t0 = t0, type = "basic")
+  if (!is.null(ci$basic) && length(ci$basic) >= 5) {
+    list(lower = ci$basic[4], upper = ci$basic[5])
+  } else {
+    list(lower = NA_real_, upper = NA_real_)
+  }
+}
+
 do_cdi <- function(data, indices) {
   summ <- data |>
     slice(indices) |>
@@ -94,34 +112,13 @@ boot_cdi <- function(data) {
     nest() |>
     mutate(corr = map(data, \(d) {
       b <- boot::boot(d, do_cdi, 2000)
-      if (is.na(b$t0[1])) {
-        comp_lower <- NA
-        comp_upper <- NA
-      } else {
-        ci_comp <- boot::boot.ci(b, index = 1, type = "basic")
-        comp_lower <- ci_comp$basic[4]
-        comp_upper <- ci_comp$basic[5]
-      }
-      if (is.na(b$t0[2])) {
-        prod_lower <- NA
-        prod_upper <- NA
-      } else {
-        ci_prod <- boot::boot.ci(b, index = 2, type = "basic")
-        prod_lower <- ci_prod$basic[4]
-        prod_upper <- ci_prod$basic[5]
-      }
-      if (is.na(b$t0[3])) {
-        age_lower <- NA
-        age_upper <- NA
-      } else {
-        ci_age <- boot::boot.ci(b, index = 3, type = "basic")
-        age_lower <- ci_age$basic[4]
-        age_upper <- ci_age$basic[5]
-      }
+      ci_comp <- safe_boot_ci(b, 1)
+      ci_prod <- safe_boot_ci(b, 2)
+      ci_age <- safe_boot_ci(b, 3)
       tibble(
-        comp_est = b$t0[1], comp_lower = comp_lower, comp_upper = comp_upper,
-        prod_est = b$t0[2], prod_lower = prod_lower, prod_upper = prod_upper,
-        age_est = b$t0[3], age_lower = age_lower, age_upper = age_upper,
+        comp_est = b$t0[1], comp_lower = ci_comp$lower, comp_upper = ci_comp$upper,
+        prod_est = b$t0[2], prod_lower = ci_prod$lower, prod_upper = ci_prod$upper,
+        age_est = b$t0[3], age_lower = ci_age$lower, age_upper = ci_age$upper,
       )
     })) |>
     select(-data) |>
@@ -135,34 +132,13 @@ boot_cdi_age <- function(data) {
     nest() |>
     mutate(corr = map(data, \(d) {
       b <- boot::boot(d, do_cdi, 2000)
-      if (is.na(b$t0[1])) {
-        comp_lower <- NA
-        comp_upper <- NA
-      } else {
-        ci_comp <- boot::boot.ci(b, index = 1, type = "basic")
-        comp_lower <- ci_comp$basic[4]
-        comp_upper <- ci_comp$basic[5]
-      }
-      if (is.na(b$t0[2])) {
-        prod_lower <- NA
-        prod_upper <- NA
-      } else {
-        ci_prod <- boot::boot.ci(b, index = 2, type = "basic")
-        prod_lower <- ci_prod$basic[4]
-        prod_upper <- ci_prod$basic[5]
-      }
-      if (is.na(b$t0[3])) {
-        age_lower <- NA
-        age_upper <- NA
-      } else {
-        ci_age <- boot::boot.ci(b, index = 3, type = "basic")
-        age_lower <- ci_age$basic[4]
-        age_upper <- ci_age$basic[5]
-      }
+      ci_comp <- safe_boot_ci(b, 1)
+      ci_prod <- safe_boot_ci(b, 2)
+      ci_age <- safe_boot_ci(b, 3)
       tibble(
-        comp_est = b$t0[1], comp_lower = comp_lower, comp_upper = comp_upper,
-        prod_est = b$t0[2], prod_lower = prod_lower, prod_upper = prod_upper,
-        age_est = b$t0[3], age_lower = age_lower, age_upper = age_upper,
+        comp_est = b$t0[1], comp_lower = ci_comp$lower, comp_upper = ci_comp$upper,
+        prod_est = b$t0[2], prod_lower = ci_prod$lower, prod_upper = ci_prod$upper,
+        age_est = b$t0[3], age_lower = ci_age$lower, age_upper = ci_age$upper,
       )
     })) |>
     select(-data) |>
@@ -189,19 +165,9 @@ boot_test_retest <- function(data) {
     nest() |>
     mutate(corr = map(data, \(d) {
       b <- boot::boot(d, test_retest_corr, 2000)
-      if (is.na(b$t0)) {
-        lower <- NA
-        upper <- NA
-      }
-      else{
-      ci <- boot::boot.ci(b, type = "basic")
-      if (!is.null(ci$basic) && length(ci$basic) >= 5) {
-      lower=ci$basic[4]
-      upper=ci$basic[5]
-    } else {
-      lower=NA
-      upper=NA}}
-      tibble(est = b$t0, lower = lower, upper = upper)})) |>
+      ci <- safe_boot_ci(b, 1)
+      tibble(est = b$t0, lower = ci$lower, upper = ci$upper)
+    })) |>
     select(-data) |>
     unnest(corr)
 }

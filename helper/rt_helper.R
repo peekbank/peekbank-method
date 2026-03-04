@@ -60,7 +60,7 @@ get_rt <- function(rle_data, SAMPLING_RATE = 40, t_0 = TRUE, window_length_ms = 
       ))
     }
     if (window_mostly_region) {
-      in_region_idx <- which(rle_data$values[1:end_window_idx - 1] == onset_aoi) # indices in time region to relevant region
+      in_region_idx <- which(rle_data$values[1:(end_window_idx - 1)] == onset_aoi) # indices in time region to relevant region
       if (length(in_region_idx) == 0) {
         time_points <- 0
       } else {
