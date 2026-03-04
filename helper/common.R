@@ -189,12 +189,19 @@ boot_test_retest <- function(data) {
     nest() |>
     mutate(corr = map(data, \(d) {
       b <- boot::boot(d, test_retest_corr, 2000)
+      if (is.na(b$t0)) {
+        lower <- NA
+        upper <- NA
+      }
+      else{
       ci <- boot::boot.ci(b, type = "basic")
-      print(ci)
-    if (!is.null(ci$basic) && length(ci$basic) >= 5) {
-      tibble(est = b$t0, lower = ci$basic[4], upper = ci$basic[5])
+      if (!is.null(ci$basic) && length(ci$basic) >= 5) {
+      lower=ci$basic[4]
+      upper=ci$basic[5]
     } else {
-      tibble(est = b$t0, lower = NA, upper = NA)}})) |>
+      lower=NA
+      upper=NA}}
+      tibble(est = b$t0, lower = lower, upper = upper)})) |>
     select(-data) |>
     unnest(corr)
 }

@@ -71,6 +71,10 @@ acc_test_retest <- function(t_start, t_end, exclude_less_than, look_both) {
     filter(!is.na(accuracy)) |>
     group_by(administration_id, dataset_name, subject_id, pair_number, session_num) |>
     summarize(mean_var = mean(accuracy, na.rm = T), .groups = "drop") |>
+        group_by(dataset_name, subject_id, pair_number) |> 
+    mutate(count=n()) |> 
+    filter(count==2) |> 
+    ungroup()|>
     boot_test_retest()
 }
 
@@ -88,7 +92,7 @@ cluster_library(cluster, "boot")
 
 cluster_copy(cluster, "test_retest_corr")
 cluster_copy(cluster, "boot_test_retest")
-cluster_copy(cluster, "pairs_aoi_data")
+cluster_copy(cluster, "pairs_sim")
 cluster_copy(cluster, "acc_test_retest")
 
 
