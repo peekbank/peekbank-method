@@ -43,7 +43,7 @@ d_rt_dt <- rts |>
       .names = "trim_last_{.col}"
     )
   ) |>
-  select(-rt, -shift_start_rt, -last_shift_rt) | |> 
+  select(-rt, -shift_start_rt, -last_shift_rt)  |> 
   group_by(dataset_name, time_0, window, time_end, during, frac, administration_id, target_label) |>
   mutate(repetition = row_number())
 

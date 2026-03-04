@@ -179,18 +179,23 @@ test_retest_corr <- function(data, indices) {
 boot_test_retest <- function(data) {
   data |>
     select(-administration_id) |>
+    filter(!is.na(mean_var)) |>
+    group_by(dataset_name, subject_id, pair_number) |>
+    mutate(count = n()) |>
+    filter(count == 2) |>
+    select(-count) |>
     pivot_wider(names_from = session_num, values_from = mean_var) |>
     group_by(dataset_name) |>
     nest() |>
-    # head(1) |>
     mutate(corr = map(data, \(d) {
       b <- boot::boot(d, test_retest_corr, 2000)
       ci <- boot::boot.ci(b, type = "basic")
       print(ci)
+    if (!is.null(ci$basic) && length(ci$basic) >= 5) {
       tibble(est = b$t0, lower = ci$basic[4], upper = ci$basic[5])
-    })) |>
+    } else {
+      tibble(est = b$t0, lower = NA, upper = NA)}})) |>
     select(-data) |>
     unnest(corr)
 }
-
 options(dplyr.summarise.inform = FALSE)
