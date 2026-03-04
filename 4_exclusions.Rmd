@@ -12,7 +12,7 @@ Need to analyze both RT and accuracy.
 ```{r}
 source(here::here("helper/common.R"))
 
-d_aoi <- readRDS(here("cached_intermediates", "1_d_aoi.Rds"))
+d_aoi <- readRDS(here("cached_intermediates", "0_d_aoi.rds"))
 ```
 
 # Descriptive data 
@@ -113,6 +113,7 @@ trial-wise:
 * prop data in the trial
 * only looking at one side in the trial (trial-zoning)
 * pre-target word zoning vs. post-target word zoning
+
 
 subject-wise:
 * prop of trials with any data
