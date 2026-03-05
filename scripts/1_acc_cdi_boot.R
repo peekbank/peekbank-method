@@ -2,21 +2,7 @@ source("../helper/common.R")
 
 d_aoi <- readRDS("../cached_intermediates/0_d_aoi.rds")
 
-age_bin_cutoff <- d_aoi |>
-  filter(!is.na(correct)) |>
-  distinct(administration_id, age, dataset_name) |>
-  mutate(age_bin = case_when(
-    age < 18 ~ "<18",
-    age < 24 ~ "18-24",
-    age < 36 ~ "24-36",
-    age >= 36 ~ ">=36"
-  )) |>
-  group_by(dataset_name, age_bin) |>
-  mutate(count = n()) |>
-  filter(count >= 5) |>
-  ungroup()
-
-d_aoi_age <- d_aoi |> inner_join(age_bin_cutoff)
+d_aoi_age <- make_age_bins(d_aoi)
 
 cdi_data <- readRDS("../cached_intermediates/0_cdi_subjects.rds")
 
@@ -53,19 +39,10 @@ acc_cdi_age <- function(t_start = -500, t_end = 4000) {
     filter(!is.na(mean_var))
 }
 
-library(boot)
-cluster <- new_cluster(16)
-cluster_library(cluster, "dplyr")
-cluster_library(cluster, "stringr")
-cluster_library(cluster, "purrr")
-cluster_library(cluster, "tidyr")
-cluster_library(cluster, "stats")
-cluster_library(cluster, "tibble")
-cluster_library(cluster, "boot")
-cluster_copy(cluster, "do_cdi")
-cluster_copy(cluster, "cdi_data")
-cluster_copy(cluster, "boot_cdi")
-cluster_copy(cluster, "boot_cdi_age")
+cluster <- setup_cluster(
+  libs = c("dplyr", "stringr", "purrr", "tidyr", "stats", "tibble", "boot"),
+  copy_names = c("do_cdi", "cdi_data", "boot_cdi")
+)
 
 
 acc_params <- expand_grid(
@@ -86,7 +63,7 @@ saveRDS(accs_boot_cdi, "../cached_intermediates/1_acc_cdi_boot.rds")
 accs_boot_cdi_byage <- acc_params |>
   mutate(summary_data = pmap(list(t_start, t_end), \(t_s, t_e) acc_cdi_age(t_s, t_e))) |>
   partition() |>
-  mutate(cdi = map(summary_data, boot_cdi_age)) |>
+  mutate(cdi = map(summary_data, \(d) boot_cdi(d, by_age = TRUE))) |>
   collect() |>
   select(-summary_data) |>
   unnest(cdi)

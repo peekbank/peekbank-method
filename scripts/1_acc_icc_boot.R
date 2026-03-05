@@ -2,21 +2,7 @@ source("../helper/common.R")
 
 d_aoi <- readRDS("../cached_intermediates/0_d_aoi.rds")
 
-age_bin_cutoff <- d_aoi |>
-  filter(!is.na(correct)) |>
-  distinct(administration_id, age, dataset_name) |>
-  mutate(age_bin = case_when(
-    age < 18 ~ "<18",
-    age < 24 ~ "18-24",
-    age < 36 ~ "24-36",
-    age >= 36 ~ ">=36"
-  )) |>
-  group_by(dataset_name, age_bin) |>
-  mutate(count = n()) |>
-  filter(count >= 5) |>
-  ungroup()
-
-d_aoi_age <- d_aoi |> inner_join(age_bin_cutoff)
+d_aoi_age <- make_age_bins(d_aoi)
 
 # Summarize timepoint-level data to trial-level accuracy.
 # Includes age_bin in grouping if present in the data.
@@ -61,17 +47,13 @@ accs_summarized <- acc_params |>
 accs_summarized_age <- acc_params |>
   mutate(summary_data = pmap(list(t_start, t_end), \(t_s, t_e) summarize_accuracy(d_aoi_age, t_s, t_e)))
 
-rm(d_aoi, d_aoi_age, age_bin_cutoff)
+rm(d_aoi, d_aoi_age)
 gc()
 
-# Only bootstrap_icc and run_icc_bootstrap go to workers (NOT d_aoi)
-cluster <- new_cluster(16)
-cluster_library(cluster, "dplyr")
-cluster_library(cluster, "tidyr")
-cluster_library(cluster, "purrr")
-cluster_library(cluster, "agreement")
-cluster_copy(cluster, "bootstrap_icc")
-cluster_copy(cluster, "run_icc_bootstrap")
+cluster <- setup_cluster(
+  libs = c("dplyr", "tidyr", "purrr", "agreement"),
+  copy_names = c("bootstrap_icc", "run_icc_bootstrap")
+)
 
 accs_boot <- accs_summarized |>
   partition(cluster) |>

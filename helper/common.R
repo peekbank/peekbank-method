@@ -13,9 +13,77 @@ library(boot)
 # Seed for random number generation
 set.seed(42)
 
+get_age_bin_cutoff <- function(d_aoi, min_per_bin = 5) {
+  d_aoi |>
+    filter(!is.na(correct)) |>
+    distinct(administration_id, age, dataset_name) |>
+    mutate(age_bin = case_when(
+      age < 18 ~ "<18",
+      age < 24 ~ "18-24",
+      age < 36 ~ "24-36",
+      age >= 36 ~ ">=36"
+    )) |>
+    group_by(dataset_name, age_bin) |>
+    mutate(count = n()) |>
+    filter(count >= min_per_bin) |>
+    ungroup()
+}
+
+make_age_bins <- function(d_aoi, min_per_bin = 5) {
+  d_aoi |> inner_join(get_age_bin_cutoff(d_aoi, min_per_bin))
+}
+
+make_test_retest_pairs <- function(d_aoi) {
+  admins <- d_aoi |>
+    select(dataset_name, subject_id, administration_id, age) |>
+    distinct()
+
+  repeated <- admins |>
+    group_by(dataset_name, subject_id) |>
+    tally() |>
+    filter(n > 1)
+
+  repeated_subjects <- admins |> inner_join(repeated)
+
+  pairs <- repeated_subjects |>
+    group_by(dataset_name, subject_id) |>
+    mutate(
+      forward_age = lead(age),
+      forward_diff = forward_age - age,
+      test_num = case_when(
+        forward_diff < 1.5 ~ 1,
+      ),
+      mean_age = case_when(
+        test_num == 1 ~ (age + forward_age) / 2,
+      ),
+      second_admin = case_when(
+        test_num == 1 ~ lead(administration_id)
+      )
+    ) |>
+    filter(!is.na(test_num)) |>
+    rename(first_admin = administration_id) |>
+    select(-n, -age) |>
+    left_join(repeated_subjects |> select(-age, -n), by = c("dataset_name", "subject_id", "second_admin" = "administration_id")) |>
+    ungroup() |>
+    mutate(pair_number = row_number()) |>
+    select(-forward_age, -forward_diff, -test_num)
+
+  pairs |> pivot_longer(c("first_admin", "second_admin"), names_to = "session_num", values_to = "administration_id")
+}
+
+make_baseline_corrected <- function(d_aoi) {
+  baseline_lengths <- d_aoi |>
+    group_by(dataset_name, trial_id) |>
+    summarise(t_min = min(t_norm), .groups = "drop")
+
+  d_aoi |>
+    left_join(baseline_lengths, by = c("dataset_name", "trial_id")) |>
+    filter(t_min < 0)
+}
 
 # key ICC function
 get_icc <- function(x, column = "accuracy", object = "stimulus") {
+  x <- x |> filter(!is.na(.data[[column]]))
   if (object == "stimulus") {
     iccs <- dim_icc(x,
       model = "2A",
@@ -43,6 +111,7 @@ get_icc <- function(x, column = "accuracy", object = "stimulus") {
   return(iccs$Inter_ICC)
 }
 bootstrap_icc <- function(x, column = "accuracy", bootstrap = 2000) {
+  x <- x |> filter(!is.na(.data[[column]]))
   iccs <- dim_icc(x,
     model = "2A",
     type = "consistency",
@@ -106,29 +175,10 @@ do_cdi <- function(data, indices) {
   return(cors)
 }
 
-boot_cdi <- function(data) {
+boot_cdi <- function(data, by_age = FALSE) {
+  grp <- if (by_age) c("dataset_name", "age_bin") else "dataset_name"
   data |>
-    group_by(dataset_name) |>
-    nest() |>
-    mutate(corr = map(data, \(d) {
-      b <- boot::boot(d, do_cdi, 2000)
-      ci_comp <- safe_boot_ci(b, 1)
-      ci_prod <- safe_boot_ci(b, 2)
-      ci_age <- safe_boot_ci(b, 3)
-      tibble(
-        comp_est = b$t0[1], comp_lower = ci_comp$lower, comp_upper = ci_comp$upper,
-        prod_est = b$t0[2], prod_lower = ci_prod$lower, prod_upper = ci_prod$upper,
-        age_est = b$t0[3], age_lower = ci_age$lower, age_upper = ci_age$upper,
-      )
-    })) |>
-    select(-data) |>
-    unnest(corr)
-}
-
-
-boot_cdi_age <- function(data) {
-  data |>
-    group_by(dataset_name, age_bin) |>
+    group_by(across(all_of(grp))) |>
     nest() |>
     mutate(corr = map(data, \(d) {
       b <- boot::boot(d, do_cdi, 2000)
@@ -171,4 +221,12 @@ boot_test_retest <- function(data) {
     select(-data) |>
     unnest(corr)
 }
+
+setup_cluster <- function(libs, copy_names = character(), envir = parent.frame(), n_workers = 16) {
+  cluster <- new_cluster(n_workers)
+  for (lib in libs) cluster_library(cluster, lib)
+  for (name in copy_names) cluster_copy(cluster, name, env = envir)
+  cluster
+}
+
 options(dplyr.summarise.inform = FALSE)

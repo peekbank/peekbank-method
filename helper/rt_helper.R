@@ -150,3 +150,26 @@ get_rt <- function(rle_data, SAMPLING_RATE = 40, t_0 = TRUE, window_length_ms = 
     last_shift_length = last_shift_length
   ))
 }
+
+preprocess_rt_dt <- function(rts) {
+  rts |>
+    filter(shift_type == "D-T") |>
+    mutate(
+      land_rt = rt,
+      first_launch_rt = shift_start_rt,
+    ) |>
+    mutate(
+      across(c("land_rt", "first_launch_rt"), \(x) ifelse(x > 0, log(x), NA_real_), .names = "log_{.col}"),
+      across(
+        c("land_rt", "first_launch_rt", "log_land_rt", "log_first_launch_rt"),
+        ~ ifelse(shift_length <= 600, .x, NA),
+        .names = "trim_first_{.col}"
+      ),
+      across(
+        c("land_rt", "log_land_rt"),
+        ~ ifelse(last_shift_length <= 600, .x, NA),
+        .names = "trim_last_{.col}"
+      )
+    ) |>
+    select(-rt, -shift_start_rt, -last_shift_rt)
+}
