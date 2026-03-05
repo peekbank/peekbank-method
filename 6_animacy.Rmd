@@ -9,12 +9,13 @@ output: html_document
 library(here)
 
 source(here("helper/common.R"))
+source(here("helper/notebook_helper.R"))
 ```
 
 # Process d_trial data
 
 ```{r}
-d_aoi <- readRDS(here("cached_intermediates", "1_d_aoi.Rds"))
+d_aoi <- readRDS(here("cached_intermediates", "0_d_aoi.rds"))
 ```
 
 # Load in animate and inanimate data
@@ -28,9 +29,9 @@ animates <- c(
   "dog", "cat", "baby", "bird", "cow", "elephant", "lion", "pig", "duck",
   "frog", "zebra", "monkey", "bear", "doggy", "horse", "clown", "fish", "butterfly",
   "giraffe", "chicken", "animal", "boy", "puppy", "lamb", "sheep", "rooster", "tiger", "whale",
-  "owl", "caterpillar", "kangaroo", "bunny", "rabbit", "mouse"
+  "owl", "caterpillar", "kangaroo", "bunny", "rabbit", "mouse", "goose"
 )
-questionable <- c("foot", "mouth", "ear", "hand")
+questionable <- c("foot", "mouth", "ear", "hand", "eyes", "hair", "leg","nose", "teeth", "belly", "tooth")
 
 all_targets <- d_aoi |>
   distinct(target_label) |>
@@ -42,6 +43,7 @@ all_targets <- d_aoi |>
     item %in% questionable ~ "yes", # we can decide about body parts later
     T ~ "no"
   ))
+
 ```
 
 
@@ -71,246 +73,55 @@ d_aoi_labelled |>
       geom_vline(xintercept = 500, lty = "dashed") +
   facet_wrap(~dataset_name) +
   theme(legend.position = "bottom")
+```
 
-d_aoi_labelled |>filter(t_norm>-1000) |> 
+
+```{r}
+d_aoi_summ <- d_aoi_labelled |>filter(t_norm>-1000) |> 
   group_by(animate_target, animate_distractor, t_norm) |>
-  summarize(acc = mean(correct, na.rm = T)) |>
-  ggplot(aes(x = t_norm, y = acc, color = interaction(animate_target, animate_distractor))) +
-  geom_line() +
+  summarize(acc = mean(correct, na.rm = T),
+            se= sd(correct, na.rm=T)/sqrt(sum(!is.na(correct))))
+
+d_aoi_summ |> mutate(lower=acc-1.96*se, upper=acc+1.96*se) |> 
+  ggplot(aes(x = t_norm, y = acc, ymin=lower, ymax=upper, color = interaction(animate_target, animate_distractor))) +
+  geom_line()+
+  geom_linerange()+
+  #geom_ribbon() +
   geom_hline(yintercept = .5, lty = "dashed") +
   geom_vline(xintercept = 0, lty = "dashed") +
       geom_vline(xintercept = 500, lty = "dashed") +
   theme(legend.position = "bottom")
 ```
 
-only at mixed pairs, by preference for looking at animates!
 ```{r}
-d_aoi_labelled |> filter(mixed) |> 
-  mutate(look_animate=ifelse(animate_target=="yes", correct, 1-correct)) |> 
-  group_by(animate_target, animate_distractor, administration_id, t_norm, dataset_name) |>
-  summarize(look_animate = mean(look_animate, na.rm = T)) |>
-  group_by(animate_target, animate_distractor, t_norm, dataset_name) |>
-  summarize(look_animate = mean(look_animate, na.rm = T)) |>
-  ggplot(aes(x = t_norm, y = look_animate, color = animate_target)) +
-  geom_line() +
-  geom_hline(yintercept = .5, lty = "dashed") +
-  geom_vline(xintercept = 0, lty = "dashed") +
-  facet_wrap(~dataset_name) +
-  theme(legend.position = "bottom")
-
-d_aoi_labelled |> filter(mixed) |> 
-  mutate(look_animate=ifelse(animate_target=="yes", correct, 1-correct)) |> 
+d_aoi_summ <- d_aoi_labelled |>filter(t_norm>-1000) |> 
   group_by(animate_target, animate_distractor, t_norm) |>
-    summarize(look_animate = mean(look_animate, na.rm = T)) |>
-  ggplot(aes(x = t_norm, y = look_animate, color = animate_target)) +
-  geom_line() +
-  geom_hline(yintercept = .5, lty = "dashed") +
-  geom_vline(xintercept = 0, lty = "dashed") +
-    geom_vline(xintercept = 500, lty = "dashed") +
-  theme(legend.position = "bottom")
-```
+  summarize(acc = mean_cl_boot(correct))
 
-# Try for some by-item control here
-
-```{r}
-targets_with_both_distractors <- d_aoi_labelled |> distinct(trial_id, administration_id, dataset_name, target_label, distractor_label, animate_target, animate_distractor) |> group_by(target_label, distractor_label, animate_target, animate_distractor) |> tally() |> filter(n>10) |> 
-  ungroup() |> 
-  distinct(target_label, animate_distractor) |> 
-  group_by(target_label) |> tally() |> 
-  filter(n>1) |> 
-  select(target_label)
- 
-d_aoi_labelled |> inner_join(targets_with_both_distractors) |> filter(animate_target=="yes") |> group_by(animate_target, target_label, animate_distractor, t_norm) |> summarize(acc=mean(correct, na.rm=T)) |>  
-  ggplot(aes(x = t_norm, y = acc, color = interaction(animate_target, animate_distractor)) )+
-  geom_line() +
+d_aoi_summ |> mutate(lower=acc-1.96*se, upper=acc+1.96*se) |> 
+  ggplot(aes(x = t_norm, y = acc, ymin=lower, ymax=upper, color = interaction(animate_target, animate_distractor))) +
+  geom_line()+
+  geom_linerange()+
+  #geom_ribbon() +
   geom_hline(yintercept = .5, lty = "dashed") +
   geom_vline(xintercept = 0, lty = "dashed") +
       geom_vline(xintercept = 500, lty = "dashed") +
-    facet_wrap(~target_label)+
   theme(legend.position = "bottom")
+```
 
-d_aoi_labelled |> inner_join(targets_with_both_distractors) |> filter(animate_target=="no") |> group_by(animate_target, target_label, animate_distractor, t_norm) |> summarize(acc=mean(correct, na.rm=T)) |>  
-  ggplot(aes(x = t_norm, y = acc, color = interaction(animate_target, animate_distractor)) )+
-  geom_line() +
+```{r}
+d_aoi_summ_age <- d_aoi_labelled |>filter(t_norm>-1000) |> make_age_bins() |> 
+  group_by(animate_target, animate_distractor, t_norm, age_bin) |>
+  summarize(acc = mean(correct, na.rm = T),
+            se= sd(correct, na.rm=T)/sqrt(sum(!is.na(correct))))
+
+d_aoi_summ_age |> mutate(lower=acc-1.96*se, upper=acc+1.96*se) |> 
+  ggplot(aes(x = t_norm, y = acc, ymin=lower, ymax=upper, color = interaction(animate_target, animate_distractor))) +
+  geom_line()+
+  geom_linerange()+
+  #geom_ribbon() +
   geom_hline(yintercept = .5, lty = "dashed") +
   geom_vline(xintercept = 0, lty = "dashed") +
       geom_vline(xintercept = 500, lty = "dashed") +
-    facet_wrap(~target_label)+
-  theme(legend.position = "bottom")
-```
-
-```{r, cache=T}
-# this existing animacy labels doesn't cover everything we have in the list now
-# animacy_labels <- read_csv(here("metadata","animates.csv"))
-d_aoi <- readRDS(here("cached_intermediates", "1_d_aoi.Rds"))
-
-
-animates <- c(
-  "dog", "cat", "baby", "bird", "cow", "elephant", "lion", "pig", "duck",
-  "frog", "zebra", "monkey", "bear", "doggy", "horse", "clown", "fish", "butterfly",
-  "giraffe", "chicken", "animal", "boy", "puppy", "lamb", "sheep", "rooster", "tiger", "whale",
-  "owl", "caterpillar", "kangaroo", "bunny", "rabbit", "mouse"
-)
-questionable <- c("foot", "mouth", "ear", "hand")
-
-all_targets <- d_aoi |>
-  distinct(target_label) |>
-  rename(item = target_label) |>
-  bind_rows(d_aoi |> distinct(distractor_label) |> rename(item = distractor_label)) |>
-  distinct(item) |>
-  mutate(animate = case_when(
-    item %in% animates ~ "yes",
-    item %in% questionable ~ "yes", # we can decide about body parts later
-    T ~ "no"
-  ))
-
-d_aoi_labelled <- d_aoi |>
-  left_join(all_targets, by = c("target_label" = "item")) |>
-  rename(animate_target = animate) |>
-  left_join(all_targets, by = c("distractor_label" = "item")) |>
-  rename(animate_distractor = animate) |> 
-  mutate(mixed=animate_distractor!=animate_target)
-
-d_aoi_labelled |>filter(t_norm>-1000, t_norm<2000) |> 
-  group_by(animate_target, animate_distractor, t_norm) |>
-  summarize(acc = mean(correct, na.rm = T)) |>
-  mutate(type=case_when(
-    animate_target=="yes"&animate_distractor=="yes"~ "both animate",
-    animate_target=="yes"~ "animate target, \ninanimate distractor",
-    animate_target=="no"&animate_distractor=="no" ~ "both inanimate",
-    T ~ "inanimate target, \nanimate distractor"
-  )) |> mutate(type=factor(type, levels=c("both animate","both inanimate",
-                                          "animate target, \ninanimate distractor",
-                                          "inanimate target, \nanimate distractor" ))) |> saveRDS(here("cached_intermediates", "13_animacy_timecourse.rds"))
-```
-
-# Older
-# Fit models
-
-RT model: 
-
-```{r}
-# mod_rt <- lmer(log_rt ~ log_age_centered +
-#               (1 | administration_id) +
-#               (1 | dataset_name) +
-#               (log_age_centered | target_label),
-#             data = d_rt_dt)
-```
-
-Accuracy model:
-
-```{r}
-lmm_fit <- lmer(
-  long_window_elogit ~ log_age_centered * animate_target +
-    log_age_centered * animate_distractor +
-    (1 | administration_id) +
-    (log_age_centered | dataset_name) +
-    (log_age_centered | target_label) +
-    (1 | distractor_label),
-  data = d_trial,
-  control = lmerControl(optimizer = "bobyqa")
-)
-
-d_trial <- d_trial %>%
-  mutate(
-    animate_target_c = ifelse(animate_target, 0.5, -0.5),
-    animate_distractor_c = ifelse(animate_distractor, 0.5, -0.5)
-  )
-
-lmm_fit_c <- lmer(
-  long_window_elogit ~ log_age_centered * animate_target_c +
-    log_age_centered * animate_distractor_c +
-    (1 | administration_id) +
-    (log_age_centered | dataset_name) +
-    (log_age_centered | target_label) +
-    (1 | distractor_label),
-  data = d_trial,
-  control = lmerControl(optimizer = "bobyqa")
-)
-summary(lmm_fit_c)
-```
-
-
-ANIMACY PLOT INFO
-
-```{r}
-preds <- expand_grid(
-  animate_target = c(TRUE, FALSE),
-  animate_distractor = c(TRUE, FALSE),
-  log_age_centered = seq(
-    min(d_trial$log_age_centered),
-    max(d_trial$log_age_centered), .1
-  )
-)
-preds <- preds |>
-  mutate(
-    .pred = predict(lmm_fit,
-      type = "response",
-      re.form = NA,
-      newdata = preds
-    ),
-    age = exp(log_age_centered + mean(d_trial$log_age))
-  )
-# animate_plot <-
-ggplot(
-  d_trial,
-  aes(x = age, y = long_window_elogit)
-) +
-  geom_point(alpha = .1) +
-  geom_line(
-    data = preds,
-    aes(y = .pred, col = animate_target, lty = animate_distractor),
-    size = 1.5
-  ) +
-  geom_hline(lty = 2, yintercept = 0) +
-  scale_x_continuous(breaks = c(12, 24, 36, 48, 60)) +
-  scale_color_solarized(name = "Animate target") +
-  scale_linetype(name = "Animate distractor") +
-  ylab("Trial-level accuracy (elogit)") +
-  xlab("Age (months)") +
-  ggthemes::theme_few()
-```
-
-Plots for presenting
-
-```{r}
-ggplot(
-  d_trial,
-  aes(x = age, y = long_window_elogit)
-) +
-  geom_point(alpha = .01, height = 0, position = position_jitter(seed = 42, width = 0.2)) +
-  geom_line(
-    data = preds,
-    aes(y = .pred, col = animate_target, lty = animate_distractor),
-    size = 1.5
-  ) +
-  geom_hline(lty = 2, yintercept = 0) +
-  scale_x_continuous(breaks = c(12, 24, 36, 48, 60)) +
-  scale_color_solarized(name = "Target", breaks = c(FALSE, TRUE), labels = c("Inanimate", "Animate")) +
-  scale_linetype(name = "Distractor", breaks = c(FALSE, TRUE), labels = c("Inanimate", "Animate")) +
-  ylab("Trial-level accuracy (elogit)") +
-  xlab("Age (months)") +
-  theme_cowplot(font_size = 20)
-ggsave(here(figure_path, "animacy_effects.png"), width = 10, height = 6, dpi = 600)
-
-ggplot(
-  d_trial,
-  aes(x = age, y = long_window_elogit)
-) +
-  geom_point(alpha = .01, height = 0, position = position_jitter(seed = 42, width = 0.2), color = NA, fill = NA) +
-  geom_line(
-    data = preds,
-    aes(y = .pred, col = animate_target, lty = animate_distractor),
-    size = 1.5,
-    color = NA,
-    fill = NA
-  ) +
-  geom_hline(lty = 2, yintercept = 0) +
-  scale_x_continuous(breaks = c(12, 24, 36, 48, 60)) +
-  scale_color_solarized(name = "Target", breaks = c(FALSE, TRUE), labels = c("Inanimate", "Animate")) +
-  scale_linetype(name = "Distractor", breaks = c(FALSE, TRUE), labels = c("Inanimate", "Animate")) +
-  ylab("Trial-level accuracy (elogit)") +
-  xlab("Age (months)") +
-  theme_cowplot(font_size = 20)
-ggsave(here(figure_path, "animacy_effects_setup.png"), width = 10, height = 6, dpi = 600)
+  theme(legend.position = "bottom")+facet_wrap(~age_bin)
 ```

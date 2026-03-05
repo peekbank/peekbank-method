@@ -39,17 +39,17 @@ acc_test_retest <- function(t_start, t_end, exclude_less_than, look_both) {
     filter(!is.na(accuracy)) |>
     group_by(administration_id, dataset_name, subject_id, pair_number, session_num) |>
     summarize(mean_var = mean(accuracy, na.rm = T), .groups = "drop") |>
-        group_by(dataset_name, subject_id, pair_number) |> 
-    mutate(count=n()) |> 
-    filter(count==2) |> 
-    ungroup()|>
+    group_by(dataset_name, subject_id, pair_number) |>
+    mutate(count = n()) |>
+    filter(count == 2) |>
+    ungroup() |>
     boot_test_retest()
 }
 
 
 cluster <- setup_cluster(
   libs = c("dplyr", "stringr", "purrr", "tidyr", "stats", "tibble", "boot"),
-  copy_names = c("test_retest_corr", "boot_test_retest", "pairs_sim", "acc_test_retest")
+  copy_names = c("safe_boot_ci", "test_retest_corr", "boot_test_retest", "pairs_sim", "acc_test_retest")
 )
 
 

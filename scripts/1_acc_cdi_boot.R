@@ -41,7 +41,7 @@ acc_cdi_age <- function(t_start = -500, t_end = 4000) {
 
 cluster <- setup_cluster(
   libs = c("dplyr", "stringr", "purrr", "tidyr", "stats", "tibble", "boot"),
-  copy_names = c("do_cdi", "cdi_data", "boot_cdi")
+  copy_names = c("safe_boot_ci", "do_cdi", "cdi_data", "boot_cdi")
 )
 
 

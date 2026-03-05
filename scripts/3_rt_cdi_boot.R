@@ -24,7 +24,7 @@ d_rt_dt_byage <- preprocess_rt_dt(rts) |>
 
 cluster <- setup_cluster(
   libs = c("dplyr", "stringr", "purrr", "tidyr", "stats", "tibble", "boot"),
-  copy_names = c("do_cdi", "cdi_data", "boot_cdi")
+  copy_names = c("safe_boot_ci", "do_cdi", "cdi_data", "boot_cdi")
 )
 
 
