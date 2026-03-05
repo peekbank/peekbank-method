@@ -25,10 +25,10 @@ acc_trial_cdi_summarize <- function(d, flags, t_start, t_end, exclude_less_than,
     flags <- filter(flags, pre_looking > 0, pre_looking < 1)
   }
 
-  }
+
   join_cols <- c("dataset_name", "trial_id", "dataset_id", "administration_id", "target_label")
 
-  valid_trial <- d |>
+   d |>
     semi_join(flags, by = join_cols) |>
     filter(t_norm > t_start, t_norm < t_end) |>
     group_by(across(all_of(c(

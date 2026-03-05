@@ -52,7 +52,7 @@ acc_params <- expand_grid(
 
 accs_boot_cdi <- acc_params |>
   mutate(summary_data = pmap(list(t_start, t_end), \(t_s, t_e) acc_cdi(t_s, t_e))) |>
-  partition() |>
+  partition(cluster) |>
   mutate(cdi = map(summary_data, boot_cdi)) |>
   collect() |>
   select(-summary_data) |>
@@ -62,7 +62,7 @@ saveRDS(accs_boot_cdi, "../cached_intermediates/1_acc_cdi_boot.rds")
 
 accs_boot_cdi_byage <- acc_params |>
   mutate(summary_data = pmap(list(t_start, t_end), \(t_s, t_e) acc_cdi_age(t_s, t_e))) |>
-  partition() |>
+  partition(cluster) |>
   mutate(cdi = map(summary_data, \(d) boot_cdi(d, by_age = TRUE))) |>
   collect() |>
   select(-summary_data) |>
