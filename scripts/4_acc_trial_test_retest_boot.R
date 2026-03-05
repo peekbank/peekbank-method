@@ -49,7 +49,7 @@ acc_test_retest <- function(t_start, t_end, exclude_less_than, look_both) {
 
 cluster <- setup_cluster(
   libs = c("dplyr", "stringr", "purrr", "tidyr", "stats", "tibble", "boot"),
-  copy_names = c("safe_boot_ci", "test_retest_corr", "boot_test_retest", "pairs_sim", "acc_test_retest")
+  copy_names = c("safe_boot_ci", "safe_cor", "test_retest_corr", "boot_test_retest", "pairs_sim", "acc_test_retest")
 )
 
 

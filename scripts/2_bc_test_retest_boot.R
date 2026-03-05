@@ -30,7 +30,7 @@ bc_test_retest <- function(b_start, b_end, t_start = -500, t_end = 4000) {
 
 cluster <- setup_cluster(
   libs = c("dplyr", "stringr", "purrr", "tidyr", "stats", "tibble", "boot"),
-  copy_names = c("safe_boot_ci", "test_retest_corr", "boot_test_retest", "pairs_aoi_data_bc", "bc_test_retest")
+  copy_names = c("safe_boot_ci", "safe_cor", "test_retest_corr", "boot_test_retest", "pairs_aoi_data_bc", "bc_test_retest")
 )
 
 

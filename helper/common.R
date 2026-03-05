@@ -159,50 +159,66 @@ safe_boot_ci <- function(b, index) {
   }
 }
 
+safe_cor <- function(x, y) {
+  complete <- !is.na(x) & !is.na(y)
+  if (sum(complete) > 2) {
+    tryCatch(cor.test(x[complete], y[complete])$estimate[[1]], error = function(e) NA_real_)
+  } else {
+    NA_real_
+  }
+}
+
 do_cdi <- function(data, indices) {
-  summ <- data |>
+  d <- data |>
     slice(indices) |>
     left_join(cdi_data) |>
-    ungroup() |>
-    summarise(
-      cor_comp = ifelse(sum(!is.na(comp) & !is.na(mean_var)) > 2, cor.test(mean_var, comp)$estimate, as.numeric(NA)),
-      cor_prod = ifelse(sum(!is.na(prod) & !is.na(mean_var)) > 2, cor.test(mean_var, prod)$estimate, as.numeric(NA)),
-      cor_age = ifelse(sum(!is.na(age) & !is.na(mean_var)) > 2, cor.test(mean_var, age)$estimate, as.numeric(NA))
-    )
-  cors <- c(summ$cor_comp[1], summ$cor_prod[1], summ$cor_age[1])
-  names(cors) <- c("cor_comp", "cor_prod", "cor_age")
+    ungroup()
 
+  cors <- c(
+    cor_comp = safe_cor(d$mean_var, d$comp),
+    cor_prod = safe_cor(d$mean_var, d$prod),
+    cor_age = safe_cor(d$mean_var, d$age)
+  )
   return(cors)
 }
 
 boot_cdi <- function(data, by_age = FALSE) {
+  na_cdi_row <- tibble(
+    comp_est = NA_real_, comp_lower = NA_real_, comp_upper = NA_real_,
+    prod_est = NA_real_, prod_lower = NA_real_, prod_upper = NA_real_,
+    age_est = NA_real_, age_lower = NA_real_, age_upper = NA_real_
+  )
   grp <- if (by_age) c("dataset_name", "age_bin") else "dataset_name"
   data |>
     group_by(across(all_of(grp))) |>
     nest() |>
     mutate(corr = map(data, \(d) {
-      b <- boot::boot(d, do_cdi, 2000)
-      ci_comp <- safe_boot_ci(b, 1)
-      ci_prod <- safe_boot_ci(b, 2)
-      ci_age <- safe_boot_ci(b, 3)
-      tibble(
-        comp_est = b$t0[1], comp_lower = ci_comp$lower, comp_upper = ci_comp$upper,
-        prod_est = b$t0[2], prod_lower = ci_prod$lower, prod_upper = ci_prod$upper,
-        age_est = b$t0[3], age_lower = ci_age$lower, age_upper = ci_age$upper,
-      )
+      tryCatch({
+        b <- boot::boot(d, do_cdi, 2000)
+        ci_comp <- safe_boot_ci(b, 1)
+        ci_prod <- safe_boot_ci(b, 2)
+        ci_age <- safe_boot_ci(b, 3)
+        tibble(
+          comp_est = b$t0[1], comp_lower = ci_comp$lower, comp_upper = ci_comp$upper,
+          prod_est = b$t0[2], prod_lower = ci_prod$lower, prod_upper = ci_prod$upper,
+          age_est = b$t0[3], age_lower = ci_age$lower, age_upper = ci_age$upper,
+        )
+      }, error = function(e) {
+        warning("boot_cdi failed for a group: ", conditionMessage(e))
+        na_cdi_row
+      })
     })) |>
     select(-data) |>
     unnest(corr)
 }
 
 test_retest_corr <- function(data, indices) {
-  summ <- data |>
-    slice(indices) |>
-    summarise(cor_test_retest = ifelse(sum(!is.na(first_admin) & !is.na(second_admin)) > 2, cor.test(first_admin, second_admin)$estimate, NA))
-  return(summ$cor_test_retest[1])
+  d <- data |> slice(indices)
+  return(safe_cor(d$first_admin, d$second_admin))
 }
 
 boot_test_retest <- function(data) {
+  na_tr_row <- tibble(est = NA_real_, lower = NA_real_, upper = NA_real_)
   data |>
     select(-administration_id) |>
     filter(!is.na(mean_var)) |>
@@ -214,9 +230,14 @@ boot_test_retest <- function(data) {
     group_by(dataset_name) |>
     nest() |>
     mutate(corr = map(data, \(d) {
-      b <- boot::boot(d, test_retest_corr, 2000)
-      ci <- safe_boot_ci(b, 1)
-      tibble(est = b$t0, lower = ci$lower, upper = ci$upper)
+      tryCatch({
+        b <- boot::boot(d, test_retest_corr, 2000)
+        ci <- safe_boot_ci(b, 1)
+        tibble(est = b$t0, lower = ci$lower, upper = ci$upper)
+      }, error = function(e) {
+        warning("boot_test_retest failed for a group: ", conditionMessage(e))
+        na_tr_row
+      })
     })) |>
     select(-data) |>
     unnest(corr)

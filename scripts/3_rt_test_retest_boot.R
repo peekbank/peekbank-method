@@ -8,7 +8,7 @@ pairs_long <- make_test_retest_pairs(d_aoi)
 
 cluster <- setup_cluster(
   libs = c("dplyr", "stringr", "purrr", "tidyr", "stats", "tibble", "boot"),
-  copy_names = c("safe_boot_ci", "test_retest_corr", "boot_test_retest")
+  copy_names = c("safe_boot_ci", "safe_cor", "test_retest_corr", "boot_test_retest")
 )
 
 d_rt_dt_long <- preprocess_rt_dt(rts) |>
