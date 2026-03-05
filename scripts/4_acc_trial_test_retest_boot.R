@@ -19,7 +19,7 @@ pairs_sim <- pairs_aoi_data |>
 rm(d_aoi, pairs_aoi_data, pairs_long)
 gc()
 
-acc_test_retest <- function(t_start, t_end, exclude_less_than, look_both) {
+acc_test_retest <- function(t_start, t_end, exclude_less_than, look_both, min_trial) {
   df_temp <- pairs_sim
   if (look_both == "ever") {
     df_temp <- filter(df_temp, total_target_prop > 0, total_target_prop < 1)
@@ -29,7 +29,7 @@ acc_test_retest <- function(t_start, t_end, exclude_less_than, look_both) {
 
   df_temp |>
     filter(t_norm > t_start, t_norm < t_end) |>
-    group_by(administration_id, dataset_name, subject_id, pair_number, session_num, target_label, trial_id) |>
+    group_by(administration_id, dataset_name, subject_id, pair_number, session_num, target_label, trial_id, ) |>
     summarise(
       accuracy = mean(correct, na.rm = TRUE),
       prop_data = mean(!is.na(correct)),
@@ -38,7 +38,13 @@ acc_test_retest <- function(t_start, t_end, exclude_less_than, look_both) {
     filter(prop_data >= exclude_less_than) |>
     filter(!is.na(accuracy)) |>
     group_by(administration_id, dataset_name, subject_id, pair_number, session_num) |>
-    summarize(mean_var = mean(accuracy, na.rm = T), .groups = "drop") |>
+    summarize(
+      mean_var = mean(accuracy, na.rm = T),
+      count = n(),
+      .groups = "drop",
+    ) |>
+    filter(count >= min_trial) |>
+    select(-count) |>
     group_by(dataset_name, subject_id, pair_number) |>
     mutate(count = n()) |>
     filter(count == 2) |>
@@ -57,13 +63,31 @@ acc_params <- expand_grid(
   t_start = c(400),
   t_end = c(2000, 3000, 4000),
   exclude_less_than = c(0, .1, .2, .3, .4, .5, .6, .7, .8, .9, 1),
-  look_both = c("before", "ever", "no_need")
+  look_both = c("before", "ever", "no_need"),
+  min_trial = 1
 )
-accs_boot_test_retest <- acc_params |>
+
+acc_params_kid <- expand_grid(
+  t_start = c(400),
+  t_end = c(2000, 3000, 4000),
+  exclude_less_than = c(0, .2, .5),
+  look_both = c("no_need"),
+  min_trial = c(1, 2, 3, 4, 5, 8, 10, 15)
+)
+
+# accs_boot_test_retest <- acc_params |>
+#   partition(cluster) |>
+#   # head(1) |>
+#   mutate(corr = pmap(list(t_start, t_end, exclude_less_than, look_both, min_trial), \(t_s, t_e, e, l, m) acc_test_retest(t_s, t_e, e, l, m)) |>
+#   collect() |>
+#   unnest(corr)
+#
+# saveRDS(accs_boot_test_retest, "../cached_intermediates/4_acc_trial_test_retest_boot.rds")
+
+kid_accs_boot_test_retest <- acc_params_kid |>
   partition(cluster) |>
-  # head(1) |>
-  mutate(corr = pmap(list(t_start, t_end, exclude_less_than, look_both), \(t_s, t_e, e, l) acc_test_retest(t_s, t_e, e, l))) |>
+  mutate(corr = pmap(list(t_start, t_end, exclude_less_than, look_both, min_trial), \(t_s, t_e, e, l, m) acc_test_retest(t_s, t_e, e, l, m))) |>
   collect() |>
   unnest(corr)
 
-saveRDS(accs_boot_test_retest, "../cached_intermediates/4_acc_trial_test_retest_boot.rds")
+saveRDS(kid_accs_boot_test_retest, "../cached_intermediates/4_acc_kid_test_retest_boot.rds")

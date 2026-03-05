@@ -18,7 +18,7 @@ d_aoi_age <- make_age_bins(d_aoi)
 cdi_data <- readRDS("../cached_intermediates/0_cdi_subjects.rds")
 
 
-acc_trial_cdi_summarize <- function(d, flags, t_start, t_end, exclude_less_than, look_both, min_trials) {
+acc_trial_cdi_summarize <- function(d, flags, t_start, t_end, exclude_less_than, look_both, min_trial) {
   if (look_both == "ever") {
     flags <- filter(flags, total_target_prop > 0, total_target_prop < 1)
   } else if (look_both == "before") {
@@ -28,7 +28,7 @@ acc_trial_cdi_summarize <- function(d, flags, t_start, t_end, exclude_less_than,
 
   join_cols <- c("dataset_name", "trial_id", "dataset_id", "administration_id", "target_label")
 
-   d |>
+  d |>
     semi_join(flags, by = join_cols) |>
     filter(t_norm > t_start, t_norm < t_end) |>
     group_by(across(all_of(c(
@@ -40,13 +40,13 @@ acc_trial_cdi_summarize <- function(d, flags, t_start, t_end, exclude_less_than,
       .groups = "drop"
     ) |>
     filter(prop_data >= exclude_less_than) |>
-    filter(!is.na(accuracy)) |> 
+    filter(!is.na(accuracy)) |>
     group_by(administration_id, dataset_name, across(any_of("age_bin"))) |>
     summarize(
       mean_var = mean(accuracy, na.rm = T),
       count = n(), .groups = "drop"
     ) |>
-    filter(count < min_trials) |>
+    filter(count >= min_trial) |>
     select(-count) |>
     filter(!is.na(mean_var))
 }
@@ -61,15 +61,36 @@ acc_params <- expand_grid(
   # min_trials=c(1,2,3,4,5,8,10, 15)
 )
 
+
+acc_params_kid <- expand_grid(
+  t_start = c(400),
+  t_end = c(2000, 3000, 4000),
+  exclude_less_than = c(0, .2, .5),
+  look_both = c("no_need"),
+  min_trial = c(1, 2, 3, 4, 5, 8, 10, 15)
+)
+
 accs_cdi_summarized <- acc_params |>
   mutate(summary_data = pmap(
-    list(t_start, t_end, exclude_less_than, look_both, min_trials),
+    list(t_start, t_end, exclude_less_than, look_both, min_trial),
     \(t_s, t_e, e, l, m) acc_trial_cdi_summarize(d_aoi, trial_flags, t_s, t_e, e, l, m)
   ))
 
 accs_cdi_summarized_age <- acc_params |>
   mutate(summary_data = pmap(
-    list(t_start, t_end, exclude_less_than, look_both, min_trials),
+    list(t_start, t_end, exclude_less_than, look_both, min_trial),
+    \(t_s, t_e, e, l, m) acc_trial_cdi_summarize(d_aoi_age, trial_flags, t_s, t_e, e, l, m)
+  ))
+
+kid_accs_cdi_summarized <- acc_params_kid |>
+  mutate(summary_data = pmap(
+    list(t_start, t_end, exclude_less_than, look_both, min_trial),
+    \(t_s, t_e, e, l, m) acc_trial_cdi_summarize(d_aoi, trial_flags, t_s, t_e, e, l, m)
+  ))
+
+kid_accs_cdi_summarized_age <- acc_params_kid |>
+  mutate(summary_data = pmap(
+    list(t_start, t_end, exclude_less_than, look_both, min_trial),
     \(t_s, t_e, e, l, m) acc_trial_cdi_summarize(d_aoi_age, trial_flags, t_s, t_e, e, l, m)
   ))
 
@@ -98,3 +119,22 @@ accs_boot_cdi_byage <- accs_cdi_summarized_age |>
   unnest(cdi)
 
 saveRDS(accs_boot_cdi_byage, "../cached_intermediates/4_acc_trial_cdi_boot_byage.rds")
+
+
+kid_accs_boot_cdi <- kid_accs_cdi_summarized |>
+  partition(cluster) |>
+  mutate(cdi = map(summary_data, boot_cdi)) |>
+  collect() |>
+  select(-summary_data) |>
+  unnest(cdi)
+
+saveRDS(kid_accs_boot_cdi, "../cached_intermediates/4_acc_kid_cdi_boot.rds")
+
+kid_accs_boot_cdi_byage <- kid_accs_cdi_summarized_age |>
+  partition(cluster) |>
+  mutate(cdi = map(summary_data, \(d) boot_cdi(d, by_age = TRUE))) |>
+  collect() |>
+  select(-summary_data) |>
+  unnest(cdi)
+
+saveRDS(kid_accs_boot_cdi_byage, "../cached_intermediates/4_acc_kid_cdi_boot_byage.rds")

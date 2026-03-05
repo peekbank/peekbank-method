@@ -16,7 +16,7 @@ d_aoi_age <- make_age_bins(d_aoi)
 # Summarize to trial-level accuracy after applying exclusion filters.
 # Uses trial_flags for look_both filtering via semi_join (avoids full left_join).
 # Includes age_bin in grouping if present in the data.
-summarize_trial_exclusion <- function(d, flags, t_start, t_end, exclude_less_than, look_both) {
+summarize_trial_exclusion <- function(d, flags, t_start, t_end, exclude_less_than, look_both, min_trial) {
   if (look_both == "ever") {
     flags <- filter(flags, total_target_prop > 0, total_target_prop < 1)
   } else if (look_both == "before") {
@@ -38,6 +38,12 @@ summarize_trial_exclusion <- function(d, flags, t_start, t_end, exclude_less_tha
     ) |>
     filter(prop_data >= exclude_less_than) |>
     filter(!is.na(accuracy)) |>
+    group_by(administration_id, dataset_name, across(any_of("age_bin"))) |>
+    mutate(
+      count = n(),
+    ) |>
+    filter(count >= min_trial) |>
+    select(-count) |>
     group_by(across(all_of(c(
       "dataset_name", "dataset_id", "administration_id", "target_label"
     ))), across(any_of("age_bin"))) |>
@@ -62,19 +68,23 @@ acc_params <- expand_grid(
   t_start = c(400),
   t_end = c(2000, 3000, 4000),
   exclude_less_than = c(0, .1, .2, .3, .4, .5, .6, .7, .8, .9, 1),
-  look_both = c("before", "ever", "no_need")
+  look_both = c("before", "ever", "no_need"),
+  min_trial = c(1)
 )
 
 # Pre-compute trial-level summaries on main process
 accs_summarized <- acc_params |>
-  mutate(summary_data = pmap(list(t_start, t_end, exclude_less_than, look_both),
-    \(t_s, t_e, e, l) summarize_trial_exclusion(d_aoi, trial_flags, t_s, t_e, e, l)))
+  mutate(summary_data = pmap(
+    list(t_start, t_end, exclude_less_than, look_both),
+    \(t_s, t_e, e, l) summarize_trial_exclusion(d_aoi, trial_flags, t_s, t_e, e, l)
+  ))
 
 accs_summarized_age <- acc_params |>
-  mutate(summary_data = pmap(list(t_start, t_end, exclude_less_than, look_both),
-    \(t_s, t_e, e, l) summarize_trial_exclusion(d_aoi_age, trial_flags, t_s, t_e, e, l)))
+  mutate(summary_data = pmap(
+    list(t_start, t_end, exclude_less_than, look_both),
+    \(t_s, t_e, e, l) summarize_trial_exclusion(d_aoi_age, trial_flags, t_s, t_e, e, l)
+  ))
 
-rm(d_aoi, d_aoi_age, trial_flags)
 gc()
 
 cluster <- setup_cluster(
@@ -82,20 +92,59 @@ cluster <- setup_cluster(
   copy_names = c("bootstrap_icc", "run_trial_icc_bootstrap")
 )
 
-accs_boot <- accs_summarized |>
+# accs_boot <- accs_summarized |>
+#   partition(cluster) |>
+#   mutate(icc = map(summary_data, run_trial_icc_bootstrap)) |>
+#   collect() |>
+#   select(-summary_data) |>
+#   unnest(col = icc)
+#
+# saveRDS(accs_boot, "../cached_intermediates/4_acc_trial_icc_boot.rds")
+#
+# accs_boot_age <- accs_summarized_age |>
+#   partition(cluster) |>
+#   mutate(icc = map(summary_data, run_trial_icc_bootstrap)) |>
+#   collect() |>
+#   select(-summary_data) |>
+#   unnest(col = icc)
+#
+# saveRDS(accs_boot_age, "../cached_intermediates/4_acc_trial_icc_boot_byage.rds")
+
+acc_params_kid <- expand_grid(
+  t_start = c(400),
+  t_end = c(2000, 3000, 4000),
+  exclude_less_than = c(0, .2, .5),
+  look_both = c("no_need"),
+  min_trial = c(1, 2, 3, 4, 5, 8, 10, 15)
+)
+
+kid_accs_summarized <- acc_params_kid |>
+  mutate(summary_data = pmap(
+    list(t_start, t_end, exclude_less_than, look_both, min_trial),
+    \(t_s, t_e, e, l, m) summarize_trial_exclusion(d_aoi, trial_flags, t_s, t_e, e, l, m)
+  ))
+
+kid_accs_summarized_age <- acc_params_kid |>
+  mutate(summary_data = pmap(
+    list(t_start, t_end, exclude_less_than, look_both, min_trial),
+    \(t_s, t_e, e, l, m) summarize_trial_exclusion(d_aoi_age, trial_flags, t_s, t_e, e, l, m)
+  ))
+
+
+kid_accs_boot <- kid_accs_summarized |>
   partition(cluster) |>
   mutate(icc = map(summary_data, run_trial_icc_bootstrap)) |>
   collect() |>
   select(-summary_data) |>
   unnest(col = icc)
 
-saveRDS(accs_boot, "../cached_intermediates/4_acc_trial_icc_boot.rds")
+saveRDS(kid_accs_boot, "../cached_intermediates/4_acc_kid_icc_boot.rds")
 
-accs_boot_age <- accs_summarized_age |>
+kid_accs_boot_age <- kid_accs_summarized_age |>
   partition(cluster) |>
   mutate(icc = map(summary_data, run_trial_icc_bootstrap)) |>
   collect() |>
   select(-summary_data) |>
   unnest(col = icc)
 
-saveRDS(accs_boot_age, "../cached_intermediates/4_acc_trial_icc_boot_byage.rds")
+saveRDS(kid_accs_boot_age, "../cached_intermediates/4_acc_kid_icc_boot_byage.rds")

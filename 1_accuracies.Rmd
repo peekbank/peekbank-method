@@ -207,6 +207,50 @@ ggplot(
   xlab("Analysis Window (in ms)")
 ```
 
+For datasets with data up to at least 3800
+```{r}
+long_datasets <- d_aoi |> group_by(dataset_name) |> summarize(min_t_norm=min(t_norm), max_t_norm=max(t_norm), count_0=sum(t_norm==0), count_2000=sum(t_norm==2000), count_3800=sum(t_norm==3800)) |> filter(min_t_norm<=0, max_t_norm>=2000) |> filter(count_0/count_2000>.8) |> filter(count_3800/count_2000>.8)
+
+long_datasets
+```
+
+
+```{r}
+icc_noboot |> semi_join(long_datasets) |> group_by(t_start, t_end) |>
+  summarize(
+    N = n(),
+    mean_icc = mean(icc, na.rm = TRUE)
+  ) |>
+  filter(t_start>=0) |> 
+  mutate(window_size = t_end - t_start) |> 
+  ggplot(aes(x = t_start, y = t_end, fill = mean_icc)) +
+  geom_tile(color = "white") +
+  scale_fill_viridis(name = "Mean ICC", option = "inferno") +
+  scale_x_continuous(breaks = c( 0, 500, 1000, 1500)) +
+  xlab("Window Start Time (in ms)") +
+  ylab("Window End Time (in ms)")
+
+icc_noboot |> semi_join(long_datasets) |> group_by(t_start, t_end, dataset_name) |>
+  summarize(
+    N = n(),
+    mean_icc = mean(icc, na.rm = TRUE)
+  ) |>
+  group_by(dataset_name) |> 
+  mutate(relative=mean_icc/max(mean_icc),
+         relative2=mean_icc-max(mean_icc)) |> 
+  filter(t_start>=0, t_start<800) |> 
+  mutate(window_size = t_end - t_start) |> 
+  ggplot(aes(x = t_start, y = t_end, fill = mean_icc)) +
+  geom_tile(color = "white") +
+  scale_fill_viridis(name = "Mean ICC", option = "inferno") +
+  scale_x_continuous(breaks = c( 0, 500, 1000, 1500)) +
+  facet_wrap(~dataset_name)+
+  xlab("Window Start Time (in ms)") +
+  ylab("Window End Time (in ms)")
+
+```
+
+
 
 ```{r}
 icc_noboot_byage <- readRDS(here("cached_intermediates", "1_acc_icc_noboot_byage.rds"))
@@ -279,12 +323,30 @@ acc_boot_summary <- acc_boot |>
   unnest(icc)
 
 
+acc_boot_summary_long <- acc_boot |> semi_join(long_datasets) |> 
+  filter(!is.na(lower), !is.na(upper)) |>
+  mutate(
+    stdev = (upper - lower) / (1.96 * 2),
+    var = stdev**2
+  ) |>
+  group_by(t_start, t_end) |>
+  nest() |>
+  mutate(icc = map(data, \(d){
+    rma(d$est, d$var) |>
+      summary() |>
+      coef()
+  })) |>
+  select(-data) |>
+  unnest(icc)
 ```
 
 Looking overall
 
 ```{r}
 acc_boot_summary |> ggplot(aes(x = t_start, y = estimate, ymin = ci.lb, ymax = ci.ub, color = as.character(t_end))) +
+  geom_pointrange(position = position_dodge(width = 25))
+
+acc_boot_summary_long |> ggplot(aes(x = t_start, y = estimate, ymin = ci.lb, ymax = ci.ub, color = as.character(t_end))) +
   geom_pointrange(position = position_dodge(width = 25))
 ```
 ### by age
@@ -312,7 +374,7 @@ acc_boot_age_summary <- acc_boot_age |>
 
 ```{r}
 acc_boot_age_summary |> ggplot(aes(x = t_start, y = estimate, ymin = ci.lb, ymax = ci.ub, color = as.character(t_end))) +
-  geom_pointrange(position = position_dodge(width = 50))+facet_wrap(~age_bin)+theme(legend.position = "bottom")
+  geom_pointrange(position = position_dodge(width = 50))+facet_wrap(~age_bin, scales="free_y")+theme(legend.position = "bottom")
 
 ```
 
@@ -359,6 +421,36 @@ accs_cdi_summ <-  accs_cdi |>
   })) |>
   select(-data) |>
   unnest(c(comp, prod, age), names_sep="_")
+
+
+accs_cdi_summ_long <-  accs_cdi |> semi_join(long_datasets) |> 
+  mutate(
+    comp_stdev = (comp_upper - comp_lower) / (1.96 * 2),
+    comp_var = comp_stdev**2,
+    prod_stdev = (prod_upper - prod_lower) / (1.96 * 2),
+    prod_var = prod_stdev**2,
+    age_stdev = (age_upper - age_lower) / (1.96 * 2),
+    age_var = age_stdev**2
+  ) |>
+  group_by(t_start, t_end) |>
+  nest() |>
+  mutate(comp= map(data, \(d){
+    rma(d$comp_est, d$comp_var) |>
+      summary() |>
+      coef()
+  }),
+  prod= map(data, \(d){
+    rma(d$prod_est, d$prod_var) |>
+      summary() |>
+      coef()
+  }),
+  age= map(data, \(d){
+    rma(d$age_est, d$age_var) |>
+      summary() |>
+      coef()
+  })) |>
+  select(-data) |>
+  unnest(c(comp, prod, age), names_sep="_")
 ```
 
 
@@ -367,9 +459,10 @@ Correlation with production
 ```{r}
 accs_cdi_summ |> ggplot(aes(x = t_start, y = prod_estimate, ymin=prod_ci.lb, ymax=prod_ci.ub, color=as.character(t_end))) +geom_pointrange(position=position_dodge(width=50))+coord_flip()
 
+accs_cdi_summ_long |> ggplot(aes(x = t_start, y = prod_estimate, ymin=prod_ci.lb, ymax=prod_ci.ub, color=as.character(t_end))) +geom_pointrange(position=position_dodge(width=50))+coord_flip()
 
 accs_cdi |> filter(!is.na(prod_est)) |>  ggplot(aes(x = t_start, y = prod_est, ymin=prod_lower, ymax=prod_upper,  col=as.character(t_end))) +
-  geom_pointrange() +
+  geom_pointrange(position=position_dodge(width=50)) +
   coord_flip() +
   theme(legend.position = "none") +
   facet_wrap(~dataset_name)
@@ -380,6 +473,7 @@ Correlation with comprehension
 ```{r}
 accs_cdi_summ |> ggplot(aes(x = t_start, y = comp_estimate, ymin=comp_ci.lb, ymax=comp_ci.ub, color=as.character(t_end))) +geom_pointrange(position=position_dodge(width=50))+coord_flip()
 
+accs_cdi_summ_long |> ggplot(aes(x = t_start, y = comp_estimate, ymin=comp_ci.lb, ymax=comp_ci.ub, color=as.character(t_end))) +geom_pointrange(position=position_dodge(width=50))+coord_flip()
 
 accs_cdi |> filter(!is.na(comp_est)) |>  ggplot(aes(x = t_start, y = comp_est, ymin=comp_lower, ymax=comp_upper,  col=as.character(t_end))) +
   geom_pointrange() +
@@ -398,6 +492,7 @@ Correlating with age isn't a validity check per se, so much as a "if it doesn't 
 ```{r}
 accs_cdi_summ |> ggplot(aes(x = t_start, y = age_estimate, ymin=age_ci.lb, ymax=age_ci.ub, color=as.character(t_end))) +geom_pointrange(position=position_dodge(width=50))+coord_flip()
 
+accs_cdi_summ_long |> ggplot(aes(x = t_start, y = age_estimate, ymin=age_ci.lb, ymax=age_ci.ub, color=as.character(t_end))) +geom_pointrange(position=position_dodge(width=50))+coord_flip()
 
 accs_cdi|> filter(!is.na(age_est)) |>  ggplot(aes(x = t_start, y = age_est, ymin=age_lower, ymax=age_upper,  col=as.character(t_end))) +
   geom_pointrange() +
@@ -409,6 +504,79 @@ accs_cdi|> filter(!is.na(age_est)) |>  ggplot(aes(x = t_start, y = age_est, ymin
 Overall, there is a positive correlation with age that is not very effected by windowing choices. 
 
 ### by age TODO
+Reliability measures like ICC tell us how consistently we're measuring *something*, but they don't tell us what the *something* we're measuring is. For that, we want a check on validity, so we look at the correlation between accuracy (measured on different windows) with each of CDI production measures, CDI comprehension measures, and age. 
+
+
+
+```{r}
+accs_cdi_byage <- readRDS(here("cached_intermediates", "1_acc_cdi_boot_byage.rds"))
+```
+
+
+```{r}
+library(metafor)
+
+safe_rma <- possibly(\(est, var) {
+  rma(est, var) |> summary() |> coef()
+}, otherwise = NULL)
+
+accs_cdi_summ_age <-  accs_cdi_byage |> 
+  mutate(
+    comp_stdev = (comp_upper - comp_lower) / (1.96 * 2),
+    comp_var = comp_stdev**2,
+    prod_stdev = (prod_upper - prod_lower) / (1.96 * 2),
+    prod_var = prod_stdev**2,
+    age_stdev = (age_upper - age_lower) / (1.96 * 2),
+    age_var = age_stdev**2
+  ) |>
+  group_by(t_start, t_end, age_bin) |>
+  nest() |>
+  mutate(comp= map(data, \(d){
+    safe_rma(d$comp_est, d$comp_var) 
+  }),
+  prod= map(data, \(d){
+   safe_rma(d$comp_est, d$comp_var)
+  }),
+  age= map(data, \(d){
+    safe_rma(d$age_est, d$age_var) 
+  })) |>
+  select(-data) |>
+  unnest(c(comp, prod, age), names_sep="_")
+
+```
+
+
+Correlation with production
+
+```{r}
+accs_cdi_summ_age |> ggplot(aes(x = t_start, y = prod_estimate, ymin=prod_ci.lb, ymax=prod_ci.ub, color=as.character(t_end))) +geom_pointrange(position=position_dodge(width=50))+coord_flip()+facet_wrap(~age_bin)
+
+accs_cdi_byage |> filter(!is.na(prod_est)) |> filter(age_bin=="<18") |>  ggplot(aes(x = t_start, y = prod_est, ymin=prod_lower, ymax=prod_upper,  col=as.character(t_end))) +
+  geom_pointrange(position=position_dodge(width=50)) +
+  coord_flip() +
+  theme(legend.position = "none") +
+  facet_wrap(age_bin~dataset_name)
+```
+All of these show the expected positive correlation between CDI production and accuracy. Kids who say more words are more accurate.
+Correlation with comprehension
+
+```{r}
+accs_cdi_summ_age |> ggplot(aes(x = t_start, y = comp_estimate, ymin=comp_ci.lb, ymax=comp_ci.ub, color=as.character(t_end))) +geom_pointrange(position=position_dodge(width=50))+coord_flip()+facet_wrap(~age_bin)
+
+```
+Looking at comprehension, there aren't big differences, but we see higher correlations with shorter windows (peaking starting at 400ms). For long windows, peak seems to be for really long like 0-4000ms. 
+Again, correlation is positive, as expected!
+
+
+Correlation with age
+
+Correlating with age isn't a validity check per se, so much as a "if it doesn't correlate with age, we worry" check. 
+
+```{r}
+accs_cdi_summ_age |> ggplot(aes(x = t_start, y = age_estimate, ymin=age_ci.lb, ymax=age_ci.ub, color=as.character(t_end))) +geom_pointrange(position=position_dodge(width=50))+coord_flip()+facet_wrap(~age_bin)
+
+```
+Overall, there is a positive correlation with age that is not very effected by windowing choices. 
 
 
 ## Test retest
@@ -538,6 +706,13 @@ by_age |> filter(age_bin%in%c(">=48")) |>
   coord_cartesian(xlim=c(-4000,4050))+
   geom_vline(xintercept=0)+geom_vline(xintercept=2000)+geom_vline(xintercept=3000)+geom_vline(xintercept=4000)+  scale_fill_manual(aesthetics=c("fill", "color"), values=c("target"="darkgreen", "distractor"="red", "missing"="grey", "other"="grey"))+theme(legend.position="bottom")
 ```
+
+# Summary
+Exact numbers don't really matter
+
+In general, there is benefit to going longer (ending around 3000), with 3000/4000 not mattering very much. This is particularly for ICC and TRT. For starting point, relatively later is probably better -- maybe more like 400-500? Does not make a big difference. 
+
+Correlations to CDI are fraught -- sometimes shorter windows look better but this is driven by some datasets where there isn't (any) data for longer, also mostly holds for under 18 months. 
 
 # <-- Older stuff begins here -->
 
