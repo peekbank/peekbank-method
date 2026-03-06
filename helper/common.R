@@ -242,17 +242,17 @@ boot_test_retest <- function(data) {
         group_by(dataset_name) |>
         nest() |>
         mutate(corr = map(data, \(d) {
-          tryCatch(
+          suppressWarnings(tryCatch(
             {
               b <- boot::boot(d, test_retest_corr, 2000)
               ci <- safe_boot_ci(b, 1)
+              print(ci)
               tibble(est = b$t0, lower = ci$lower, upper = ci$upper)
             },
             error = function(e) {
-              warning("boot_test_retest failed for a group: ", conditionMessage(e))
               tibble(est = NA_real_, lower = NA_real_, upper = NA_real_)
             }
-          )
+          ))
         })) |>
         select(-data) |>
         unnest(corr)

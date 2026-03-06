@@ -35,7 +35,7 @@ rt_bootstrap_test_retest <- rt_pairs |>
   cross_join(params) |>
   filter(count >= min_trial) |>
   select(-count) |>
-  group_by(measure, window, time_0, time_end, during, frac) |>
+  group_by(measure, window, time_0, time_end, during, frac, min_trial) |>
   nest() |>
   partition(cluster) |>
   mutate(cdi = map(data, boot_test_retest)) |>
