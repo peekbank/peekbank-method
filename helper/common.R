@@ -222,32 +222,37 @@ test_retest_corr <- function(data, indices) {
 }
 
 boot_test_retest <- function(data) {
-  na_tr_row <- tibble(est = NA_real_, lower = NA_real_, upper = NA_real_)
-  data |>
-    select(-administration_id) |>
-    filter(!is.na(mean_var)) |>
-    group_by(dataset_name, subject_id, pair_number) |>
-    mutate(count = n()) |>
-    filter(count == 2) |>
-    select(-count) |>
-    pivot_wider(names_from = session_num, values_from = mean_var) |>
-    group_by(dataset_name) |>
-    nest() |>
-    mutate(corr = map(data, \(d) {
-      tryCatch(
-        {
-          b <- boot::boot(d, test_retest_corr, 2000)
-          ci <- safe_boot_ci(b, 1)
-          tibble(est = b$t0, lower = ci$lower, upper = ci$upper)
-        },
-        error = function(e) {
-          warning("boot_test_retest failed for a group: ", conditionMessage(e))
-          na_tr_row
-        }
-      )
-    })) |>
-    select(-data) |>
-    unnest(corr)
+  na_tr_row <- tibble(dataset_name = NA_character_, est = NA_real_, lower = NA_real_, upper = NA_real_)
+  tryCatch({
+    data |>
+      select(-administration_id) |>
+      filter(!is.na(mean_var)) |>
+      group_by(dataset_name, subject_id, pair_number) |>
+      mutate(count = n()) |>
+      filter(count == 2) |>
+      select(-count) |>
+      pivot_wider(names_from = session_num, values_from = mean_var) |>
+      group_by(dataset_name) |>
+      nest() |>
+      mutate(corr = map(data, \(d) {
+        tryCatch(
+          {
+            b <- boot::boot(d, test_retest_corr, 2000)
+            ci <- safe_boot_ci(b, 1)
+            tibble(est = b$t0, lower = ci$lower, upper = ci$upper)
+          },
+          error = function(e) {
+            warning("boot_test_retest failed for a group: ", conditionMessage(e))
+            tibble(est = NA_real_, lower = NA_real_, upper = NA_real_)
+          }
+        )
+      })) |>
+      select(-data) |>
+      unnest(corr)
+  }, error = function(e) {
+    warning("boot_test_retest failed entirely: ", conditionMessage(e))
+    na_tr_row
+  })
 }
 
 setup_cluster <- function(libs, copy_names = character(), envir = parent.frame(), n_workers = 16) {

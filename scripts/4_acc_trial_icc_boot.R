@@ -75,14 +75,14 @@ acc_params <- expand_grid(
 # Pre-compute trial-level summaries on main process
 accs_summarized <- acc_params |>
   mutate(summary_data = pmap(
-    list(t_start, t_end, exclude_less_than, look_both),
-    \(t_s, t_e, e, l) summarize_trial_exclusion(d_aoi, trial_flags, t_s, t_e, e, l)
+    list(t_start, t_end, exclude_less_than, look_both, min_trial),
+    \(t_s, t_e, e, l, m) summarize_trial_exclusion(d_aoi, trial_flags, t_s, t_e, e, l, m)
   ))
 
 accs_summarized_age <- acc_params |>
   mutate(summary_data = pmap(
-    list(t_start, t_end, exclude_less_than, look_both),
-    \(t_s, t_e, e, l) summarize_trial_exclusion(d_aoi_age, trial_flags, t_s, t_e, e, l)
+    list(t_start, t_end, exclude_less_than, look_both, min_trial),
+    \(t_s, t_e, e, l, m) summarize_trial_exclusion(d_aoi_age, trial_flags, t_s, t_e, e, l, m)
   ))
 
 gc()

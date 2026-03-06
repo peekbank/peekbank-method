@@ -56,7 +56,7 @@ acc_params <- expand_grid(
   t_end = c(2000, 3000, 4000),
   exclude_less_than = c(0, .1, .2, .3, .4, .5, .6, .7, .8, .9, 1),
   look_both = c("before", "ever", "no_need"),
-  min_trials = c(1) # no restrictions
+  min_trial = c(1) # no restrictions
   # side_bias =c(1.5, 1, .95, .9), #1.5 is equal to none
   # min_trials=c(1,2,3,4,5,8,10, 15)
 )

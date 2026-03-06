@@ -2,7 +2,8 @@ source("../helper/common.R")
 source("../helper/rt_helper.R")
 
 d_aoi <- readRDS("../cached_intermediates/0_d_aoi.rds")
-rts <- readRDS("../cached_intermediates/3_rts.rds")
+rts <- readRDS("../cached_intermediates/3_rts.rds") |>
+  filter(time_0, time_end, frac == 1)
 
 pairs_long <- make_test_retest_pairs(d_aoi)
 
@@ -18,7 +19,7 @@ rt_pairs <- pairs_long |>
   left_join(d_rt_dt_long |> select(
     administration_id, rt, measure, window, time_0, time_end, during,
     frac, dataset_name
-  ))
+  ), relationship = "many-to-many")
 
 rm(d_aoi, rts, d_rt_dt_long, pairs_long)
 gc()
