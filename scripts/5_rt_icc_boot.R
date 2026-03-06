@@ -21,16 +21,19 @@ params <- expand_grid(
 ) |> filter(sample_down <= start_point)
 
 
-rt_iccs <- d_rt_dt |>
-  cross_join(params) |>
-  group_by(dataset_name, administration_id, time_0, window, time_end, during, frac, measure, start_point, sample_down) |>
-  mutate(count = sum(!is.na(rt))) |>
-  filter(count >= start_point) |>
-  select(-count) |>
-  slice_sample(n = sample_down) |>
-  group_by(dataset_name, time_0, window, time_end, during, frac, administration_id, target_label, measure) |>
+rt_iccs <- pmap_dfr(params, \(start_point, sample_down) {
+  d_rt_dt |>
+    group_by(dataset_name, administration_id, time_0, window, time_end, during, frac, measure) |>
+    mutate(count = sum(!is.na(rt))) |>
+    filter(count >= start_point) |>
+    select(-count) |>
+    slice_sample(n = sample_down) |>
+    ungroup() |>
+    mutate(start_point = start_point, sample_down = sample_down)
+}) |>
+  group_by(dataset_name, time_0, window, time_end, during, frac, administration_id, target_label, measure, start_point, sample_down) |>
   mutate(repetition = row_number()) |>
-  group_by(dataset_name, time_0, window, time_end, during, frac, measure) |>
+  group_by(dataset_name, time_0, window, time_end, during, frac, measure, start_point, sample_down) |>
   nest() |>
   partition(cluster) |>
   mutate(icc_admin = map(data, \(d) {

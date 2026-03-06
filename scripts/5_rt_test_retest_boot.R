@@ -29,13 +29,16 @@ params <- expand_grid(
 ) |> filter(sample_down <= start_point)
 
 
-rt_bootstrap_test_retest <- rt_pairs |>
-  group_by(administration_id, dataset_name, subject_id, pair_number, session_num, time_0, time_end, measure, window, during, frac) |>
-  mutate(count = sum(!is.na(rt))) |>
-  cross_join(params) |>
-  filter(count >= start_point) |>
-  select(-count) |>
-  slice_sample(n = sample_down) |>
+rt_bootstrap_test_retest <- pmap_dfr(params, \(start_point, sample_down) {
+  rt_pairs |>
+    group_by(administration_id, dataset_name, subject_id, pair_number, session_num, time_0, time_end, measure, window, during, frac) |>
+    mutate(count = sum(!is.na(rt))) |>
+    filter(count >= start_point) |>
+    select(-count) |>
+    slice_sample(n = sample_down) |>
+    ungroup() |>
+    mutate(start_point = start_point, sample_down = sample_down)
+}) |>
   group_by(administration_id, dataset_name, subject_id, pair_number, session_num, time_0, time_end, measure, window, during, frac, start_point, sample_down) |>
   summarize(mean_var = mean(rt, na.rm = T), .groups = "drop") |>
   group_by(measure, window, time_0, time_end, during, frac, start_point, sample_down) |>
