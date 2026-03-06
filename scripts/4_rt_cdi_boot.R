@@ -31,7 +31,7 @@ cluster <- setup_cluster(
   copy_names = c("safe_boot_ci", "safe_cor", "do_cdi", "cdi_data", "boot_cdi")
 )
 
-params <- expand_grid(c(min_trial = c(1, 2, 3, 4, 5, 6)))
+params <- expand_grid(min_trial = c(1, 2, 3, 4, 5, 6))
 
 rt_boot_cdi <- d_rt_dt |>
   cross_join(params) |>

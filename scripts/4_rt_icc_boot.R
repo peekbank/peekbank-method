@@ -22,7 +22,7 @@ cluster <- setup_cluster(
 )
 
 
-params <- expand_grid(c(min_trial = c(1, 2, 3, 4, 5, 6)))
+params <- expand_grid(min_trial = c(1, 2, 3, 4, 5, 6))
 
 rt_iccs <- d_rt_dt |>
   group_by(dataset_name, time_0, window, time_end, during, frac, administration_id, measure) |>

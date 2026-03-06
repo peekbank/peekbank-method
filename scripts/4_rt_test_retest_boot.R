@@ -23,7 +23,7 @@ rt_pairs <- pairs_long |>
 rm(d_aoi, rts, d_rt_dt_long, pairs_long)
 gc()
 
-params <- expand_grid(c(min_trial = c(1, 2, 3, 4, 5, 6)))
+params <- expand_grid(min_trial = c(1, 2, 3, 4, 5, 6))
 
 rt_bootstrap_test_retest <- rt_pairs |>
   group_by(measure, window, time_0, time_end, during, frac, dataset_name, administration_id, subject_id, pair_number, session_num) |>
