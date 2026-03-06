@@ -5,7 +5,7 @@ d_aoi <- readRDS("../cached_intermediates/0_d_aoi.rds")
 
 age_bin_cutoff <- get_age_bin_cutoff(d_aoi)
 
-rts <- readRDS("../cached_intermediates/3_rts.rds")
+rts <- readRDS("../cached_intermediates/3_rts.rds")|> filter(time_0, time_end, frac==1)
 
 cdi_data <- readRDS("../cached_intermediates/0_cdi_subjects.rds")
 
@@ -29,7 +29,7 @@ cluster <- setup_cluster(
 
 
 rt_boot_cdi <- d_rt_dt |>
-  group_by(time_0, window, time_end, during, frac) |>
+  group_by(time_0, window, time_end, during, frac,measure) |>
   nest() |>
   partition(cluster) |>
   mutate(cdi = map(data, boot_cdi)) |>
@@ -40,7 +40,7 @@ rt_boot_cdi <- d_rt_dt |>
 saveRDS(rt_boot_cdi, "../cached_intermediates/3_rt_cdi_boot.rds")
 
 rt_boot_cdi_byage <- d_rt_dt_byage |>
-  group_by(age_bin, time_0, window, time_end, during, frac) |>
+  group_by(age_bin, time_0, window, time_end, during, frac, measure) |>
   nest() |>
   partition(cluster) |>
   mutate(cdi = map(data, boot_cdi)) |>

@@ -78,7 +78,7 @@ acc_params_kid <- expand_grid(
  accs_boot_test_retest <- acc_params |>
    partition(cluster) |>
    # head(1) |>
-   mutate(corr = pmap(list(t_start, t_end, exclude_less_than, look_both, min_trial), \(t_s, t_e, e, l, m) acc_test_retest(t_s, t_e, e, l, m)) |>
+   mutate(corr = pmap(list(t_start, t_end, exclude_less_than, look_both, min_trial), \(t_s, t_e, e, l, m) acc_test_retest(t_s, t_e, e, l, m))) |>
    collect() |>
    unnest(corr)
 
