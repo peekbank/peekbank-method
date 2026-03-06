@@ -75,14 +75,14 @@ acc_params_kid <- expand_grid(
   min_trial = c(1, 2, 3, 4, 5, 8, 10, 15)
 )
 
-# accs_boot_test_retest <- acc_params |>
-#   partition(cluster) |>
-#   # head(1) |>
-#   mutate(corr = pmap(list(t_start, t_end, exclude_less_than, look_both, min_trial), \(t_s, t_e, e, l, m) acc_test_retest(t_s, t_e, e, l, m)) |>
-#   collect() |>
-#   unnest(corr)
-#
-# saveRDS(accs_boot_test_retest, "../cached_intermediates/4_acc_trial_test_retest_boot.rds")
+ accs_boot_test_retest <- acc_params |>
+   partition(cluster) |>
+   # head(1) |>
+   mutate(corr = pmap(list(t_start, t_end, exclude_less_than, look_both, min_trial), \(t_s, t_e, e, l, m) acc_test_retest(t_s, t_e, e, l, m)) |>
+   collect() |>
+   unnest(corr)
+
+ saveRDS(accs_boot_test_retest, "../cached_intermediates/4_acc_trial_test_retest_boot.rds")
 
 kid_accs_boot_test_retest <- acc_params_kid |>
   partition(cluster) |>
