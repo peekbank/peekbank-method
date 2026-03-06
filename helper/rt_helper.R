@@ -171,5 +171,6 @@ preprocess_rt_dt <- function(rts) {
         .names = "trim_last_{.col}"
       )
     ) |>
-    select(-rt, -shift_start_rt, -last_shift_rt)
+    select(-rt, -shift_start_rt, -last_shift_rt) |>
+    pivot_longer(ends_with("rt"), names_to = "measure", values_to = "rt")
 }

@@ -3,7 +3,7 @@ source("../helper/rt_helper.R")
 
 d_aoi <- readRDS("../cached_intermediates/0_d_aoi.rds")
 rts <- readRDS("../cached_intermediates/3_rts.rds") |>
-  filter(time_0, time_end, frac == 1)
+  filter(time_0, time_end, frac == 1, window == 400)
 
 pairs_long <- make_test_retest_pairs(d_aoi)
 
@@ -23,9 +23,18 @@ rt_pairs <- pairs_long |>
 rm(d_aoi, rts, d_rt_dt_long, pairs_long)
 gc()
 
+params <- expand_grid(c(min_trial = c(1, 2, 3, 4, 5, 6)))
+
 rt_bootstrap_test_retest <- rt_pairs |>
   group_by(measure, window, time_0, time_end, during, frac, dataset_name, administration_id, subject_id, pair_number, session_num) |>
-  summarize(mean_var = mean(rt, na.rm = T)) |>
+  summarize(
+    mean_var = mean(rt, na.rm = T),
+    count = sum(!is.na(rt))
+  ) |>
+  filter(!is.na(mean_var)) |>
+  cross_join(params) |>
+  filter(count >= min_trial) |>
+  select(-count) |>
   group_by(measure, window, time_0, time_end, during, frac) |>
   nest() |>
   partition(cluster) |>
@@ -34,4 +43,4 @@ rt_bootstrap_test_retest <- rt_pairs |>
   select(-data) |>
   unnest(cdi)
 
-saveRDS(rt_bootstrap_test_retest, "../cached_intermediates/3_rt_test_retest_boot.rds")
+saveRDS(rt_bootstrap_test_retest, "../cached_intermediates/4_rt_test_retest_boot.rds")

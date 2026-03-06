@@ -1,14 +1,44 @@
 ---
-title: "Number of trials"
-author: "Mike Frank"
-date: "2022-12-15"
+title: "Simulate number of trials"
+author: "Veronica"
+date: "2026-03-06"
 output: html_document
 ---
 
 ```{r}
 source(here::here("helper/common.R"))
+source(here::here("helper/notebook_helper.R"))
+```
+
+# Acc
+
+Our goal is to determine how different number of hypothetical trials would impact the measure we care about, especially T-RT. 
+
+## Downsampling
+
+One way to look at this is by down-sampling for kids who had more than a threshold of trials
+
+### T-RT
+```{r}
+downsample_trt <- readRDS(here("cached_intermediates/5_acc_downsample_test_retest_boot.rds"))
+downsample_trt_summ <- downsample_trt |> do_meta(c("t_start", "t_end", "sample_down", "start_point"))
+
+```
+
+```{r}
+
+downsample_trt |> filter(t_end==3000) |> ggplot(aes(x=sample_down, y=est, ymin=lower, ymax=upper, color=as.character(dataset_name), group=interaction(t_start, t_end, start_point, dataset_name)))+geom_pointrange()+geom_line()+geom_smooth(aes(group=1))+geom_hline(yintercept=0)+facet_grid(~start_point)+theme(legend.position = "bottom")
+```
+```{r}
+downsample_trt_summ |> ggplot(aes(x=sample_down, y=estimate, ymin=ci.lb, ymax=ci.ub, color=as.character(start_point), group=interaction(t_start, t_end, start_point)))+geom_pointrange()+geom_line()+geom_smooth(aes(group=1))+geom_hline(yintercept=0)+facet_grid(~t_end)+theme(legend.position = "bottom")
+```
+maybe benefits diminish after like 10? trials. 
 
 
+# <Old>
+
+
+```{r}
 d_aoi <- readRDS(here("cached_intermediates", "1_d_aoi.Rds"))
 ```
 

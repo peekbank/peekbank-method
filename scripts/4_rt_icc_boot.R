@@ -5,7 +5,7 @@ d_aoi <- readRDS("../cached_intermediates/0_d_aoi.rds")
 
 age_bin_cutoff <- get_age_bin_cutoff(d_aoi)
 
-rts <- readRDS("../cached_intermediates/3_rts.rds")
+rts <- readRDS("../cached_intermediates/3_rts.rds") |> filter(time_0, time_end, frac == 1, window == 400)
 
 d_rt_dt <- preprocess_rt_dt(rts) |>
   group_by(dataset_name, time_0, window, time_end, during, frac, administration_id, target_label, measure) |>
@@ -21,7 +21,15 @@ cluster <- setup_cluster(
   copy_names = c("bootstrap_icc")
 )
 
+
+params <- expand_grid(c(min_trial = c(1, 2, 3, 4, 5, 6)))
+
 rt_iccs <- d_rt_dt |>
+  group_by(dataset_name, time_0, window, time_end, during, frac, administration_id, measure) |>
+  mutate(count = sum(!is.na(rt))) |>
+  cross_join(params) |>
+  filter(count >= min_trial) |>
+  select(-count) |>
   group_by(dataset_name, time_0, window, time_end, during, frac, measure) |>
   nest() |>
   partition(cluster) |>
@@ -32,9 +40,14 @@ rt_iccs <- d_rt_dt |>
   select(-data) |>
   unnest(icc_admin)
 
-saveRDS(rt_iccs, "../cached_intermediates/3_rt_icc_boot.rds")
+saveRDS(rt_iccs, "../cached_intermediates/4_rt_icc_boot.rds")
 
 rt_iccs_age <- d_rt_dt_byage |>
+  group_by(dataset_name, time_0, window, time_end, during, frac, administration_id, age_bin, measure) |>
+  mutate(count = sum(!is.na(rt))) |>
+  cross_join(params) |>
+  filter(count >= min_trial) |>
+  select(-count) |>
   group_by(dataset_name, time_0, window, time_end, during, frac, age_bin, measure) |>
   nest() |>
   partition(cluster) |>
@@ -44,4 +57,4 @@ rt_iccs_age <- d_rt_dt_byage |>
   collect() |>
   select(-data) |>
   unnest(icc_admin)
-saveRDS(rt_iccs_age, "../cached_intermediates/3_rt_icc_boot_byage.rds")
+saveRDS(rt_iccs_age, "../cached_intermediates/4_rt_icc_boot_byage.rds")
