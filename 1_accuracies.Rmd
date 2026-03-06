@@ -74,8 +74,8 @@ icc_window_sim <- function(t_start = -500, t_end = 4000, object) {
 }
 
 acc_params <- expand_grid(
-  t_start = seq(-1000, 1500, t_increment),
-  t_end = seq(2000, 4000, t_increment),
+  t_start = seq(-500, 1500, 100),
+  t_end = seq(2000, 4000, 100),
   object = c("administration")
 )
 
