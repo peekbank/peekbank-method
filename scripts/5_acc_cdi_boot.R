@@ -13,7 +13,7 @@ downsample_acc_cdi <- function(t_start = -500, t_end = 4000, start_point, sample
     group_by(dataset_name, dataset_id, administration_id, target_label, trial_id) |>
     summarise(
       accuracy = mean(correct, na.rm = TRUE),
-      prop_data = mean(!is.na(correct))
+      prop_data = mean(!is.na(correct)),
       .groups="drop"
     ) |>
     filter(!is.na(accuracy)) |>
