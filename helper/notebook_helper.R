@@ -31,7 +31,7 @@ do_cdi_meta <- function(dataset, grouping_factors) {
       age_stdev = (age_upper - age_lower) / (1.96 * 2),
       age_var = age_stdev**2
     ) |>
-    group_by(all_of(grouping_factors)) |>
+    group_by(across(all_of(grouping_factors))) |>
     nest() |>
     mutate(
       comp = map(data, \(d){
@@ -54,8 +54,9 @@ do_cdi_meta <- function(dataset, grouping_factors) {
     unnest(c(comp, prod, age), names_sep = "_")
 }
 
-do_test_retest_meta <- function(dataset, grouping_factors) {
+do_meta <- function(dataset, grouping_factors) {
   dataset |>
+    filter(!is.na(lower), !is.na(upper)) |>
     mutate(
       stdev = (upper - lower) / (1.96 * 2),
       var = stdev**2,

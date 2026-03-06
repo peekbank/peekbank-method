@@ -66,6 +66,7 @@ make_test_retest_pairs <- function(d_aoi) {
     left_join(repeated_subjects |> select(-age, -n), by = c("dataset_name", "subject_id", "second_admin" = "administration_id")) |>
     ungroup() |>
     mutate(pair_number = row_number()) |>
+    filter(!(dataset_name == "adams_marchman_2018" & mean_age > 28)) |> # these do have multiple sessions but with very different items banks for the two sessions!
     select(-forward_age, -forward_diff, -test_num)
 
   pairs |> pivot_longer(c("first_admin", "second_admin"), names_to = "session_num", values_to = "administration_id")
@@ -193,20 +194,23 @@ boot_cdi <- function(data, by_age = FALSE) {
     group_by(across(all_of(grp))) |>
     nest() |>
     mutate(corr = map(data, \(d) {
-      tryCatch({
-        b <- boot::boot(d, do_cdi, 2000)
-        ci_comp <- safe_boot_ci(b, 1)
-        ci_prod <- safe_boot_ci(b, 2)
-        ci_age <- safe_boot_ci(b, 3)
-        tibble(
-          comp_est = b$t0[1], comp_lower = ci_comp$lower, comp_upper = ci_comp$upper,
-          prod_est = b$t0[2], prod_lower = ci_prod$lower, prod_upper = ci_prod$upper,
-          age_est = b$t0[3], age_lower = ci_age$lower, age_upper = ci_age$upper,
-        )
-      }, error = function(e) {
-        warning("boot_cdi failed for a group: ", conditionMessage(e))
-        na_cdi_row
-      })
+      tryCatch(
+        {
+          b <- boot::boot(d, do_cdi, 2000)
+          ci_comp <- safe_boot_ci(b, 1)
+          ci_prod <- safe_boot_ci(b, 2)
+          ci_age <- safe_boot_ci(b, 3)
+          tibble(
+            comp_est = b$t0[1], comp_lower = ci_comp$lower, comp_upper = ci_comp$upper,
+            prod_est = b$t0[2], prod_lower = ci_prod$lower, prod_upper = ci_prod$upper,
+            age_est = b$t0[3], age_lower = ci_age$lower, age_upper = ci_age$upper,
+          )
+        },
+        error = function(e) {
+          warning("boot_cdi failed for a group: ", conditionMessage(e))
+          na_cdi_row
+        }
+      )
     })) |>
     select(-data) |>
     unnest(corr)
@@ -230,14 +234,17 @@ boot_test_retest <- function(data) {
     group_by(dataset_name) |>
     nest() |>
     mutate(corr = map(data, \(d) {
-      tryCatch({
-        b <- boot::boot(d, test_retest_corr, 2000)
-        ci <- safe_boot_ci(b, 1)
-        tibble(est = b$t0, lower = ci$lower, upper = ci$upper)
-      }, error = function(e) {
-        warning("boot_test_retest failed for a group: ", conditionMessage(e))
-        na_tr_row
-      })
+      tryCatch(
+        {
+          b <- boot::boot(d, test_retest_corr, 2000)
+          ci <- safe_boot_ci(b, 1)
+          tibble(est = b$t0, lower = ci$lower, upper = ci$upper)
+        },
+        error = function(e) {
+          warning("boot_test_retest failed for a group: ", conditionMessage(e))
+          na_tr_row
+        }
+      )
     })) |>
     select(-data) |>
     unnest(corr)

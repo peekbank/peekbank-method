@@ -78,7 +78,251 @@ We need there to be data at t=0 to do RT, so we exclude the borovsky dataset.
 readRDS(here("cached_intermediates", "3_rts.rds")) |> filter(dataset_name!="borovsky_2019") |> left_join(d_aoi |> distinct(administration_id, age)) |> saveRDS(here("cached_intermediates", "3_rts.rds"))
 ```
 
+# Viz
 
+# ICC
+```{r}
+rt_icc <- readRDS(here("cached_intermediates/3_rt_icc_boot.rds"))
+
+rt_icc_meta <- rt_icc |> do_meta(c("window", "time_0", "time_end", "during", "frac", "measure"))
+```
+```{r}
+
+#normie stuff
+rt_icc_meta |> filter(time_0, time_end, during, frac==1) |> mutate(
+    type = case_when(
+      str_detect(measure, "first_launch_rt") ~ "first_launch",
+      str_detect(measure, "last_launch_rt") ~ "last_launch",
+      str_detect(measure, "land_rt") ~ "land"
+    ),
+    logged = case_when(
+      str_detect(measure, "log") ~ "log",
+      T ~ "raw"
+    ),
+    trimming = case_when(
+      str_detect(measure, "trim_first") ~ "trim_first",
+      str_detect(measure, "trim_last") ~ "trim_last",
+      T ~ "untrimmed"
+    )
+  ) |>
+  ggplot(aes(y = estimate, color = window, group=window, x = str_c(logged, " ", type), ymin = ci.lb, ymax = ci.ub)) +
+  geom_pointrange(position=position_dodge(width=.5)) +
+  coord_flip() +
+  facet_wrap(~trimming)+
+  geom_hline(yintercept = .7) +
+  scale_color_viridis(discrete = F)
+```
+getting best out of log land untrimmed (at some value)
+
+```{r}
+#normie stuff
+rt_icc_meta |> filter(time_0, time_end, during, frac==1) |> mutate(
+    type = case_when(
+      str_detect(measure, "first_launch_rt") ~ "first_launch",
+      str_detect(measure, "last_launch_rt") ~ "last_launch",
+      str_detect(measure, "land_rt") ~ "land"
+    ),
+    logged = case_when(
+      str_detect(measure, "log") ~ "log",
+      T ~ "raw"
+    ),
+    trimming = case_when(
+      str_detect(measure, "trim_first") ~ "trim_first",
+      str_detect(measure, "trim_last") ~ "trim_last",
+      T ~ "untrimmed"
+    )
+  ) |>
+  filter(logged=="log", trimming=="untrimmed", type=="land") |> filter(window>300, window<700) |> 
+  ggplot(aes(y = estimate, color = as.character(window), group=as.character(window), x = str_c(logged, " ", type), ymin = ci.lb, ymax = ci.ub)) +
+  geom_pointrange(position=position_dodge(width=.5)) +
+  coord_flip() +
+  facet_wrap(~trimming)+
+  geom_hline(yintercept = .7) +
+  scale_color_viridis(discrete = T)
+```
+
+
+```{r}
+#normie stuff
+rt_icc_meta |> filter(time_0, time_end, during, frac==1) |> mutate(
+    type = case_when(
+      str_detect(measure, "first_launch_rt") ~ "first_launch",
+      str_detect(measure, "last_launch_rt") ~ "last_launch",
+      str_detect(measure, "land_rt") ~ "land"
+    ),
+    logged = case_when(
+      str_detect(measure, "log") ~ "log",
+      T ~ "raw"
+    ),
+    trimming = case_when(
+      str_detect(measure, "trim_first") ~ "trim_first",
+      str_detect(measure, "trim_last") ~ "trim_last",
+      T ~ "untrimmed"
+    )
+  ) |> filter(window>300, window<700) |> 
+  ggplot(aes(y = estimate, color = as.character(window), group=as.character(window), x = str_c(logged, " ", type), ymin = ci.lb, ymax = ci.ub)) +
+  geom_pointrange(position=position_dodge(width=.5)) +
+  coord_flip() +
+  facet_wrap(~trimming)+
+  geom_hline(yintercept = .7) +
+  scale_color_viridis(discrete = T)
+```
+375-400 is the best? 
+
+## weird
+```{r}
+#normie stuff
+rt_icc_meta |> mutate(
+    type = case_when(
+      str_detect(measure, "first_launch_rt") ~ "first_launch",
+      str_detect(measure, "last_launch_rt") ~ "last_launch",
+      str_detect(measure, "land_rt") ~ "land"
+    ),
+    logged = case_when(
+      str_detect(measure, "log") ~ "log",
+      T ~ "raw"
+    ),
+    trimming = case_when(
+      str_detect(measure, "trim_first") ~ "trim_first",
+      str_detect(measure, "trim_last") ~ "trim_last",
+      T ~ "untrimmed"
+    )
+  ) |>
+  filter(logged=="log", trimming=="untrimmed", type=="land") |> filter(window==400) |> 
+  ggplot(aes(y = estimate, color = as.character(frac), group=interaction(frac, during, time_0, time_end), x = str_c(time_0, " ", time_end, " ", during), ymin = ci.lb, ymax = ci.ub)) +
+  geom_pointrange(position=position_dodge(width=.5)) +
+  coord_flip() +
+  facet_wrap(~trimming)+
+  geom_hline(yintercept = .7) +
+  scale_color_viridis(discrete = T)
+```
+you do almost as well even if you don't pay attention to where exactly the child is looking in between 0 and when you start counting as long as it isn't the target. 
+
+## by age
+```{r}
+rt_icc_age <- readRDS(here("cached_intermediates/3_rt_icc_boot_byage.rds"))
+
+rt_icc_age_meta <- rt_icc_age |> do_meta(c("window", "time_0", "time_end", "during", "frac", "measure", "age_bin"))
+```
+
+getting best out of log land untrimmed (at some value)
+
+```{r}
+#normie stuff
+rt_icc_age_meta |> filter(time_0, time_end, during, frac==1) |> mutate(
+    type = case_when(
+      str_detect(measure, "first_launch_rt") ~ "first_launch",
+      str_detect(measure, "last_launch_rt") ~ "last_launch",
+      str_detect(measure, "land_rt") ~ "land"
+    ),
+    logged = case_when(
+      str_detect(measure, "log") ~ "log",
+      T ~ "raw"
+    ),
+    trimming = case_when(
+      str_detect(measure, "trim_first") ~ "trim_first",
+      str_detect(measure, "trim_last") ~ "trim_last",
+      T ~ "untrimmed"
+    )
+  ) |>
+  filter(logged=="log", trimming=="untrimmed", type=="land") |> filter(window>300, window<700) |> 
+  ggplot(aes(y = estimate, color = as.character(window), group=as.character(window), x = str_c(logged, " ", type), ymin = ci.lb, ymax = ci.ub)) +
+  geom_pointrange(position=position_dodge(width=.5)) +
+  coord_flip() +
+  facet_wrap(~age_bin)+
+  geom_hline(yintercept = .7) +
+  scale_color_viridis(discrete = T)
+```
+depends a little on age, but around 400 is reasonable (18-24 might want 500 instead)
+
+```{r}
+#normie stuff
+rt_icc_age_meta |> filter(time_0, time_end, during, frac==1) |> mutate(
+    type = case_when(
+      str_detect(measure, "first_launch_rt") ~ "first_launch",
+      str_detect(measure, "last_launch_rt") ~ "last_launch",
+      str_detect(measure, "land_rt") ~ "land"
+    ),
+    logged = case_when(
+      str_detect(measure, "log") ~ "log",
+      T ~ "raw"
+    ),
+    trimming = case_when(
+      str_detect(measure, "trim_first") ~ "trim_first",
+      str_detect(measure, "trim_last") ~ "trim_last",
+      T ~ "untrimmed"
+    )
+  ) |> filter(window>300, window<700, trimming!="trim_last") |> 
+  ggplot(aes(y = estimate, color = as.character(window), group=as.character(window), x = str_c(logged, " ", type), ymin = ci.lb, ymax = ci.ub)) +
+  geom_pointrange(position=position_dodge(width=.5)) +
+  coord_flip() +
+  facet_wrap(age_bin~trimming)+
+  geom_hline(yintercept = .7) +
+  scale_color_viridis(discrete = T)
+```
+around 400 seems solid across age groups 
+
+# TRT
+
+```{r}
+rt_trt <- readRDS(here("cached_intermediates/3_rt_test_retest_boot.rds"))
+
+rt_trt_meta <- rt_trt |> do_meta(c("window", "time_0", "time_end", "during", "frac", "measure"))
+```
+
+```{r}
+
+#normie stuff
+rt_trt_meta |> filter(time_0, time_end, during, frac==1) |> mutate(
+    type = case_when(
+      str_detect(measure, "first_launch_rt") ~ "first_launch",
+      str_detect(measure, "last_launch_rt") ~ "last_launch",
+      str_detect(measure, "land_rt") ~ "land"
+    ),
+    logged = case_when(
+      str_detect(measure, "log") ~ "log",
+      T ~ "raw"
+    ),
+    trimming = case_when(
+      str_detect(measure, "trim_first") ~ "trim_first",
+      str_detect(measure, "trim_last") ~ "trim_last",
+      T ~ "untrimmed"
+    )
+  ) |>
+  ggplot(aes(y = estimate, color = window, group=window, x = str_c(logged, " ", type), ymin = ci.lb, ymax = ci.ub)) +
+  geom_pointrange(position=position_dodge(width=.5)) +
+  coord_flip() +
+  facet_wrap(~trimming)+
+  geom_hline(yintercept = .7) +
+  scale_color_viridis(discrete = F)
+```
+```{r}
+
+#normie stuff
+rt_trt_meta |> filter(time_0, time_end, during, frac==1) |> mutate(
+    type = case_when(
+      str_detect(measure, "first_launch_rt") ~ "first_launch",
+      str_detect(measure, "last_launch_rt") ~ "last_launch",
+      str_detect(measure, "land_rt") ~ "land"
+    ),
+    logged = case_when(
+      str_detect(measure, "log") ~ "log",
+      T ~ "raw"
+    ),
+    trimming = case_when(
+      str_detect(measure, "trim_first") ~ "trim_first",
+      str_detect(measure, "trim_last") ~ "trim_last",
+      T ~ "untrimmed"
+    )
+  ) |> filter(window<600) |> 
+  ggplot(aes(y = estimate, color = as.character(window), group=as.character(window), x = str_c(logged, " ", type), ymin = ci.lb, ymax = ci.ub)) +
+  geom_pointrange(position=position_dodge(width=.5)) +
+  coord_flip() +
+  facet_wrap(~trimming)+
+  geom_hline(yintercept = .3) +
+  scale_color_viridis(discrete = T)
+```
+test retest favors log land but with earlier cutoffs (200? as low as possible?)
 
 # < Old >
 

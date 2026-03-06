@@ -35,7 +35,7 @@ wordcount         : "X"
 
 bibliography      : ["peekbank-methods-ref.bib"]
 
-floatsintext      : no
+floatsintext      : yes
 linenumbers       : yes
 draft             : no
 mask              : no
@@ -46,6 +46,18 @@ footnotelist      : no
 
 classoption       : "man"
 output            : papaja::apa6_pdf
+header-includes:
+  - \usepackage{threeparttablex}
+  - \usepackage{booktabs}
+  - \usepackage{placeins}
+  - \usepackage{float}
+  - \renewcommand{\textfraction}{0.00}
+  - \renewcommand{\topfraction}{1}
+  - \renewcommand{\bottomfraction}{1}
+  - \renewcommand{\floatpagefraction}{1}
+  - \setcounter{topnumber}{5}
+  - \setcounter{bottomnumber}{5}
+  - \setcounter{totalnumber}{6}  
 ---
 <!-- (title ideas) -->
 
@@ -59,6 +71,9 @@ output            : papaja::apa6_pdf
 
 ```{r setup, include = FALSE}
 library("papaja")
+library("here")
+source(here("helper/common.R"))
+source(here("helper/notebook_helper.R"))
 ```
 
 ```{r analysis-preferences}
@@ -110,21 +125,33 @@ Peekbank provides an independent set of data spanning a large number of items an
 
 # Methods: Dataset and approach
 
-[TO write later]
-Peekbank is an aggregation of datasets from a number of LWL studies. This work is based on Peekbank version YY (released ...) which has ... ZZ trials from YY kids from XX datasets. 
+Peekbank is an aggregation of datasets from a number of LWL studies. This work is based on Peekbank version 2026.1 (released February 2026) which has 134,929 trials from 3915 kids from 44 datasets. 
+<!-- seems annoying to make these numbers reproducible -->
 
 ## Inclusion criteria
 We focus our exploration of data processing choices on a set of items where we have the clearest expectations around what we are trying to measure. While LWL is also used to study a variety of experimental effects, such as the effects of noise, novel word learning, expectations of mutual exclusivity, inferences from selective verbs, blah blah, these items may index different constructs. 
 We limit our analyses to trials where both the target and distractor are real nouns, the carrier phrase is neutral with no experimental manipulation. Some of these trials are from experiments focused on vocabulary learning, others are filler trials from novel word learning experiments, and others are the control conditions of experiments manipulating pronunciation or noise. 
+We only include trials from childen 60 months or younger. We do not place restrictions on the language of the trials or children's language background. 
 
-Filter to children less than 60 months [why again? probably not many vanilla trials on >60 ? not really doing "word learning" at that point?]
 ## Descriptives 
-Descriptives on datasets/number of trials -- TODO
 
-[number of kids/trials with CDI prod]
-[number of kids/trials with CDI comp]
-[number of kids/trials with test-retest]
 
+```{r, eval=F}
+included <- readRDS(here("cached_intermediates/0_d_aoi.rds")) |>
+  filter(!is.na(correct)) |>
+  distinct(administration_id, dataset_id, trial_id, subject_id, age)
+
+dataset_summ <- included |>
+  left_join(readRDS(here("cached_intermediates/0_cdi_subjects.rds"))) |>
+  saveRDS(here("cached_intermediates/paper_dataset_summary.rds"))
+```
+
+```{r}
+dataset_summ <- readRDS(here("cached_intermediates/paper_dataset_summary.rds"))
+```
+
+
+This paper is based on `r dataset_summ |> distinct(dataset_id) |> nrow()` datasets, comprising `r dataset_summ |> distinct(subject_id) |> nrow()` children, `r dataset_summ |> distinct(administration_id) |> nrow()` administrations, and `r dataset_summ |> distinct(trial_id) |> nrow()` trials. There is MB-CDI comprehension scores for `r dataset_summ |> filter(!is.na(comp)) |> distinct(subject_id) |> nrow()` children from `r dataset_summ |> filter(!is.na(comp)) |> distinct(dataset_id) |> nrow()` of the datasets, and MB-CDI production scores for `r dataset_summ |> filter(!is.na(prod)) |> distinct(subject_id) |> nrow()` children from `r dataset_summ |> filter(!is.na(prod)) |> distinct(dataset_id) |> nrow()` of the datasets. Our test-retest data comes from `r make_test_retest_pairs(dataset_summ) |> distinct(dataset_name) |> nrow()` datasets with multiple administrations within 1.5 months of each other, covering `r make_test_retest_pairs(dataset_summ) |> distinct(subject_id) |> nrow()` children (`r make_test_retest_pairs(dataset_summ) |> distinct(pair_number) |> nrow()` administration pairs). 
 
 ## Approach
 
@@ -140,14 +167,14 @@ Throughout we use two reliabilty metrics and two validity metrics.
 
 # Data processing recommendations
 
-## Recommendation 1: Measure accuracy over a long time window, such as from 500 ms - 4000 ms after the point of disambiguation.
+## Recommendation 1: Measure accuracy over a long time window, such as from 400 ms - 3000 ms after the point of disambiguation.
 
 [what is accuracy, who uses it, and what is the range of common practice]
 
 In LWL studies, accuracy is calculated as the fraction of time a child is looking at the target divided by the time they are looking at the target or the distractor, measured over some window of time. Typically windows start shortly after the point of disambiguation and continue until a couple seconds later, which is intended to capture the peak of children's stimulus-driven looks to the target. Studies vary in exactly what windows are used [examples of the range of practice]. 
 
 [method/results]
-We calculated the reliabilities for accuracy calculated across a range of different window onsets and offsets [FIGURE YY]. As expected, including time points from before the point of disambiguation decreases reliability. Our initial exploration found a region of high reliability with onsets in the TODO range and offsets in the TODO range. 
+We calculated the reliabilities for accuracy calculated across a range of different window onsets and offsets (\ref{fig:acc-heat-map}). As expected, including time points from before the point of disambiguation decreases reliability. Our initial exploration found a region of high reliability with onsets in the 600-800 range and offsets in the TODO range. 
 
 To further explore the impact of longer windows on other measures including reliability and validity, we focused on the comparison between windows ending at 2000ms, 3000ms, and 4000ms as well as fine-grained options for window onset. 
 
@@ -159,7 +186,53 @@ Exactly when the accuracy window starts is not important, although we recommend 
 
 While we are recommending accuracy be measured over the 500-4000ms window, we want to be clear that other accuracy windows also have reasonable reliability and validity properties. Strong effects are likely to show up in any reasonable window, but for eking the most reliability out of data, we recommend long windows. 
 
-FIGURE:
+
+```{r acc-heat-map, fig.cap="TODO heat map"}
+icc_noboot <- readRDS(here("cached_intermediates", "1_acc_icc_noboot.rds"))
+
+icc_noboot_summary <- icc_noboot |>
+  group_by(t_start, t_end) |>
+  summarize(
+    N = n(),
+    mean_icc = mean(icc, na.rm = TRUE)
+  ) |>
+  mutate(window_size = t_end - t_start)
+
+
+ggplot(icc_noboot_summary, aes(x = t_start, y = t_end, fill = mean_icc)) +
+  geom_tile(color = "white") +
+  scale_fill_viridis(name = "Mean ICC", option = "inferno") +
+  scale_x_continuous(breaks = c(-500, 0, 500, 1000, 1500)) +
+  xlab("Window Start Time (in ms)") +
+  ylab("Window End Time (in ms)")
+```
+
+
+```{r}
+acc_icc <- readRDS(here("cached_intermediates", "1_acc_icc_boot.rds")) |> do_meta(c("t_start", "t_end"))
+
+acc_cdi <- readRDS(here("cached_intermediates", "1_acc_cdi_boot.rds")) |> do_cdi_meta(c("t_start", "t_end"))
+
+acc_test_retest <- readRDS(here("cached_intermediates", "1_acc_test_retest_boot.rds")) |> do_meta(c("t_start", "t_end"))
+
+acc_all <- acc_icc |>
+  mutate(Type = "ICC reliability") |>
+  bind_rows(acc_cdi |> rename(estimate = prod_estimate, ci.lb = prod_ci.lb, ci.ub = prod_ci.ub) |> mutate(Type = "Corr. with CDI Production")) |>
+  bind_rows(acc_cdi |> rename(estimate = comp_estimate, ci.lb = comp_ci.lb, ci.ub = comp_ci.ub) |> mutate(Type = "Corr. with CDI Comp.")) |>
+  bind_rows(acc_test_retest |> mutate(Type = "Test-retest reliability"))
+```
+
+```{r acc-fig-2, fig.cap="another accuracy figure!"}
+acc_all |>
+  filter(t_start %in% c(0, 200, 400, 600, 800, 1000)) |>
+  ggplot(aes(x = t_start, col = as.character(t_end), y = estimate, ymin = ci.lb, group = t_end, ymax = ci.ub)) +
+  geom_pointrange(position = position_dodge(50)) +
+  coord_flip() +
+  facet_wrap(~Type, scales = "free_x", nrow = 1) +
+  theme(legend.position = "bottom", ) +
+  labs(y = "Correlation", x = "Window start time (ms)", color = "Window end time (ms)") +
+  scale_color_solarized()
+```
 
 ## Recommendation 2: Don’t use baseline correction to control for variation in image saliency.
 
@@ -179,6 +252,64 @@ While intuitively appealing, baseline-corrected accuracy led to worse reliabilit
 Children's looking behavior is noisy, and subtracting one noisy measure from another one results in an even noisier measure. Thus, while baseline-correction may lead to more pleasing grand averages, it creates noisier (that is, less reliable) individual level measures. 
 
 Variation in item properties is a worthwhile concern, but can be better handled at other stages, such as in regression analysis [see Barr et al?] or in the design. 
+```{r, eval=F}
+d_aoi <- readRDS(here("cached_intermediates/0_d_aoi.rds"))
+baseline_lengths <- d_aoi |>
+  group_by(dataset_name) |>
+  summarise(t_min = min(t_norm)) |>
+  filter(t_min < 0)
+
+saveRDS(baseline_lengths, here("cached_intermediates", "2_baseline_lengths.rds"))
+```
+
+
+```{r}
+baseline_lengths <- readRDS(here("cached_intermediates", "2_baseline_lengths.rds"))
+bc_icc <- readRDS(here("cached_intermediates", "2_bc_icc_boot.rds")) |>
+  bind_rows(readRDS(here("cached_intermediates", "1_acc_icc_boot.rds")) |> filter(t_start == 400)) |>
+  filter(t_end==3000) |> 
+  semi_join(baseline_lengths) |>
+  mutate(b_start = ifelse(is.na(b_start), "none", as.character(b_start))) |>
+  do_meta(c("t_start", "t_end", "b_start", "b_end"))
+
+
+bc_cdi <- readRDS(here("cached_intermediates", "2_bc_cdi_boot.rds")) |>
+  bind_rows(readRDS(here("cached_intermediates", "1_acc_cdi_boot.rds")) |> filter(t_start == 400)) |>
+    filter(t_end==3000) |> 
+  semi_join(baseline_lengths) |>
+  mutate(b_start = ifelse(is.na(b_start), "none", as.character(b_start))) |>
+  do_cdi_meta(c("t_start", "t_end", "b_start", "b_end"))
+
+bc_test_retest <- readRDS(here("cached_intermediates", "2_bc_test_retest_boot.rds")) |>
+  bind_rows(readRDS(here("cached_intermediates", "1_acc_test_retest_boot.rds")) |> filter(t_start == 400)) |>
+    filter(t_end==3000) |> 
+  semi_join(baseline_lengths) |>
+  mutate(b_start = ifelse(is.na(b_start), "none", as.character(b_start))) |>
+  do_meta(c("t_start", "t_end", "b_start", "b_end"))
+
+bc_acc_all <- bc_icc |>
+  mutate(Type = "ICC reliability") |>
+  bind_rows(bc_cdi|> rename(estimate = prod_estimate, ci.lb = prod_ci.lb, ci.ub = prod_ci.ub) |> mutate(Type = "Corr. with CDI Prod.")) |>
+  bind_rows(bc_cdi |> rename(estimate = comp_estimate, ci.lb = comp_ci.lb, ci.ub = comp_ci.ub) |> mutate(Type = "Corr. with CDI Comp.")) |>
+  bind_rows(bc_test_retest |> mutate(Type = "Test-retest reliability")) |>
+  mutate(
+    b_end = ifelse(is.na(b_end), "no baseline", as.character(b_end)),
+    b_start = ifelse(b_start == "none", "no baseline", b_start)
+  )
+```
+
+Comparison between baseline-corrected accuracy with different baseline windows and accuracy with no baseline-correction. All datsets with data before time 0 were included.
+
+```{r fig-bc, fig.cap="baseline correction -- just don't do it"}
+bc_acc_all |> ggplot(aes(x = b_start, col = b_end, y = estimate, ymin = ci.lb, group = t_end, ymax = ci.ub)) +
+  geom_pointrange(position = position_dodge2(width = .5)) +
+  coord_flip() +
+  facet_wrap(~Type, scales = "free_x", nrow = 1) +
+  theme(legend.position = "bottom", ) +
+  labs(y = "Correlation", x = "Baseline start time (ms)", color = "Baseline end time (ms)") +
+  scale_color_brewer(palette="Set2")
+```
+
 
 ## Recommendation 3: Measure reaction times with a minimum reaction time of around 400 ms.
 
@@ -267,19 +398,30 @@ For RT, it seems much better to have 2 RTs rather than just 1 whenever possible.
 (note for discussion: Alvin brings up that up-sampling might be artificially inflating reliability. may want to consider alternatives or make sure results are consistent with downsample only results??)
 
 ## Recommendation 6: Match target and distractor images based on animacy.
-As alluded to above, one way to decrease concerns around unequal baseline looking patterns is to match stimuli so children overall look at both equally. One factor that plays a large role in children's looking preference is animacy as children prefer to look at animals and humans (and parts of humans). For mixed-animacy trials, children overall look substantially more to the animate option in the pre-stimulus-response window, and are slower to look to inanimates in response to the stimulus. In contrast, children's response to the stimulus shows a similar trajectory between animates and inanimates in trials where the distractor matches the target in animacy. 
+As mentioned in Recommendation 2, one concern with LWL trial design is that children may have preferences for which image to look at separate from the auditory stimuli, and some of their looking behavior may be independent of the auditory stimulus. One approach is to decrease the preference discrepancy between a pair of images, so that overall, in the absense of auditory cues, children prefer to look at both images equally. While there are a number of factors that could play into children's image preferences [citations], one factor that stood out in the data was animacy. Children have a strong preference for looking at animals and humans (and parts of humans). When trials have one animate and one inanimate, children look more at the animate in the pre-stimulus period (Figure \ref{fig:animacy}) and are slower to respond when the inanimate is named. In contrast, for trials with target and distractor matched on animacy, children's early looking patterns are not sensitive to animacy. This difference is particularly relevant for the younger children, whose stimulus-contingent looking behavior is weakest, so more of the looking behavior is driven by animacy (Figure Swhatever). 
 
-[Not sure if there's anything else we want to say about image saliency measures here]
+Another potential concern regarding stimulus preferences is that repeating the same pairs of images may cause children to prefer to look at the image that was previously the target. We investigated this in a series of model [TODO supplement], and found that effects of repeating target labels (and target and distractor images) are likely quite small, with unclear directionality. Repeating the same target nouns and target images, such as in a counterbalanced design, is an acceptable practice. 
 
-Another stimulus preference concern is that repeating image pairs might cause children to develop preferences to look at the image that was previously the target. We investigated this in a series of model [TODO supplement], and found that effects of repeating target labels (and target and distractor images) are likely quite small. Repeating the same target nouns and target images, such as in a counterbalanced design, is an acceptable practice. 
+Animacy is not the only factor affecting children's viewing behavior, but it is an easy to measure one that makes a big difference. Other item variability could be accounted for in the statistical or analytic approach [citation for some approaches]. 
 
-Animacy is not the only factor affecting children's viewing behavior, but it is an easy to measure one that makes a big difference. Other item variability could be accounted for in the analysis. 
+```{r animacy, fig.cap="animacy-plot", out.width="80%"}
+readRDS(here("cached_intermediates/6_animacy.rds")) |> filter(t_norm>=-500, t_norm<=3500) |> 
+  mutate(type=case_when(
+    animate_target=="yes"& animate_distractor=="yes"~"both animate",
+    animate_target=="yes" ~ "animate target, inanimate distractor",
+    animate_target=="no" & animate_distractor=="no" ~ "both inanimate",
+    T ~ "inanimate target, animate distractor")) |> 
+  ggplot(aes(x = t_norm, y = y, ymin=ymin, ymax=ymax, fill = type)) +
+  geom_ribbon(alpha=.5) +
+  geom_line(size=1)+
+  geom_hline(yintercept=.5)+
+  geom_vline(xintercept = 0) +
+      geom_vline(xintercept = 400, lty = "dashed") +
+        geom_vline(xintercept = 3000, lty = "dashed") +
 
-Plot of accuracy over time based on target and distractor animacy. Dashed horizontal line indicates chance and dashed vertical lines indicate the point of disambiguation and start of the recommended accuracy window. 
-
-[TODO could bootstrap for CI around the mean at each time point and get error bands on these]
-
-To check for possible differences in behavior when viewing images for a first or repeated time, we compared time courses for items viewed for the first time with items viewed for a second time. All items had the same distractor-target pairings; some datasets had counterbalancing where what was initially the target was later the distractor, and others kept the same distractor. Here we show items for the first time compared to the same items a second time, based on their prior role. 
+  theme(legend.position = "bottom")+
+  scale_fill_brewer(type="qual",palette=1)
+```
 
 # Discussion
 
@@ -309,6 +451,10 @@ We focused our explorations on the questions that are specific to LWL and where 
 
 * details about how we get ICC and correlations and dataset exclusions and aggregation 
 
+* age split animacy preferences
+* results of order analyses
+
+## Text that might go in supplement
 
 The goal of the peekbank-methods project is to give recommendations about the design and analysis of LWL studies. To do so, we need some criteria for what is a better outcome. Here, we take a "data-driven" approach to look at how different potential data-processing and (using simulation) study design factors affect reliability and validity. 
 

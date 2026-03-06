@@ -1,5 +1,5 @@
 ---
-title: '13: Animacy effects'
+title: '6: Animacy effects'
 author: "Peekbank team"
 date: "2025-08-25"
 output: html_document
@@ -79,49 +79,63 @@ d_aoi_labelled |>
 ```{r}
 d_aoi_summ <- d_aoi_labelled |>filter(t_norm>-1000) |> 
   group_by(animate_target, animate_distractor, t_norm) |>
-  summarize(acc = mean(correct, na.rm = T),
-            se= sd(correct, na.rm=T)/sqrt(sum(!is.na(correct))))
-
-d_aoi_summ |> mutate(lower=acc-1.96*se, upper=acc+1.96*se) |> 
-  ggplot(aes(x = t_norm, y = acc, ymin=lower, ymax=upper, color = interaction(animate_target, animate_distractor))) +
-  geom_line()+
-  geom_linerange()+
-  #geom_ribbon() +
-  geom_hline(yintercept = .5, lty = "dashed") +
-  geom_vline(xintercept = 0, lty = "dashed") +
-      geom_vline(xintercept = 500, lty = "dashed") +
-  theme(legend.position = "bottom")
-```
-
-```{r}
-d_aoi_summ <- d_aoi_labelled |>filter(t_norm>-1000) |> 
-  group_by(animate_target, animate_distractor, t_norm) |>
   summarize(acc = mean_cl_boot(correct))
 
-d_aoi_summ |> mutate(lower=acc-1.96*se, upper=acc+1.96*se) |> 
-  ggplot(aes(x = t_norm, y = acc, ymin=lower, ymax=upper, color = interaction(animate_target, animate_distractor))) +
-  geom_line()+
-  geom_linerange()+
-  #geom_ribbon() +
-  geom_hline(yintercept = .5, lty = "dashed") +
-  geom_vline(xintercept = 0, lty = "dashed") +
-      geom_vline(xintercept = 500, lty = "dashed") +
-  theme(legend.position = "bottom")
+d_aoi_summ |> unnest(acc) |> saveRDS(here("cached_intermediates/6_animacy.rds"))
 ```
 
 ```{r}
 d_aoi_summ_age <- d_aoi_labelled |>filter(t_norm>-1000) |> make_age_bins() |> 
   group_by(animate_target, animate_distractor, t_norm, age_bin) |>
-  summarize(acc = mean(correct, na.rm = T),
-            se= sd(correct, na.rm=T)/sqrt(sum(!is.na(correct))))
+  summarize(acc = mean_cl_boot(correct))
 
-d_aoi_summ_age |> mutate(lower=acc-1.96*se, upper=acc+1.96*se) |> 
-  ggplot(aes(x = t_norm, y = acc, ymin=lower, ymax=upper, color = interaction(animate_target, animate_distractor))) +
-  geom_line()+
-  geom_linerange()+
-  #geom_ribbon() +
+d_aoi_summ_age |> unnest(acc) |> saveRDS(here("cached_intermediates/6_animacy_byage.rds"))
+```
+
+```{r}
+readRDS(here("cached_intermediates/6_animacy.rds")) |> 
+  ggplot(aes(x = t_norm, y = y, ymin=ymin, ymax=ymax, fill = interaction(animate_target, animate_distractor))) +
+  geom_ribbon(alpha=.5) +
+  geom_line(size=1)+
+  geom_hline(yintercept = .5, lty = "dashed") +
+  geom_vline(xintercept = 0, lty = "dashed") +
+      geom_vline(xintercept = 500, lty = "dashed") +
+  theme(legend.position = "bottom")
+```
+
+```{r}
+readRDS(here("cached_intermediates/6_animacy_byage.rds")) |> 
+  ggplot(aes(x = t_norm, y = y, ymin=ymin, ymax=ymax, fill = interaction(animate_target, animate_distractor))) +
+  geom_ribbon(alpha=.5) +
+  geom_line(size=1)+
   geom_hline(yintercept = .5, lty = "dashed") +
   geom_vline(xintercept = 0, lty = "dashed") +
       geom_vline(xintercept = 500, lty = "dashed") +
   theme(legend.position = "bottom")+facet_wrap(~age_bin)
 ```
+
+```{r}
+d_aoi_labelled |> distinct(target_label, animate_distractor, trial_id) |> group_by(target_label, animate_distractor) |> tally() |> filter(n>200) |> group_by(target_label) |> mutate(count=n()) |> filter(count>1) |> View()
+```
+
+
+```{r}
+d_aoi_labelled |> filter(target_label=="dog") |>filter(t_norm>-1000) |> make_age_bins() |> 
+  group_by(animate_target, animate_distractor, t_norm, age_bin) |>
+  summarize(acc = mean(correct, na.rm=T))|> ggplot(aes(x = t_norm, y = acc,  color= interaction(animate_target, animate_distractor))) +
+  geom_line(size=1)+
+  geom_hline(yintercept = .5, lty = "dashed") +
+  geom_vline(xintercept = 0, lty = "dashed") +
+      geom_vline(xintercept = 500, lty = "dashed") +
+  theme(legend.position = "bottom")+facet_wrap(~age_bin)
+
+d_aoi_labelled |> filter(target_label=="book") |>filter(t_norm>-1000) |> make_age_bins() |> 
+  group_by(animate_target, animate_distractor, t_norm, age_bin) |>
+  summarize(acc = mean(correct, na.rm=T))|> ggplot(aes(x = t_norm, y = acc,  color= interaction(animate_target, animate_distractor))) +
+  geom_line(size=1)+
+  geom_hline(yintercept = .5, lty = "dashed") +
+  geom_vline(xintercept = 0, lty = "dashed") +
+      geom_vline(xintercept = 500, lty = "dashed") +
+  theme(legend.position = "bottom")+facet_wrap(~age_bin)
+```
+
