@@ -48,7 +48,8 @@ acc_trial_cdi_summarize <- function(d, flags, t_start, t_end, exclude_less_than,
     ) |>
     filter(count >= min_trial) |>
     select(-count) |>
-    filter(!is.na(mean_var))
+    filter(!is.na(mean_var)) |>
+    left_join(cdi_data)
 }
 
 acc_params <- expand_grid(
@@ -99,7 +100,7 @@ gc()
 
 cluster <- setup_cluster(
   libs = c("dplyr", "stringr", "purrr", "tidyr", "stats", "tibble", "boot"),
-  copy_names = c("safe_boot_ci", "safe_cor", "do_cdi", "cdi_data", "boot_cdi")
+  copy_names = c("safe_boot_ci", "safe_cor", "do_cdi", "boot_cdi")
 )
 
 accs_boot_cdi <- accs_cdi_summarized |>

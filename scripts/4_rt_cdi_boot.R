@@ -28,7 +28,7 @@ d_rt_dt_byage <- preprocess_rt_dt(rts) |>
 
 cluster <- setup_cluster(
   libs = c("dplyr", "stringr", "purrr", "tidyr", "stats", "tibble", "boot"),
-  copy_names = c("safe_boot_ci", "safe_cor", "do_cdi", "cdi_data", "boot_cdi")
+  copy_names = c("safe_boot_ci", "safe_cor", "do_cdi", "boot_cdi")
 )
 
 params <- expand_grid(min_trial = c(1, 2, 3, 4, 5, 6))
@@ -37,11 +37,12 @@ rt_boot_cdi <- d_rt_dt |>
   cross_join(params) |>
   filter(count >= min_trial) |>
   select(-count) |>
+  left_join(cdi_data) |> 
   group_by(time_0, window, time_end, during, frac, measure, min_trial) |>
-  nest() |>
-  partition(cluster) |>
+  nest() |> 
+  #partition(cluster) |>
   mutate(cdi = map(data, boot_cdi)) |>
-  collect() |>
+  #collect() |>
   select(-data) |>
   unnest(cdi)
 
@@ -51,6 +52,7 @@ rt_boot_cdi_byage <- d_rt_dt_byage |>
   cross_join(params) |>
   filter(count >= min_trial) |>
   select(-count) |>
+  left_join(cdi_data) |> 
   group_by(age_bin, time_0, window, time_end, during, frac, measure, min_trial) |>
   nest() |>
   partition(cluster) |>

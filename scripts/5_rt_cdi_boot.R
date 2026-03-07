@@ -13,7 +13,7 @@ cdi_data <- readRDS("../cached_intermediates/0_cdi_subjects.rds")
 
 cluster <- setup_cluster(
   libs = c("dplyr", "stringr", "purrr", "tidyr", "stats", "tibble", "boot"),
-  copy_names = c("safe_boot_ci", "safe_cor", "do_cdi", "cdi_data", "boot_cdi")
+  copy_names = c("safe_boot_ci", "safe_cor", "do_cdi", "boot_cdi")
 )
 
 params <- expand_grid(
@@ -36,6 +36,7 @@ rt_boot_cdi <- pmap_dfr(params, \(start_point, sample_down) {
   group_by(dataset_name, administration_id, time_0, window, time_end, during, frac, measure, start_point, sample_down) |>
   summarize(mean_var = mean(rt, na.rm = T), .groups = "drop") |>
   filter(!is.na(mean_var)) |>
+  left_join(cdi_data) |>
   group_by(time_0, window, time_end, during, frac, measure, start_point, sample_down) |>
   nest() |>
   partition(cluster) |>

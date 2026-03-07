@@ -19,7 +19,8 @@ acc_cdi <- function(t_start = -500, t_end = 4000) {
     filter(!is.na(accuracy)) |>
     group_by(administration_id, dataset_name) |>
     summarize(mean_var = mean(accuracy, na.rm = T)) |>
-    filter(!is.na(mean_var))
+    filter(!is.na(mean_var)) |>
+    left_join(cdi_data)
 }
 
 
@@ -36,12 +37,13 @@ acc_cdi_age <- function(t_start = -500, t_end = 4000) {
     filter(!is.na(accuracy)) |>
     group_by(administration_id, dataset_name, age_bin) |>
     summarize(mean_var = mean(accuracy, na.rm = T)) |>
-    filter(!is.na(mean_var))
+    filter(!is.na(mean_var)) |>
+    left_join(cdi_data)
 }
 
 cluster <- setup_cluster(
   libs = c("dplyr", "stringr", "purrr", "tidyr", "stats", "tibble", "boot"),
-  copy_names = c("safe_boot_ci", "safe_cor", "do_cdi", "cdi_data", "boot_cdi")
+  copy_names = c("safe_boot_ci", "safe_cor", "do_cdi", "boot_cdi")
 )
 
 

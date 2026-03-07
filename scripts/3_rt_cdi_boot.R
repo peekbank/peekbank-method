@@ -12,17 +12,19 @@ cdi_data <- readRDS("../cached_intermediates/0_cdi_subjects.rds")
 d_rt_dt <- preprocess_rt_dt(rts) |>
   group_by(dataset_name, time_0, window, time_end, during, frac, administration_id, measure) |>
   summarize(mean_var = mean(rt, na.rm = T)) |>
-  filter(!is.na(mean_var))
+  filter(!is.na(mean_var)) |>
+  left_join(cdi_data)
 
 d_rt_dt_byage <- preprocess_rt_dt(rts) |>
   inner_join(age_bin_cutoff) |>
   group_by(dataset_name, time_0, window, time_end, during, frac, administration_id, age_bin, measure) |>
   summarize(mean_var = mean(rt, na.rm = T)) |>
-  filter(!is.na(mean_var))
+  filter(!is.na(mean_var)) |>
+  left_join(cdi_data)
 
 cluster <- setup_cluster(
   libs = c("dplyr", "stringr", "purrr", "tidyr", "stats", "tibble", "boot"),
-  copy_names = c("safe_boot_ci", "safe_cor", "do_cdi", "cdi_data", "boot_cdi")
+  copy_names = c("safe_boot_ci", "safe_cor", "do_cdi", "boot_cdi")
 )
 
 

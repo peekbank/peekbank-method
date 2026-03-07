@@ -172,7 +172,6 @@ safe_cor <- function(x, y) {
 do_cdi <- function(data, indices) {
   d <- data |>
     slice(indices) |>
-    left_join(cdi_data) |>
     ungroup()
 
   cors <- c(
@@ -194,7 +193,7 @@ boot_cdi <- function(data, by_age = FALSE) {
     group_by(across(all_of(grp))) |>
     nest() |>
     mutate(corr = map(data, \(d) {
-      tryCatch(
+      suppressWarnings(tryCatch(
         {
           b <- boot::boot(d, do_cdi, 2000)
           ci_comp <- safe_boot_ci(b, 1)
@@ -210,7 +209,7 @@ boot_cdi <- function(data, by_age = FALSE) {
           warning("boot_cdi failed for a group: ", conditionMessage(e))
           na_cdi_row
         }
-      )
+      ))
     })) |>
     select(-data) |>
     unnest(corr)
