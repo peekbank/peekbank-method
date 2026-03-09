@@ -35,20 +35,29 @@ do_cdi_meta <- function(dataset, grouping_factors) {
     nest() |>
     mutate(
       comp = map(data, \(d){
-        rma(d$comp_est, d$comp_var) |>
+        d <- d |> filter(!is.na(comp_est), !is.na(comp_var))
+        if(nrow(d)>2)
+        {rma(d$comp_est, d$comp_var) |>
           summary() |>
-          coef()
+          coef()}
+        else{tibble(estimate=NA, se=NA, zval=NA, pval=NA, ci.lb=NA, ci.ub=NA)}
       }),
       prod = map(data, \(d){
-        rma(d$prod_est, d$prod_var) |>
-          summary() |>
-          coef()
+        d <- d |> filter(!is.na(prod_est), !is.na(prod_var))
+        if(nrow(d)>2)
+        {rma(d$prod_est, d$prod_var) |>
+            summary() |>
+            coef()}
+        else{tibble(estimate=NA, se=NA, zval=NA, pval=NA, ci.lb=NA, ci.ub=NA)}
       }),
       age = map(data, \(d){
-        rma(d$age_est, d$age_var) |>
-          summary() |>
-          coef()
-      })
+        d <- d |> filter(!is.na(age_est), !is.na(age_var))
+        if(nrow(d)>2)
+        {rma(d$age_est, d$age_var) |>
+            summary() |>
+            coef()}
+        else{tibble(estimate=NA, se=NA, zval=NA, pval=NA, ci.lb=NA, ci.ub=NA)}
+      }),
     ) |>
     select(-data) |>
     unnest(c(comp, prod, age), names_sep = "_")
@@ -69,4 +78,25 @@ do_meta <- function(dataset, grouping_factors) {
         coef()
     })) |>
     unnest(corr)
+}
+
+regroup_rt <- function(df){
+  df |> filter(time_0, time_end, during, frac==1) |> mutate(
+    type = case_when(
+      str_detect(measure, "first_launch_rt") ~ "first_launch",
+      str_detect(measure, "last_launch_rt") ~ "last_launch",
+      str_detect(measure, "land_rt") ~ "land"
+    ),
+    logged = case_when(
+      str_detect(measure, "log") ~ "log",
+      T ~ "raw"
+    ),
+    trimming = case_when(
+      str_detect(measure, "trim_first") ~ "trim_first",
+      str_detect(measure, "trim_last") ~ "trim_last",
+      T ~ "untrimmed"
+    )
+  ) |> 
+    filter(trimming!="trim_last")
+}
 }
