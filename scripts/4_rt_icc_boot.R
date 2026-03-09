@@ -30,7 +30,7 @@ rt_iccs <- d_rt_dt |>
   cross_join(params) |>
   filter(count >= min_trial) |>
   select(-count) |>
-  group_by(dataset_name, time_0, window, time_end, during, frac, measure) |>
+  group_by(dataset_name, time_0, window, time_end, during, frac, measure, min_trial) |>
   nest() |>
   partition(cluster) |>
   mutate(icc_admin = map(data, \(d) {
@@ -48,7 +48,7 @@ rt_iccs_age <- d_rt_dt_byage |>
   cross_join(params) |>
   filter(count >= min_trial) |>
   select(-count) |>
-  group_by(dataset_name, time_0, window, time_end, during, frac, age_bin, measure) |>
+  group_by(dataset_name, time_0, window, time_end, during, frac, age_bin, measure, min_trial) |>
   nest() |>
   partition(cluster) |>
   mutate(icc_admin = map(data, \(d) {
