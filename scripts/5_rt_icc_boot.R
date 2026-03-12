@@ -11,7 +11,7 @@ d_rt_dt <- preprocess_rt_dt(rts)
 
 cluster <- setup_cluster(
   libs = c("dplyr", "stringr", "purrr", "tidyr", "agreement"),
-  copy_names = c("bootstrap_icc")
+  copy_names = c("bootstrap_icc", "get_icc")
 )
 
 

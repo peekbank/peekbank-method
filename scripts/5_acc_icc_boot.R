@@ -62,7 +62,7 @@ accs_summarized <- params |>
 
 cluster <- setup_cluster(
   libs = c("dplyr", "tidyr", "purrr", "agreement"),
-  copy_names = c("bootstrap_icc", "run_icc_bootstrap")
+  copy_names = c("bootstrap_icc", "run_icc_bootstrap", "get_icc")
 )
 
 accs_boot <- accs_summarized |>

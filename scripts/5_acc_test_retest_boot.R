@@ -40,7 +40,7 @@ acc_downsample_test_retest <- function(t_start, t_end, start_point, sample_down,
     pivot_wider(names_from = session_num, values_from = mean_var) |>
     group_by(dataset_name) |>
     nest() |>
-    test_retest_corr(d, 1:nrow(d))
+    test_retest_corr( 1:nrow(d))
 }
 
 
