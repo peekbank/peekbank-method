@@ -35,16 +35,32 @@ rt_bootstrap_test_retest <- pmap_dfr(params, \(start_point, sample_down) {
     mutate(count = sum(!is.na(rt))) |>
     filter(count >= start_point) |>
     select(-count) |>
+    cross_join(tibble(iteration = 1:100)) |>
+    group_by(administration_id, dataset_name, subject_id, pair_number, session_num, time_0, time_end, measure, window, during, frac, iteration) |>
     slice_sample(n = sample_down) |>
     ungroup() |>
     mutate(start_point = start_point, sample_down = sample_down)
 }) |>
-  group_by(administration_id, dataset_name, subject_id, pair_number, session_num, time_0, time_end, measure, window, during, frac, start_point, sample_down) |>
+  group_by(administration_id, dataset_name, subject_id, pair_number, session_num, time_0, time_end, measure, window, during, frac, start_point, sample_down, iteration) |>
   summarize(mean_var = mean(rt, na.rm = T), .groups = "drop") |>
-  group_by(measure, window, time_0, time_end, during, frac, start_point, sample_down) |>
+  group_by(measure, window, time_0, time_end, during, frac, start_point, sample_down, iteration) |>
   nest() |>
   partition(cluster) |>
-  mutate(cdi = map(data, boot_test_retest)) |>
+  mutate(cdi = map(data, \(d) {
+    wide_data <- d |>
+      select(-administration_id) |>
+      filter(!is.na(mean_var)) |>
+      group_by(dataset_name, subject_id, pair_number) |>
+      mutate(count = n()) |>
+      filter(count == 2) |>
+      select(-count)
+
+    wide_data |>
+      pivot_wider(names_from = session_num, values_from = mean_var) |>
+      group_by(dataset_name) |>
+      nest() |>
+      test_retest_corr(d, 1:nrow(d))
+  })) |>
   collect() |>
   select(-data) |>
   unnest(cdi)

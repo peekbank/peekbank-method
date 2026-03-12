@@ -8,10 +8,8 @@ pairs_aoi_data <- pairs_long |> left_join(d_aoi)
 rm(d_aoi, pairs_long)
 gc()
 
-acc_downsample_test_retest <- function(t_start, t_end, start_point, sample_down) {
-  print(paste(t_start, t_end))
-
-  pairs_aoi_data |>
+acc_downsample_test_retest <- function(t_start, t_end, start_point, sample_down, iter) {
+  d <- pairs_aoi_data |>
     filter(t_norm > t_start, t_norm < t_end) |>
     group_by(administration_id, dataset_name, subject_id, pair_number, session_num, target_label, trial_id) |>
     summarise(
@@ -24,10 +22,25 @@ acc_downsample_test_retest <- function(t_start, t_end, start_point, sample_down)
     mutate(count = n()) |>
     filter(count >= start_point) |>
     select(-count) |>
+    cross_join(tibble(iteration = 1:iter)) |>
+    group_by(administration_id, dataset_name, subject_id, pair_number, session_num, iteration) |>
     slice_sample(n = sample_down) |>
-    group_by(administration_id, dataset_name, subject_id, pair_number, session_num) |>
-    summarize(mean_var = mean(accuracy, na.rm = T), .groups = "drop") |>
-    boot_test_retest()
+    group_by(administration_id, dataset_name, subject_id, pair_number, session_num, iteration) |>
+    summarize(mean_var = mean(accuracy, na.rm = T), .groups = "drop")
+
+  wide_data <- d |>
+    select(-administration_id) |>
+    filter(!is.na(mean_var)) |>
+    group_by(dataset_name, subject_id, pair_number) |>
+    mutate(count = n()) |>
+    filter(count == 2) |>
+    select(-count)
+
+  wide_data |>
+    pivot_wider(names_from = session_num, values_from = mean_var) |>
+    group_by(dataset_name) |>
+    nest() |>
+    test_retest_corr(d, 1:nrow(d))
 }
 
 
@@ -45,9 +58,10 @@ params <- expand_grid(
 ) |> filter(sample_down <= start_point)
 
 acc_downsample <- params |>
+  mutate(iteration = 100) |>
   partition(cluster) |>
   # head(1) |>
-  mutate(corr = pmap(list(t_start, t_end, start_point, sample_down), \(t_s, t_e, s_p, s_d) acc_downsample_test_retest(t_s, t_e, s_p, s_d))) |>
+  mutate(corr = pmap(list(t_start, t_end, start_point, sample_down, iteration), \(t_s, t_e, s_p, s_d, iteration) acc_downsample_test_retest(t_s, t_e, s_p, s_d, iteration))) |>
   collect() |>
   unnest(corr)
 

@@ -84,31 +84,18 @@ make_baseline_corrected <- function(d_aoi) {
 
 
 # key ICC function
-get_icc <- function(x, column = "accuracy", object = "stimulus") {
+get_icc <- function(x, column = "accuracy") {
   x <- x |> filter(!is.na(.data[[column]]))
-  if (object == "stimulus") {
-    iccs <- dim_icc(x,
-      model = "2A",
-      type = "consistency",
-      unit = "average",
-      object = target_label,
-      rater = administration_id,
-      trial = repetition,
-      score = {{ column }},
-      bootstrap = 0
-    )
-  } else {
-    iccs <- dim_icc(x,
-      model = "2A",
-      type = "consistency",
-      unit = "average",
-      object = administration_id,
-      rater = target_label,
-      trial = repetition,
-      score = {{ column }},
-      bootstrap = 0
-    )
-  }
+  iccs <- dim_icc(x,
+    model = "2A",
+    type = "consistency",
+    unit = "average",
+    object = administration_id,
+    rater = target_label,
+    trial = repetition,
+    score = {{ column }},
+    bootstrap = 0
+  )
 
   return(iccs$Inter_ICC)
 }

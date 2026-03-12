@@ -7,7 +7,7 @@ d_aoi_age <- make_age_bins(d_aoi)
 cdi_data <- readRDS("../cached_intermediates/0_cdi_subjects.rds")
 
 
-downsample_acc_cdi <- function(t_start = -500, t_end = 4000, start_point, sample_down) {
+downsample_acc_cdi <- function(t_start = -500, t_end = 4000, start_point, sample_down, iter) {
   d_aoi |>
     filter(t_norm > t_start, t_norm < t_end) |>
     group_by(dataset_name, dataset_id, administration_id, target_label, trial_id) |>
@@ -21,8 +21,10 @@ downsample_acc_cdi <- function(t_start = -500, t_end = 4000, start_point, sample
     mutate(count = n()) |>
     filter(count >= start_point) |>
     select(-count) |>
+    cross_join(tibble(iteration = 1:iter)) |>
+    group_by(administration_id, dataset_name, iteration) |>
     slice_sample(n = sample_down) |>
-    group_by(administration_id, dataset_name) |>
+    group_by(administration_id, dataset_name, iteration) |>
     summarize(mean_var = mean(accuracy, na.rm = T)) |>
     filter(!is.na(mean_var)) |>
     left_join(cdi_data)
@@ -43,11 +45,12 @@ params <- expand_grid(
 ) |> filter(sample_down <= start_point)
 
 accs_boot_cdi <- params |>
-  mutate(summary_data = pmap(list(t_start, t_end, start_point, sample_down), \(t_s, t_e, s_p, s_d) downsample_acc_cdi(t_s, t_e, s_p, s_d))) |>
+  mutate(iteration = 100) |>
+  mutate(summary_data = pmap(list(t_start, t_end, start_point, sample_down, iteration), \(t_s, t_e, s_p, s_d, iteration) downsample_acc_cdi(t_s, t_e, s_p, s_d, iteration))) |>
   partition(cluster) |>
-  mutate(cdi = map(summary_data, boot_cdi)) |>
+  mutate(cdi = map(summary_data, \(d) do_cdi(d, 1:nrow(d)))) |>
   collect() |>
   select(-summary_data) |>
-  unnest(cdi)
+  unnest_wider(cdi)
 
 saveRDS(accs_boot_cdi, "../cached_intermediates/5_acc_cdi_boot.rds")

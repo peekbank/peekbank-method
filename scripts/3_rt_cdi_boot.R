@@ -7,6 +7,8 @@ age_bin_cutoff <- get_age_bin_cutoff(d_aoi)
 
 rts <- readRDS("../cached_intermediates/3_rts.rds") |> filter(time_0, time_end, frac == 1)
 
+rts_weird <- readRDS("../cached_intermediates/3_rts.rds") |> filter(window == 400)
+
 cdi_data <- readRDS("../cached_intermediates/0_cdi_subjects.rds")
 
 d_rt_dt <- preprocess_rt_dt(rts) |>
@@ -22,13 +24,42 @@ d_rt_dt_byage <- preprocess_rt_dt(rts) |>
   filter(!is.na(mean_var)) |>
   left_join(cdi_data)
 
+d_rt_dt_weird <- preprocess_rt_dt(rts_weird) |>
+  filter(measure %in% c("log_land_rt", "land_rt")) |>
+  group_by(dataset_name, time_0, window, time_end, during, frac, administration_id, measure) |>
+  summarize(mean_var = mean(rt, na.rm = T)) |>
+  filter(!is.na(mean_var)) |>
+  left_join(cdi_data)
+
 cluster <- setup_cluster(
   libs = c("dplyr", "stringr", "purrr", "tidyr", "stats", "tibble", "boot"),
   copy_names = c("safe_boot_ci", "safe_cor", "do_cdi", "boot_cdi")
 )
 
 
-rt_boot_cdi <- d_rt_dt |>
+# rt_boot_cdi <- d_rt_dt |>
+#   group_by(time_0, window, time_end, during, frac, measure) |>
+#   nest() |>
+#   partition(cluster) |>
+#   mutate(cdi = map(data, boot_cdi)) |>
+#   collect() |>
+#   select(-data) |>
+#   unnest(cdi)
+#
+# saveRDS(rt_boot_cdi, "../cached_intermediates/3_rt_cdi_boot.rds")
+#
+# rt_boot_cdi_byage <- d_rt_dt_byage |>
+#   group_by(age_bin, time_0, window, time_end, during, frac, measure) |>
+#   nest() |>
+#   partition(cluster) |>
+#   mutate(cdi = map(data, boot_cdi)) |>
+#   collect() |>
+#   select(-data) |>
+#   unnest(cdi)
+#
+# saveRDS(rt_boot_cdi_byage, "../cached_intermediates/3_rt_cdi_boot_byage.rds")
+
+rt_boot_cdi_weird <- d_rt_dt_weird |>
   group_by(time_0, window, time_end, during, frac, measure) |>
   nest() |>
   partition(cluster) |>
@@ -37,15 +68,4 @@ rt_boot_cdi <- d_rt_dt |>
   select(-data) |>
   unnest(cdi)
 
-saveRDS(rt_boot_cdi, "../cached_intermediates/3_rt_cdi_boot.rds")
-
-rt_boot_cdi_byage <- d_rt_dt_byage |>
-  group_by(age_bin, time_0, window, time_end, during, frac, measure) |>
-  nest() |>
-  partition(cluster) |>
-  mutate(cdi = map(data, boot_cdi)) |>
-  collect() |>
-  select(-data) |>
-  unnest(cdi)
-
-saveRDS(rt_boot_cdi_byage, "../cached_intermediates/3_rt_cdi_boot_byage.rds")
+saveRDS(rt_boot_cdi_weird, "../cached_intermediates/3_rt_cdi_boot_weird.rds")

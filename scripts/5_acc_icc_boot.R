@@ -6,7 +6,7 @@ d_aoi_age <- make_age_bins(d_aoi)
 
 # Summarize timepoint-level data to trial-level accuracy.
 # Includes age_bin in grouping if present in the data.
-downsample_summarize_accuracy <- function(d, t_start, t_end, start_point, sample_down) {
+downsample_summarize_accuracy <- function(d, t_start, t_end, start_point, sample_down, iter) {
   d |>
     filter(t_norm > t_start, t_norm < t_end) |>
     group_by(across(all_of(c(
@@ -24,8 +24,12 @@ downsample_summarize_accuracy <- function(d, t_start, t_end, start_point, sample
     mutate(count = n()) |>
     filter(count >= start_point) |>
     select(-count) |>
+    cross_join(tibble(iteration = 1:iter)) |>
+    group_by(iteration, across(all_of(c(
+      "dataset_name", "dataset_id", "administration_id"
+    ))), across(any_of("age_bin"))) |>
     slice_sample(n = sample_down) |>
-    group_by(across(all_of(c(
+    group_by(iteration, across(all_of(c(
       "dataset_name", "dataset_id", "administration_id", "target_label"
     ))), across(any_of("age_bin"))) |>
     mutate(repetition = row_number()) |>
@@ -37,7 +41,7 @@ run_icc_bootstrap <- function(d) {
   d |>
     group_by(dataset_name, across(any_of("age_bin"))) |>
     nest() |>
-    mutate(icc = map(data, \(x) bootstrap_icc(x, "accuracy", 2000))) |>
+    mutate(icc = map(data, \(x) get_icc(x, "accuracy"))) |>
     select(-data) |>
     unnest(icc)
 }
@@ -52,7 +56,8 @@ params <- expand_grid(
 
 # Pre-compute trial-level summaries on main process
 accs_summarized <- params |>
-  mutate(summary_data = pmap(list(t_start, t_end, start_point, sample_down), \(t_s, t_e, s_p, s_d) downsample_summarize_accuracy(d_aoi, t_s, t_e, s_p, s_d)))
+  mutate(iteration = 100) |>
+  mutate(summary_data = pmap(list(t_start, t_end, start_point, sample_down, iteration), \(t_s, t_e, s_p, s_d, iteration) downsample_summarize_accuracy(d_aoi, t_s, t_e, s_p, s_d, iteration)))
 
 
 cluster <- setup_cluster(

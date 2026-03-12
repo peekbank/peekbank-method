@@ -27,17 +27,19 @@ rt_iccs <- pmap_dfr(params, \(start_point, sample_down) {
     mutate(count = sum(!is.na(rt))) |>
     filter(count >= start_point) |>
     select(-count) |>
+    cross_join(tibble(iteration = 1:100)) |>
+    group_by(dataset_name, administration_id, time_0, window, time_end, during, frac, measure, iteration) |>
     slice_sample(n = sample_down) |>
     ungroup() |>
     mutate(start_point = start_point, sample_down = sample_down)
 }) |>
-  group_by(dataset_name, time_0, window, time_end, during, frac, administration_id, target_label, measure, start_point, sample_down) |>
+  group_by(dataset_name, time_0, window, time_end, during, frac, administration_id, target_label, measure, start_point, sample_down, iteration) |>
   mutate(repetition = row_number()) |>
-  group_by(dataset_name, time_0, window, time_end, during, frac, measure, start_point, sample_down) |>
+  group_by(dataset_name, time_0, window, time_end, during, frac, measure, start_point, sample_down, iteration) |>
   nest() |>
   partition(cluster) |>
   mutate(icc_admin = map(data, \(d) {
-    bootstrap_icc(d, column = "rt", bootstrap = 2000)
+    get_icc(d, column = "rt")
   })) |>
   collect() |>
   select(-data) |>
