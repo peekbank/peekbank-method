@@ -32,7 +32,41 @@ downsample_trt_summ |> ggplot(aes(x=sample_down, y=estimate, ymin=ci.lb, ymax=ci
 ```
 maybe benefits diminish after like 10? trials. 
 
+## ICC
+```{r}
+downsample_icc <- readRDS(here("cached_intermediates/5_acc_icc_boot.rds"))
+downsample_icc_summ <- downsample_icc |> do_meta(c("t_start", "t_end", "sample_down", "start_point"))
 
+```
+
+```{r}
+downsample_icc_summ |> filter(t_end==3000) |>  ggplot(aes(x=sample_down, y=estimate, ymin=ci.lb, ymax=ci.ub, color=as.character(start_point), group=interaction(t_start, t_end, start_point)))+geom_pointrange()+geom_line()+geom_hline(yintercept=0)+facet_grid(~t_end)+theme(legend.position = "bottom")
+```
+not meaningful effects 
+
+## CDI
+
+```{r}
+downsample_cdi <- readRDS(here("cached_intermediates/5_acc_cdi_boot.rds"))
+downsample_cdi_summ <- downsample_cdi |> do_cdi_meta(c("t_start", "t_end", "sample_down", "start_point"))
+
+```
+
+
+```{r}
+downsample_cdi_summ |> filter(t_end==3000) |> ggplot(aes(x=sample_down, y=comp_estimate, ymin=comp_ci.lb, ymax=comp_ci.ub, color=as.character(start_point), group=interaction(t_start, t_end, start_point)))+geom_pointrange()+geom_line()+geom_smooth(aes(group=1))+geom_hline(yintercept=0)+theme(legend.position = "bottom")
+
+downsample_cdi_summ |> filter(t_end==3000) |> ggplot(aes(x=sample_down, y=comp_estimate, ymin=comp_ci.lb, ymax=comp_ci.ub, color=as.character(start_point), group=interaction(t_start, t_end, start_point)))+geom_pointrange()+geom_line()+geom_hline(yintercept=0)+theme(legend.position = "bottom")+facet_wrap(~start_point)
+```
+correlation with comp gets better up to 10; unclear thereafter
+
+
+```{r}
+downsample_cdi_summ |> filter(t_end==3000) |> ggplot(aes(x=sample_down, y=prod_estimate, ymin=prod_ci.lb, ymax=prod_ci.ub, color=as.character(start_point), group=interaction(t_start, t_end, start_point)))+geom_pointrange()+geom_line()+geom_smooth(aes(group=1))+geom_hline(yintercept=0)+theme(legend.position = "bottom")
+
+downsample_cdi_summ |> filter(t_end==3000) |> ggplot(aes(x=sample_down, y=prod_estimate, ymin=prod_ci.lb, ymax=prod_ci.ub, color=as.character(start_point), group=interaction(t_start, t_end, start_point)))+geom_pointrange()+geom_line()+geom_hline(yintercept=0)+theme(legend.position = "bottom")+facet_wrap(~start_point)
+```
+also broadly supports a gains til around 10, then less clear
 
 # RT - Downsampling
 
@@ -60,3 +94,50 @@ downsample_trt_summ|> filter(trimming=="untrimmed", type=="land") |> ggplot(aes(
 downsample_trt_summ|> filter(trimming=="untrimmed", type=="land") |> ggplot(aes(x=sample_down, y=estimate, ymin=ci.lb, ymax=ci.ub, color=as.character(start_point), group=interaction(type, logged, trimming, start_point)))+geom_pointrange()+geom_line()+geom_hline(yintercept=0)+facet_grid(logged~start_point)+theme(legend.position = "bottom")+coord_cartesian(ylim=c(-1, 1))
 ```
 RT -- as many as you can get is better -- up to 7, beyond that we don't have dense enough data to know. But note that 7 RT is like 20+ trials 
+
+## ICC
+```{r}
+downsample_rt_icc <- readRDS(here("cached_intermediates/5_rt_icc_boot.rds")) |> regroup_rt() |> 
+  filter(!is.na(est)) |> filter(start_point!=15)
+downsample_rt_icc_summ <- downsample_rt_icc |> do_meta(c("type", "logged", "trimming", "sample_down", "start_point"))
+
+```
+
+```{r}
+downsample_rt_icc_summ|> filter(trimming=="untrimmed", type=="land") |> ggplot(aes(x=sample_down, y=estimate, ymin=ci.lb, ymax=ci.ub, color=as.character(start_point), group=interaction(type, logged, trimming, start_point)))+geom_pointrange()+geom_line()+geom_smooth(aes(group=1))+geom_hline(yintercept=0)+facet_grid(~logged)+theme(legend.position = "bottom")+coord_cartesian(ylim=c(0, 1))
+```
+
+## CDI 
+
+```{r}
+downsample_rt_cdi <- readRDS(here("cached_intermediates/5_rt_cdi_boot.rds")) |> regroup_rt() |> filter(start_point!=15)
+downsample_rt_cdi_summ <- downsample_rt_cdi|> do_cdi_meta(c("type", "logged", "trimming", "sample_down", "start_point"))
+
+```
+
+```{r}
+downsample_rt_cdi_summ|> filter(trimming=="untrimmed", type=="land") |> ggplot(aes(x=sample_down, y=comp_estimate, ymin=comp_ci.lb, ymax=comp_ci.ub, color=as.character(start_point), group=interaction(type, logged, trimming, start_point)))+geom_pointrange()+geom_line()+geom_smooth(aes(group=1))+geom_hline(yintercept=0)+facet_grid(~logged)+theme(legend.position = "bottom")
+```
+
+definitely some error bars, but having like 3+ is better than having less? 
+
+```{r}
+downsample_rt_cdi_summ|> filter(trimming=="untrimmed", type=="land") |> ggplot(aes(x=sample_down, y=prod_estimate, ymin=prod_ci.lb, ymax=prod_ci.ub, color=as.character(start_point), group=interaction(type, logged, trimming, start_point)))+geom_pointrange()+geom_line()+geom_smooth(aes(group=1))+geom_hline(yintercept=0)+facet_grid(~logged)+theme(legend.position = "bottom")
+```
+
+so like 3 or 4 minimum??
+
+
+# Summary
+
+For ICC reliability, there isn't that much sensitivity to number of trials per subject. 
+
+For accuracy trials, having more trials per session increases t-rt reliability up to at least 10 trials, and (at a lower rate) above that. For reliable accuracy measures of individual children/differences, use at least 10 trials / condition. 
+
+For comparison with CDI, definitely at least 10 trials, more is probably better, but the biggest gains are early on. (much much better to have 5 than 1). 
+
+For RT, TRT definitely gains to 5 -- gets a lot harder to measure after that since there are fewer valid pairs. But probably 7 is better than 5.For CDI measures, again high uncertainty, but seem to be gains for having 4 trials? (which means 12+)
+
+If you want stable individual differences of RT, as many trials as possible is important, we recommend aiming for 20 to try to end up with an average around 7 per child, as roughly 1/3 of trials will have a valid RT (other approaches such as gaze-triggering might also be possibilities for increasing the rate of valid RTs). Reasonable correlation with CDI can be reached with 4-5 trials. Hard to say much about benefits of even more trials because there aren't that many kids in the data we have with more trials / session. 
+
+

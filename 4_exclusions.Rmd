@@ -11,6 +11,7 @@ Need to analyze both RT and accuracy.
 
 ```{r}
 source(here::here("helper/common.R"))
+source(here::here("helper/notebook_helper.R"))
 
 d_aoi <- readRDS(here("cached_intermediates", "0_d_aoi.rds"))
 ```
@@ -115,55 +116,24 @@ trial-wise:
 
 
 ```{r}
-trial_boot <- readRDS(here("cached_intermediates/4_acc_trial_icc_boot.rds")) |> unnest(num_trials) |>  group_by(dataset_name, t_start, t_end) |> 
-  mutate(pct=num_trials/max(num_trials))
-```
+trial_boot <- readRDS(here("cached_intermediates/4_acc_trial_icc_boot.rds")) |> unnest(num_trials) 
 
+num_trials <- trial_boot |> group_by(t_start, t_end, exclude_less_than, look_both) |> summarize(num_trials=sum(num_trials, na.rm=T), .groups="drop") |> mutate(pct=num_trials/max(num_trials))
 
-
-
-```{r}
-trial_boot |> ggplot(aes(x = exclude_less_than, y = est, color = pct, group=interaction(look_both, t_end))) +
-  geom_point() +
-  geom_line()+
-  scale_color_viridis(option="inferno")+
-  facet_wrap(~dataset_name)+theme(legend.position = "bottom")
-```
-this is pretty hard to interpret, so we calculate meta-analytic means and ranges for each condition. 
-
-```{r}
-library(metafor)
-trial_boot_summary <- trial_boot |>
-  filter(!is.na(lower), !is.na(upper)) |>
-  mutate(
-    stdev = (upper - lower) / (1.96 * 2),
-    var = stdev**2
-  ) |>
-  group_by(t_start, t_end, exclude_less_than, look_both) |>
-  nest() |>
-  mutate(icc = map(data, \(d){
-    rma(d$est, d$var) |>
-      summary() |>
-      coef()
-  }),
-  n=map(data, \(d) sum(d$num_trials))) |>
-  select(-data) |>
-  unnest(icc) |> 
-  unnest(n) |> 
-  group_by(t_end) |> 
-  mutate(n=n/max(n))
-
+trial_boot_summary <- trial_boot |> do_meta(c("t_start", "t_end", "exclude_less_than", "look_both")) |> left_join(num_trials)
 ```
 
 Looking overall
 
 ```{r}
-trial_boot_summary |> ggplot(aes(x = exclude_less_than, y = estimate, ymin = ci.lb, ymax = ci.ub, color = n)) +
-  geom_pointrange(position=position_dodge(.05))+facet_wrap(~t_end~look_both)+  scale_color_viridis(option="inferno")
+trial_boot_summary |> ggplot(aes(x = exclude_less_than, y = estimate, ymin = ci.lb, ymax = ci.ub, color = pct)) +
+  geom_pointrange(position=position_dodge(.05))+facet_grid(~t_end~look_both)+  scale_color_viridis()
+```
 
 
-trial_boot_summary |> filter(exclude_less_than<.6) |> ggplot(aes(x =n, y = estimate, ymin = ci.lb, ymax = ci.ub, color = exclude_less_than)) +
-  geom_pointrange(position=position_dodge(.05))+facet_wrap(~t_end)+scale_color_viridis()
+```{r}
+trial_boot_summary |> filter(exclude_less_than<.6) |> ggplot(aes(x =pct, y = estimate, ymin = ci.lb, ymax = ci.ub, color = exclude_less_than)) +
+  geom_pointrange()+facet_wrap(~t_end)+scale_color_viridis()
 ```
 
 it's not necessarily crazy to exclude kids who contribute extremely little, also doesn't help that much?
@@ -171,44 +141,20 @@ it's not necessarily crazy to exclude kids who contribute extremely little, also
 ### by age
 
 ```{r}
-trial_boot_age <- readRDS(here("cached_intermediates/4_acc_trial_icc_boot_byage.rds")) |> unnest(num_trials) |>  group_by(dataset_name, t_start, t_end, age_bin) |> 
-  mutate(pct=num_trials/max(num_trials))
+trial_boot_age <- readRDS(here("cached_intermediates/4_acc_trial_icc_boot_byage.rds")) |> unnest(num_trials)
+
+num_trials_age <- trial_boot_age |> group_by(t_start, t_end, exclude_less_than, look_both, age_bin) |> summarize(num_trials=sum(num_trials, na.rm=T), .groups="drop") |> group_by(age_bin) |> mutate(pct=num_trials/max(num_trials))
+
+trial_boot_summary_age <- trial_boot_age |> do_meta(c("t_start", "t_end", "exclude_less_than", "look_both", "age_bin")) |> left_join(num_trials_age)
 ```
 
 
-```{r}
-library(metafor)
-trial_boot_summary_age <- trial_boot_age |>
-  filter(!is.na(lower), !is.na(upper)) |>
-  mutate(
-    stdev = (upper - lower) / (1.96 * 2),
-    var = stdev**2
-  ) |>
-  group_by(t_start, t_end, exclude_less_than, look_both, age_bin) |>
-  nest() |>
-  mutate(icc = map(data, \(d){
-    rma(d$est, d$var) |>
-      summary() |>
-      coef()
-  }),
-  n=map(data, \(d) sum(d$num_trials))) |>
-  select(-data) |>
-  unnest(icc) |> 
-  unnest(n) |> 
-  group_by(t_end, age_bin) |> 
-  mutate(n=n/max(n))
-
-```
 
 Looking overall
 
 ```{r}
-trial_boot_summary_age |> ggplot(aes(x = exclude_less_than, y = estimate, ymin = ci.lb, ymax = ci.ub, color = n)) +
-  geom_pointrange(position=position_dodge(.05))+facet_wrap(~age_bin~t_end~look_both)+  scale_color_viridis(option="inferno")
-
-
-trial_boot_summary_age |> filter(exclude_less_than<.6) |> filter(look_both!="before") |> ggplot(aes(x =n, y = estimate, ymin = ci.lb, ymax = ci.ub, color = exclude_less_than)) +
-  geom_pointrange(position=position_dodge(.05))+facet_wrap(age_bin~t_end)+scale_color_viridis()
+trial_boot_summary_age |> filter(t_end==3000) |> ggplot(aes(x = exclude_less_than, y = estimate, ymin = ci.lb, ymax = ci.ub, color = pct)) +
+  geom_pointrange(position=position_dodge(.05))+facet_grid(~age_bin~look_both)+  scale_color_viridis()
 ```
 
 slight, continuous trade-offs between ICC and how many trials are kept -- primarily driven by the older kids? 
@@ -224,7 +170,7 @@ Reliability measures like ICC tell us how consistently we're measuring *somethin
 ```{r}
 trial_cdi <- readRDS(here("cached_intermediates", "4_acc_trial_cdi_boot.rds"))
 
-trial_cdi_summ <-  trial_cdi |> do_cdi_meta(c("t_end", "look_both", "exclude_less_than", "look_both"))
+trial_cdi_summ <-  trial_cdi |> do_cdi_meta(c("t_end", "look_both", "exclude_less_than"))
 
 
 ```
@@ -255,7 +201,7 @@ Reliability measures like ICC tell us how consistently we're measuring *somethin
 ```{r}
 trial_cdi_age <- readRDS(here("cached_intermediates", "4_acc_trial_cdi_boot_byage.rds"))
 
-trial_cdi_summ_age <-  trial_cdi_age |> do_cdi_meta(c("t_end", "look_both", "exclude_less_than", "look_both", "age_bin"))
+trial_cdi_summ_age <-  trial_cdi_age |> do_cdi_meta(c("t_end", "look_both", "exclude_less_than", "age_bin"))
 
 
 ```
@@ -300,7 +246,8 @@ trial_test_retest_summ |> ggplot(aes(x=exclude_less_than, y=estimate, ymin=ci.lb
 
 
 again, no need to exclude, excluding nothing pretty comparable to doing some exclusions, up to 50%. 
-# TODO accuracy kid exclusions
+
+#  accuracy kid exclusions
 
 ## Bootstrapped ICC
 
@@ -348,7 +295,7 @@ kid_acc_icc_summ_age |> filter(t_end=="3000") |> ggplot(aes(x = min_trial, y = e
 ```{r}
 kid_cdi <- readRDS(here("cached_intermediates", "4_acc_kid_cdi_boot.rds")) |> filter(min_trial<11)
 
-kid_cdi_summ <-  kid_cdi |> do_cdi_meta(c("t_end", "look_both", "exclude_less_than", "look_both", "min_trial"))
+kid_cdi_summ <-  kid_cdi |> do_cdi_meta(c("t_end", "look_both", "exclude_less_than", "min_trial"))
 
 
 ```
@@ -375,7 +322,7 @@ reasonable to do like min 5?
 ```{r}
 kid_cdi_age <- readRDS(here("cached_intermediates", "4_acc_kid_cdi_boot_byage.rds")) |> filter(min_trial<11)
 
-kid_cdi_summ_age <-  kid_cdi_age |> do_cdi_meta(c("t_end", "look_both", "exclude_less_than", "look_both", "min_trial", "age_bin"))
+kid_cdi_summ_age <-  kid_cdi_age |> do_cdi_meta(c("t_end", "look_both", "exclude_less_than", "min_trial", "age_bin"))
 
 
 ```
@@ -412,29 +359,42 @@ kid_test_retest_summ |> ggplot(aes(x=min_trial, y=estimate, ymin=ci.lb, ymax=ci.
 for T-RT is does get better with more trials, at least up to 5 and maybe 8. 
 
 
-# TODO RT Kid exclusions
+# RT Kid exclusions
 
 ## Bootstrapped ICC
 
-TODO after we get the re-run version!
 
 ```{r}
-rt_icc <- readRDS(here("cached_intermediates/4_rt_icc_boot.rds"))
+rt_icc <- readRDS(here("cached_intermediates/4_rt_icc_boot.rds")) |> regroup_rt()
 
 rt_icc_summ <- rt_icc |> do_meta(c("window", "time_0", "time_end", "during", "frac", "type", "logged","trimming", "min_trial"))
 ```
+```{r}
+rt_icc_summ |> ggplot(aes(x =min_trial, y = estimate, ymin=ci.lb, ymax=ci.ub, color=str_c(type,"_" , trimming)))+ geom_pointrange(position=position_dodge(width=.5))+coord_flip()+geom_hline(yintercept=.6)+facet_wrap(logged~trimming)
 
+```
+no clear pattern?
 
 ### by age
+```{r}
+rt_icc_age <- readRDS(here("cached_intermediates/4_rt_icc_boot_byage.rds")) |> regroup_rt()
 
+rt_icc_summ_age <- rt_icc_age |> do_meta(c("window", "time_0", "time_end", "during", "frac", "type", "logged","trimming", "min_trial", "age_bin"))
+```
+
+```{r}
+rt_icc_summ_age |> filter(logged=="log", trimming=="untrimmed") |>  ggplot(aes(x =min_trial, y = estimate, ymin=ci.lb, ymax=ci.ub, color=str_c(type,"_" , trimming)))+ geom_pointrange(position=position_dodge(width=.5))+coord_flip()+geom_hline(yintercept=.6)+facet_wrap(~age_bin)
+
+```
+no need for ICC -- doing it may make it worse
 
 ## CDI corr
 
 
 ```{r}
-kid_cdi <- readRDS(here("cached_intermediates", "4_rt_cdi_boot.rds")) |> regroup_rt()
+kid_cdi_rt <- readRDS(here("cached_intermediates", "4_rt_cdi_boot.rds")) |> regroup_rt()
 
-kid_cdi_summ <-  kid_cdi |> do_cdi_meta(c("window", "time_0", "time_end", "during", "frac", "type", "logged","trimming", "min_trial"))
+kid_cdi_rt_summ <-  kid_cdi_rt |> do_cdi_meta(c("window", "time_0", "time_end", "during", "frac", "type", "logged","trimming", "min_trial"))
 
 
 ```
@@ -442,23 +402,23 @@ kid_cdi_summ <-  kid_cdi |> do_cdi_meta(c("window", "time_0", "time_end", "durin
 Correlation with comprehension
 
 ```{r}
-kid_cdi_summ  |> filter(logged=="log") |> ggplot(aes(x =min_trial, y = comp_estimate, ymin=comp_ci.lb, ymax=comp_ci.ub, color=str_c(type,"_" , trimming)))+ geom_pointrange(position=position_dodge(width=.5))+coord_flip()+geom_hline(yintercept=-.2)+facet_wrap(type~trimming)
+kid_cdi_rt_summ  |> filter(logged=="log") |> ggplot(aes(x =min_trial, y = comp_estimate, ymin=comp_ci.lb, ymax=comp_ci.ub, color=str_c(type,"_" , trimming)))+ geom_pointrange(position=position_dodge(width=.5))+coord_flip()+geom_hline(yintercept=-.2)+facet_wrap(type~trimming)
 
 ```
 2 trial is reasonable? 
 
 Correlation with production
 ```{r}
-kid_cdi_summ  |> filter(logged=="log") |> ggplot(aes(x =min_trial, y = prod_estimate, ymin=prod_ci.lb, ymax=prod_ci.ub, color=str_c(type,"_" , trimming)))+ geom_pointrange(position=position_dodge(width=.5))+coord_flip()+geom_hline(yintercept=-.35)+facet_wrap(type~trimming)
+kid_cdi_rt_summ  |> filter(logged=="log") |> ggplot(aes(x =min_trial, y = prod_estimate, ymin=prod_ci.lb, ymax=prod_ci.ub, color=str_c(type,"_" , trimming)))+ geom_pointrange(position=position_dodge(width=.5))+coord_flip()+geom_hline(yintercept=-.35)+facet_wrap(type~trimming)
 
 ```
 2 trials is reasonable; more is better (but have to balance against data loss) 
 
 ### by age 
 ```{r}
-kid_cdi_age <- readRDS(here("cached_intermediates", "4_rt_cdi_boot_byage.rds")) |> regroup_rt()
+kid_cdi_rt_age <- readRDS(here("cached_intermediates", "4_rt_cdi_boot_byage.rds")) |> regroup_rt()
 
-kid_cdi_summ_age <-  kid_cdi_age |> do_cdi_meta(c("window", "time_0", "time_end", "during", "frac", "type", "logged","trimming", "min_trial", "age_bin"))
+kid_cdi_summ_rt_age <-  kid_cdi_rt_age |> do_cdi_meta(c("window", "time_0", "time_end", "during", "frac", "type", "logged","trimming", "min_trial", "age_bin"))
 
 
 ```
@@ -466,7 +426,7 @@ kid_cdi_summ_age <-  kid_cdi_age |> do_cdi_meta(c("window", "time_0", "time_end"
 Correlation with comprehension
 
 ```{r}
-kid_cdi_summ_age  |> filter(logged=="log", trimming=="untrimmed", type=="land") |> 
+kid_cdi_summ_rt_age  |> filter(logged=="log", trimming=="untrimmed", type=="land") |> 
   filter(!is.na(comp_estimate))|> ggplot(aes(x =min_trial, y = comp_estimate, ymin=comp_ci.lb, ymax=comp_ci.ub, color=str_c(type,"_" , trimming)))+ geom_pointrange(position=position_dodge(width=.5))+coord_flip()+geom_hline(yintercept=-.2)+facet_wrap(~age_bin)
 
 ```
@@ -474,7 +434,7 @@ kid_cdi_summ_age  |> filter(logged=="log", trimming=="untrimmed", type=="land") 
 
 Correlation with production
 ```{r}
-kid_cdi_summ_age  |> filter(logged=="log", trimming=="untrimmed", type=="land") |> 
+kid_cdi_summ_rt_age  |> filter(logged=="log", trimming=="untrimmed", type=="land") |> 
   filter(!is.na(prod_estimate))|> ggplot(aes(x =min_trial, y = prod_estimate, ymin=prod_ci.lb, ymax=prod_ci.ub, color=str_c(type,"_" , trimming)))+ geom_pointrange(position=position_dodge(width=.5))+coord_flip()+geom_hline(yintercept=-.3)+facet_wrap(~age_bin)
 
 ```

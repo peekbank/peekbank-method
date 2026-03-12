@@ -82,6 +82,7 @@ make_baseline_corrected <- function(d_aoi) {
     filter(t_min < 0)
 }
 
+
 # key ICC function
 get_icc <- function(x, column = "accuracy", object = "stimulus") {
   x <- x |> filter(!is.na(.data[[column]]))

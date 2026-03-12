@@ -34,14 +34,15 @@ here, we always require that children not look at the target during the window, 
 knitr::opts_chunk$set(warning = F, message = F, echo = F)
 source(here::here("helper/common.R"))
 source(here::here("helper/notebook_helper.R"))
+d_aoi <- readRDS(here("cached_intermediates", "0_d_aoi.rds"))
+
 ```
 
 (no need to run)
 ```{r, eval=F}
-d_aoi <- readRDS(here("cached_intermediates", "0_d_aoi.rds"))
 
-source("helper/rt_helper.R")
-source("scripts/4_rts.R")
+source(here("helper/rt_helper.R"))
+source(here("scripts/4_rts.R"))
 ```
 
 not all datasets are appropriate for RT analyses -- in particular
@@ -56,8 +57,7 @@ d_rt |>
   tally() |>
   group_by(dataset_name) |>
   mutate(n = n / sum(n)) |>
-  pivot_wider(names_from = shift_type, values_from = n) |>
-  View()
+  pivot_wider(names_from = shift_type, values_from = n)
 ```
 
 ```{r}
@@ -89,22 +89,7 @@ rt_icc_meta <- rt_icc |> do_meta(c("window", "time_0", "time_end", "during", "fr
 ```{r}
 
 #normie stuff
-rt_icc_meta |> filter(time_0, time_end, during, frac==1) |> mutate(
-    type = case_when(
-      str_detect(measure, "first_launch_rt") ~ "first_launch",
-      str_detect(measure, "last_launch_rt") ~ "last_launch",
-      str_detect(measure, "land_rt") ~ "land"
-    ),
-    logged = case_when(
-      str_detect(measure, "log") ~ "log",
-      T ~ "raw"
-    ),
-    trimming = case_when(
-      str_detect(measure, "trim_first") ~ "trim_first",
-      str_detect(measure, "trim_last") ~ "trim_last",
-      T ~ "untrimmed"
-    )
-  ) |>
+rt_icc_meta |> regroup_rt() |> 
   ggplot(aes(y = estimate, color = window, group=window, x = str_c(logged, " ", type), ymin = ci.lb, ymax = ci.ub)) +
   geom_pointrange(position=position_dodge(width=.5)) +
   coord_flip() +
@@ -116,22 +101,7 @@ getting best out of log land untrimmed (at some value)
 
 ```{r}
 #normie stuff
-rt_icc_meta |> filter(time_0, time_end, during, frac==1) |> mutate(
-    type = case_when(
-      str_detect(measure, "first_launch_rt") ~ "first_launch",
-      str_detect(measure, "last_launch_rt") ~ "last_launch",
-      str_detect(measure, "land_rt") ~ "land"
-    ),
-    logged = case_when(
-      str_detect(measure, "log") ~ "log",
-      T ~ "raw"
-    ),
-    trimming = case_when(
-      str_detect(measure, "trim_first") ~ "trim_first",
-      str_detect(measure, "trim_last") ~ "trim_last",
-      T ~ "untrimmed"
-    )
-  ) |>
+rt_icc_meta |> regroup_rt() |> 
   filter(logged=="log", trimming=="untrimmed", type=="land") |> filter(window>300, window<700) |> 
   ggplot(aes(y = estimate, color = as.character(window), group=as.character(window), x = str_c(logged, " ", type), ymin = ci.lb, ymax = ci.ub)) +
   geom_pointrange(position=position_dodge(width=.5)) +
@@ -144,22 +114,7 @@ rt_icc_meta |> filter(time_0, time_end, during, frac==1) |> mutate(
 
 ```{r}
 #normie stuff
-rt_icc_meta |> filter(time_0, time_end, during, frac==1) |> mutate(
-    type = case_when(
-      str_detect(measure, "first_launch_rt") ~ "first_launch",
-      str_detect(measure, "last_launch_rt") ~ "last_launch",
-      str_detect(measure, "land_rt") ~ "land"
-    ),
-    logged = case_when(
-      str_detect(measure, "log") ~ "log",
-      T ~ "raw"
-    ),
-    trimming = case_when(
-      str_detect(measure, "trim_first") ~ "trim_first",
-      str_detect(measure, "trim_last") ~ "trim_last",
-      T ~ "untrimmed"
-    )
-  ) |> filter(window>300, window<700) |> 
+rt_icc_meta |> regroup_rt() |> filter(window>300, window<700) |> 
   ggplot(aes(y = estimate, color = as.character(window), group=as.character(window), x = str_c(logged, " ", type), ymin = ci.lb, ymax = ci.ub)) +
   geom_pointrange(position=position_dodge(width=.5)) +
   coord_flip() +
@@ -209,22 +164,7 @@ getting best out of log land untrimmed (at some value)
 
 ```{r}
 #normie stuff
-rt_icc_age_meta |> filter(time_0, time_end, during, frac==1) |> mutate(
-    type = case_when(
-      str_detect(measure, "first_launch_rt") ~ "first_launch",
-      str_detect(measure, "last_launch_rt") ~ "last_launch",
-      str_detect(measure, "land_rt") ~ "land"
-    ),
-    logged = case_when(
-      str_detect(measure, "log") ~ "log",
-      T ~ "raw"
-    ),
-    trimming = case_when(
-      str_detect(measure, "trim_first") ~ "trim_first",
-      str_detect(measure, "trim_last") ~ "trim_last",
-      T ~ "untrimmed"
-    )
-  ) |>
+rt_icc_age_meta |> regroup_rt() |> 
   filter(logged=="log", trimming=="untrimmed", type=="land") |> filter(window>300, window<700) |> 
   ggplot(aes(y = estimate, color = as.character(window), group=as.character(window), x = str_c(logged, " ", type), ymin = ci.lb, ymax = ci.ub)) +
   geom_pointrange(position=position_dodge(width=.5)) +
@@ -237,26 +177,11 @@ depends a little on age, but around 400 is reasonable (18-24 might want 500 inst
 
 ```{r}
 #normie stuff
-rt_icc_age_meta |> filter(time_0, time_end, during, frac==1) |> mutate(
-    type = case_when(
-      str_detect(measure, "first_launch_rt") ~ "first_launch",
-      str_detect(measure, "last_launch_rt") ~ "last_launch",
-      str_detect(measure, "land_rt") ~ "land"
-    ),
-    logged = case_when(
-      str_detect(measure, "log") ~ "log",
-      T ~ "raw"
-    ),
-    trimming = case_when(
-      str_detect(measure, "trim_first") ~ "trim_first",
-      str_detect(measure, "trim_last") ~ "trim_last",
-      T ~ "untrimmed"
-    )
-  ) |> filter(window>300, window<700, trimming!="trim_last") |> 
+rt_icc_age_meta |> regroup_rt()|> filter(window>300, window<700) |> 
   ggplot(aes(y = estimate, color = as.character(window), group=as.character(window), x = str_c(logged, " ", type), ymin = ci.lb, ymax = ci.ub)) +
   geom_pointrange(position=position_dodge(width=.5)) +
   coord_flip() +
-  facet_wrap(age_bin~trimming)+
+  facet_grid(age_bin~trimming)+
   geom_hline(yintercept = .7) +
   scale_color_viridis(discrete = T)
 ```

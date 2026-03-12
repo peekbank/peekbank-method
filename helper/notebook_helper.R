@@ -4,6 +4,7 @@ library(tictoc)
 library(ggthemes)
 library(viridis)
 library(metafor)
+library(ggh4x)
 knitr::opts_chunk$set(
   cache.extra = knitr::rand_seed, cache = TRUE,
   message = FALSE, warning = FALSE, error = FALSE
@@ -21,42 +22,36 @@ theme_update(
   strip.text = element_text(face = "bold")
 )
 
+safe_rma <- function(d, col_est, col_upper, col_lower) {
+  d <- d |>
+    mutate(
+      stdev = (.data[[col_upper]] - .data[[col_lower]]) / (1.96 * 2),
+      var = stdev**2
+    ) |>
+    filter(!is.na(.data[[col_est]]), !is.na(var))
+  if (nrow(d) > 2) {
+    tryCatch(
+      rma(d[[col_est]], d$var, control = list(maxiter = 1000)) |> summary() |> coef() |> select(estimate, ci.lb, ci.ub),
+      error = function(e) tibble(estimate = NA, ci.lb = NA, ci.ub = NA)
+    )
+  } else {
+    tibble(estimate = NA, ci.lb = NA, ci.ub = NA)
+  }
+}
+
 do_cdi_meta <- function(dataset, grouping_factors) {
   dataset |>
-    mutate(
-      comp_stdev = (comp_upper - comp_lower) / (1.96 * 2),
-      comp_var = comp_stdev**2,
-      prod_stdev = (prod_upper - prod_lower) / (1.96 * 2),
-      prod_var = prod_stdev**2,
-      age_stdev = (age_upper - age_lower) / (1.96 * 2),
-      age_var = age_stdev**2
-    ) |>
     group_by(across(all_of(grouping_factors))) |>
     nest() |>
     mutate(
       comp = map(data, \(d){
-        d <- d |> filter(!is.na(comp_est), !is.na(comp_var))
-        if(nrow(d)>2)
-        {rma(d$comp_est, d$comp_var) |>
-          summary() |>
-          coef()}
-        else{tibble(estimate=NA, se=NA, zval=NA, pval=NA, ci.lb=NA, ci.ub=NA)}
+        safe_rma(d, "comp_est", "comp_upper", "comp_lower")
       }),
       prod = map(data, \(d){
-        d <- d |> filter(!is.na(prod_est), !is.na(prod_var))
-        if(nrow(d)>2)
-        {rma(d$prod_est, d$prod_var) |>
-            summary() |>
-            coef()}
-        else{tibble(estimate=NA, se=NA, zval=NA, pval=NA, ci.lb=NA, ci.ub=NA)}
+        safe_rma(d, "prod_est", "prod_upper", "prod_lower")
       }),
       age = map(data, \(d){
-        d <- d |> filter(!is.na(age_est), !is.na(age_var))
-        if(nrow(d)>2)
-        {rma(d$age_est, d$age_var) |>
-            summary() |>
-            coef()}
-        else{tibble(estimate=NA, se=NA, zval=NA, pval=NA, ci.lb=NA, ci.ub=NA)}
+        safe_rma(d, "age_est", "age_upper", "age_lower")
       }),
     ) |>
     select(-data) |>
@@ -65,38 +60,52 @@ do_cdi_meta <- function(dataset, grouping_factors) {
 
 do_meta <- function(dataset, grouping_factors) {
   dataset |>
-    filter(!is.na(lower), !is.na(upper)) |>
-    mutate(
-      stdev = (upper - lower) / (1.96 * 2),
-      var = stdev**2,
-    ) |>
     group_by(across(all_of(grouping_factors))) |>
     nest() |>
     mutate(corr = map(data, \(d){
-      rma(d$est, d$var) |>
-        summary() |>
-        coef()
+      safe_rma(d, "est", "upper", "lower")
     })) |>
-    unnest(corr)
+    unnest(corr) |>
+    select(-data)
 }
 
-regroup_rt <- function(df){
-  df |> filter(time_0, time_end, during, frac==1) |> mutate(
-    type = case_when(
-      str_detect(measure, "first_launch_rt") ~ "first_launch",
-      str_detect(measure, "last_launch_rt") ~ "last_launch",
-      str_detect(measure, "land_rt") ~ "land"
-    ),
-    logged = case_when(
-      str_detect(measure, "log") ~ "log",
-      T ~ "raw"
-    ),
-    trimming = case_when(
-      str_detect(measure, "trim_first") ~ "trim_first",
-      str_detect(measure, "trim_last") ~ "trim_last",
-      T ~ "untrimmed"
-    )
-  ) |> 
-    filter(trimming!="trim_last")
+regroup_rt <- function(df) {
+  df |>
+    filter(time_0, time_end, during, frac == 1) |>
+    mutate(
+      type = case_when(
+        str_detect(measure, "first_launch_rt") ~ "first_launch",
+        str_detect(measure, "last_launch_rt") ~ "last_launch",
+        str_detect(measure, "land_rt") ~ "land"
+      ),
+      logged = case_when(
+        str_detect(measure, "log") ~ "log",
+        T ~ "raw"
+      ),
+      trimming = case_when(
+        str_detect(measure, "trim_first") ~ "trim_first",
+        str_detect(measure, "trim_last") ~ "trim_last",
+        T ~ "untrimmed"
+      )
+    ) |>
+    filter(trimming != "trim_last")
 }
+
+name_rt <- function(df) {
+  df |>
+    mutate(approach = case_when(
+      type == "land" & trimming == "untrimmed" & logged == "log" ~ "Log Land RT",
+      type == "land" & trimming == "untrimmed" & logged == "raw" ~ "Raw Land RT",
+      type == "first_launch" & trimming == "trim_first" & logged == "log" ~ "Log Launch RT",
+      type == "first_launch" & trimming == "trim_first" & logged == "raw" ~ "Raw Launch RT",
+    )) |>
+    filter(!is.na(approach))
+}
+
+combined_metrics <- function(icc, cdi, trt) {
+  icc |>
+    mutate(Type = "ICC reliability") |>
+    bind_rows(cdi |> rename(estimate = prod_estimate, ci.lb = prod_ci.lb, ci.ub = prod_ci.ub) |> mutate(Type = "Corr. with CDI Prod.")) |>
+    bind_rows(cdi |> rename(estimate = comp_estimate, ci.lb = comp_ci.lb, ci.ub = comp_ci.ub) |> mutate(Type = "Corr. with CDI Comp.")) |>
+    bind_rows(trt |> mutate(Type = "Test-retest reliability"))
 }

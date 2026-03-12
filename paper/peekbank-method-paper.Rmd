@@ -67,13 +67,26 @@ header-includes:
 <!-- Data-driven guidance for infant looking-while-listening methods -->
 <!-- Data-driven guidance for processing LWL data to maximize reliability and validity -->
 <!-- Data-driven guidance for extracting the most reliability and validity from LWL data  -->
-<!-- # Introduction -->
+
+Things that might want to go somewhere:
+
+* we often look at time course plots that are very averaged, but this hides the trial/item/kid level variance that we are selecting over 
+* what to do for how much this matters -- is there an effect to look at 
+* framing as people running a LWL study have a lot of decisions to make (ideally before they have their data) -- which ones matter, which ones don't 
+* why we can't get significance meaning error bars -- all of them include the intercept uncertainty 
+* are there any complements/alternatives to downsampling?
+TODOs:
+
+* table of descriptives 
+
+# Introduction
 
 ```{r setup, include = FALSE}
 library("papaja")
 library("here")
 source(here("helper/common.R"))
 source(here("helper/notebook_helper.R"))
+source(here("helper/rt_helper.R"))
 ```
 
 ```{r analysis-preferences}
@@ -84,7 +97,7 @@ knitr::opts_chunk$set(cache.extra = knitr::rand_seed)
 
 Over the first few months of life, children become experts on their native language, organizing the phonological system of the speech that they hear and parsing speech into meaningful units. A bit later, children begin to show early signs of comprehension of words or phrases through simple behaviors such as turning their head when their name is called (e.g., "Hey, Billy!") or reaching for an object that is named (e.g., "Where's the ball?"). These everyday accomplishments mark important milestones in children’s development, yet such global assessments may miss continuous processes of growth in underlying skills and the millisecond-level processes that take place during real-time language comprehension. Children, like adults, process speech incrementally, as it unfolds in time [@fernald1998;@snedeker2013;@frank2026], and use features of the speech signal to extract meaning that will support language comprehension [@law2014;@fernald2016]. 
 
-<!-- VB comment: attempts to identify the following citations has not succeeded
+<!-- VB comment: attempts to identify the following citations have not succeeded
 fernald2016
 law2014
 peter2018 (possibly is actually peter2019?)
@@ -141,7 +154,7 @@ included <- readRDS(here("cached_intermediates/0_d_aoi.rds")) |>
   filter(!is.na(correct)) |>
   distinct(administration_id, dataset_id, trial_id, subject_id, age)
 
-dataset_summ <- included |>
+ included |>
   left_join(readRDS(here("cached_intermediates/0_cdi_subjects.rds"))) |>
   saveRDS(here("cached_intermediates/paper_dataset_summary.rds"))
 ```
@@ -167,27 +180,27 @@ Throughout we use two reliabilty metrics and two validity metrics.
 
 # Data processing recommendations
 
-## Recommendation 1: Measure accuracy over a long time window, such as from 400 ms - 3000 ms after the point of disambiguation.
+## Recommendation 1: Measure accuracy for more than 2 seconds post disambiguation. 
 
 [what is accuracy, who uses it, and what is the range of common practice]
 
 In LWL studies, accuracy is calculated as the fraction of time a child is looking at the target divided by the time they are looking at the target or the distractor, measured over some window of time. Typically windows start shortly after the point of disambiguation and continue until a couple seconds later, which is intended to capture the peak of children's stimulus-driven looks to the target. Studies vary in exactly what windows are used [examples of the range of practice]. 
 
 [method/results]
-We calculated the reliabilities for accuracy calculated across a range of different window onsets and offsets (\ref{fig:acc-heat-map}). As expected, including time points from before the point of disambiguation decreases reliability. Our initial exploration found a region of high reliability with onsets in the 600-800 range and offsets in the TODO range. 
+We calculated the reliabilities for accuracy calculated across a range of different window onsets and offsets (\ref{fig:acc-heat-map}). As expected, including time points from before the point of disambiguation decreases reliability. Our initial exploration found a region of high reliability with onsets in the 600-800 range and offsets in the 2800-4000 range, surrounded by a gradual decline in ICC reliability. 
 
-To further explore the impact of longer windows on other measures including reliability and validity, we focused on the comparison between windows ending at 2000ms, 3000ms, and 4000ms as well as fine-grained options for window onset. 
+To further explore the impact of longer windows on other measures including reliability and validity, we focused on the comparison between windows ending at 2000ms, 3000ms, and 4000ms as well as fine-grained options for window onset between 0 and 1000ms. ICC, CDI correlations, and test-retest reliability were all calculated and bootstrapped by dataset, and then weighted meta-analytically to get overall estimates and confidence intervals. 
 
-Longer accuracy windows that go to 4000ms post disambiguation, rather than to 2000ms, increase reliability (both ICC and test-retest). Short and long windows show comparable correlations with CDI production data, although shorter windows are somewhat more highly correlated with comprehension data. Together, this suggests that children's looking behaving between 2 and 4 seconds post disambiguation is a stable child-level property, although we cannot say how related it to to child language per se. 
+For window end point, both ICC and test-test reliability are higher for the 3000 and 4000 ms end points compared to 2000. Shorter windows have slightly higher correlation with production and slightly higher correlation with comprehension for some start points. Together, this suggests that children's looking behaving between 2 and 4 seconds post disambiguation is a stable child-level property, although we cannot say how related it to to child language per se. 
 
-While the looking signal between 2 and 4 seconds is weaker than between .5 and 2 seconds, there is still signal (even for older children, see SUPP YY). [TODO could try to comment on how this could be language related signal that isn't picked up by comprehension CDI]
+While the looking signal between 2 and 4 seconds is weaker than between .5 and 2 seconds, there is still signal, especially just after the 2 second mark (even for older children, see SUPP YY). [TODO could try to comment on how this could be language related signal that isn't picked up by comprehension CDI]
 
-Exactly when the accuracy window starts is not important, although we recommend starting around 500ms to balance between reliability is numerically highest starting at 600 or 700 milliseconds and correlation with production is highest at 500ms. 
+Exactly when the accuracy window starts is not important, although we recommend starting between 400ms and 600 milliseconds to balance between the best correlation with comprehension around 400 and other measures like ICC that peak later. 
 
-While we are recommending accuracy be measured over the 500-4000ms window, we want to be clear that other accuracy windows also have reasonable reliability and validity properties. Strong effects are likely to show up in any reasonable window, but for eking the most reliability out of data, we recommend long windows. 
+While we are recommending accuracy be measured over the 400-3000 ms window, we want to be clear that other accuracy windows also have reasonable reliability and validity properties. Strong effects are likely to show up in any reasonable window, but for eking the most reliability out of data, we recommend long windows continuing to at least 3000 ms. 
 
 
-```{r acc-heat-map, fig.cap="TODO heat map"}
+```{r acc-heat-map, fig.cap="TODO heat map, with zone of highest ICC outlined."}
 icc_noboot <- readRDS(here("cached_intermediates", "1_acc_icc_noboot.rds"))
 
 icc_noboot_summary <- icc_noboot |>
@@ -203,6 +216,7 @@ ggplot(icc_noboot_summary, aes(x = t_start, y = t_end, fill = mean_icc)) +
   geom_tile(color = "white") +
   scale_fill_viridis(name = "Mean ICC", option = "inferno") +
   scale_x_continuous(breaks = c(-500, 0, 500, 1000, 1500)) +
+  geom_rect(aes(xmin=550, xmax=850, ymin=2750, ymax=4050), linewidth=1, color="black", fill=alpha("grey",0))+
   xlab("Window Start Time (in ms)") +
   ylab("Window End Time (in ms)")
 ```
@@ -215,23 +229,28 @@ acc_cdi <- readRDS(here("cached_intermediates", "1_acc_cdi_boot.rds")) |> do_cdi
 
 acc_test_retest <- readRDS(here("cached_intermediates", "1_acc_test_retest_boot.rds")) |> do_meta(c("t_start", "t_end"))
 
-acc_all <- acc_icc |>
-  mutate(Type = "ICC reliability") |>
-  bind_rows(acc_cdi |> rename(estimate = prod_estimate, ci.lb = prod_ci.lb, ci.ub = prod_ci.ub) |> mutate(Type = "Corr. with CDI Production")) |>
-  bind_rows(acc_cdi |> rename(estimate = comp_estimate, ci.lb = comp_ci.lb, ci.ub = comp_ci.ub) |> mutate(Type = "Corr. with CDI Comp.")) |>
-  bind_rows(acc_test_retest |> mutate(Type = "Test-retest reliability"))
+acc_all <- combined_metrics(acc_icc, acc_cdi, acc_test_retest) |> 
+  select(t_start, t_end, Type, estimate, ci.ub, ci.lb)
 ```
 
 ```{r acc-fig-2, fig.cap="another accuracy figure!"}
 acc_all |>
-  filter(t_start %in% c(0, 200, 400, 600, 800, 1000)) |>
+  #filter(t_start %in% c(0, 200, 400, 600, 800, 1000)) |>
   ggplot(aes(x = t_start, col = as.character(t_end), y = estimate, ymin = ci.lb, group = t_end, ymax = ci.ub)) +
   geom_pointrange(position = position_dodge(50)) +
   coord_flip() +
   facet_wrap(~Type, scales = "free_x", nrow = 1) +
   theme(legend.position = "bottom", ) +
   labs(y = "Correlation", x = "Window start time (ms)", color = "Window end time (ms)") +
-  scale_color_solarized()
+  scale_color_solarized()+
+  facetted_pos_scales(
+  y = list(
+    Type == "ICC reliability" ~ scale_y_continuous(limits = c(0.15, .65)),
+    Type == "Corr. with CDI Production" ~ scale_y_continuous(limits = c(0, .5)),
+        Type == "Test-retest reliability" ~ scale_y_continuous(limits = c(0.15, .65)),
+    Type == "Corr. with CDI Comp." ~ scale_y_continuous(limits = c(0, .5))
+  )
+)
 ```
 
 ## Recommendation 2: Don’t use baseline correction to control for variation in image saliency.
@@ -287,11 +306,7 @@ bc_test_retest <- readRDS(here("cached_intermediates", "2_bc_test_retest_boot.rd
   mutate(b_start = ifelse(is.na(b_start), "none", as.character(b_start))) |>
   do_meta(c("t_start", "t_end", "b_start", "b_end"))
 
-bc_acc_all <- bc_icc |>
-  mutate(Type = "ICC reliability") |>
-  bind_rows(bc_cdi|> rename(estimate = prod_estimate, ci.lb = prod_ci.lb, ci.ub = prod_ci.ub) |> mutate(Type = "Corr. with CDI Prod.")) |>
-  bind_rows(bc_cdi |> rename(estimate = comp_estimate, ci.lb = comp_ci.lb, ci.ub = comp_ci.ub) |> mutate(Type = "Corr. with CDI Comp.")) |>
-  bind_rows(bc_test_retest |> mutate(Type = "Test-retest reliability")) |>
+bc_acc_all <-combined_metrics(bc_icc, bc_cdi, bc_test_retest)|>
   mutate(
     b_end = ifelse(is.na(b_end), "no baseline", as.character(b_end)),
     b_start = ifelse(b_start == "none", "no baseline", b_start)
@@ -307,7 +322,15 @@ bc_acc_all |> ggplot(aes(x = b_start, col = b_end, y = estimate, ymin = ci.lb, g
   facet_wrap(~Type, scales = "free_x", nrow = 1) +
   theme(legend.position = "bottom", ) +
   labs(y = "Correlation", x = "Baseline start time (ms)", color = "Baseline end time (ms)") +
-  scale_color_brewer(palette="Set2")
+  scale_color_brewer(palette="Set2")+
+  facetted_pos_scales(
+  y = list(
+    Type == "ICC reliability" ~ scale_y_continuous(limits = c(0.15, .65)),
+    Type == "Corr. with CDI Production" ~ scale_y_continuous(limits = c(0, .5)),
+        Type == "Test-retest reliability" ~ scale_y_continuous(limits = c(0.15, .65)),
+    Type == "Corr. with CDI Comp." ~ scale_y_continuous(limits = c(0, .5))
+  )
+)
 ```
 
 
@@ -323,79 +346,298 @@ Short RTs are often excluded because they were necessarily or likely to not be a
 RTs can be analysed either on a log scale or a raw RT scale.
 
 [methods & results]
-Our initial exploration suggested that ICC reliability was maximized for log-scale landing-based RT without any shift-length cutoff with minimum RTs around 400-500ms. 
+Our initial exploration suggested that ICC reliability was maximized for log-scale landing-based RT without any shift-length cutoff with minimum RTs around 350-500 ms. For launch-based RT, trimming for only shifts that landed within 600ms of launch had higher ICC than when they were not trimmed (and this is the common practice for lauch based CITATION). 
 
 For the main validity and reliability measures, we compare a launch-based RT with a 600ms shift-length cutoff (as used in ...TODO) and a land-based RT without a shift-length cutoff (as used in ...TODO). We vary the minimum RT and whether the RTs are on a log or raw scale. 
 
-Among the 4 types of RT we considered in more detail (log v raw x launch-based v land-based), all have similar correlations with CDI comprehension. Note that correlations between RT and CDI scores are expected to be negative as smaller (faster) RT is associated with better language skills and thus higher CDI scores. Log RT has a slightly stronger (more negative) correlation with CDI production than raw RT especially for minimum RT cutoffs in the 400-450ms range. 
+Among the 4 types of RT we considered in more detail (log v raw x launch-based v land-based), all have similar correlations with CDI comprehension. Note that correlations between RT and CDI scores are expected to be negative as smaller (faster) RT is associated with better language skills and thus higher CDI scores. Log RT has a slightly stronger (more negative) correlation with CDI production than raw RT especially for minimum RT cutoffs in the 400-450ms range. Launch based RT had slightly stronger correlations with production around 400 ms. 
 
 The highest ICC reliabilities occur around 400 ms. ICC reliability is consistently slightly higher for land-based than launch-based although the scale of difference varies with minimum RT. Test-retest reliability is reasonable for all measures. 
 
-We recommend that researchers use minimum RT cutoffs around 400 ms as these increase reliability compared to shorter cutoffs like 200 ms. While the differences between different methods are small, we recommend using landing-based RT on the log scale to maximize overall reliability and validity. 
+We recommend that researchers use minimum RT cutoffs around 400 ms as these increase reliability (and correlation with CDI measures) compared to shorter cutoffs like 200 ms. While the differences between different methods are small, we recommend using landing-based RT on the log scale to maximize overall reliability and validity. 
+
+Some comment on age splits 
 
 As an additional note, trials are generally only included in RT analyses if the child is looking at the distractor at the point of disambiguation and continues looking at the distractor for the entire minimum RT period. We found that a more lax threshold of looking at the distractor at time 0ms and 400ms and not looking at the target in between can be used with no loss of reliability or validity. However, little bits of missing data were rare, and is likely to be very dataset specific depending on the tracking and imputation process. 
 
-## Recommendation 4: Don't exclude trials, probably avoid excluding children. 
+```{r fig-rt-heat, fig.cap="TODO"}
+rt_icc <- readRDS(here("cached_intermediates/3_rt_icc_boot.rds"))
 
-[]
+rt_icc_meta <- rt_icc |> do_meta(c("window", "time_0", "time_end", "during", "frac", "measure"))
+rt_icc_meta |> regroup_rt() |> filter(window!="1000") |> 
+  ggplot(aes(y = as.character(window), fill = estimate, group=window, x = str_c(type, " ", trimming, " ",logged))) +
+  geom_tile(interpolate=T)+
+  coord_flip() +
+  scale_fill_viridis(discrete = F, option="inferno")
+```
+
+```{r}
+
+rt_icc <- readRDS(here("cached_intermediates/3_rt_icc_boot.rds"))
+
+rt_icc_meta <- rt_icc |> do_meta(c("window", "time_0", "time_end", "during", "frac", "measure")) |> regroup_rt() |> name_rt()
+
+rt_cdi_meta <- readRDS(here("cached_intermediates/3_rt_cdi_boot.rds")) |> do_cdi_meta(c("window", "time_0", "time_end", "during", "frac", "measure")) |> regroup_rt() |> name_rt()
+
+rt_trt_meta <-  readRDS(here("cached_intermediates/3_rt_test_retest_boot.rds")) |> do_meta(c("window", "time_0", "time_end", "during", "frac", "measure")) |> regroup_rt() |> name_rt()
+  
+
+rt_all <- combined_metrics(rt_icc_meta, rt_cdi_meta, rt_trt_meta)
+```
+
+```{r fig-rt, fig.cap="TODO"}
+rt_all |> filter(window<600) |>  ggplot(aes(x = window, col = approach, y = estimate, ymin = ci.lb, ymax = ci.ub)) +
+  geom_pointrange(position = position_dodge2(width = 15)) +
+  coord_flip() +
+  facet_wrap(~Type, scales = "free_x", nrow = 1) +
+  theme(legend.position = "bottom", ) +
+  labs(y = "Correlation", x = "Minimum RT", color = "Type of RT") +
+  scale_color_brewer(palette="Dark2")+
+  facetted_pos_scales(
+  y = list(
+    Type == "ICC reliability" ~ scale_y_continuous(limits = c(0.3, .8)),
+    Type == "Corr. with CDI Production" ~ scale_y_continuous(limits = c(-.5, 0)),
+        Type == "Test-retest reliability" ~ scale_y_continuous(limits = c(0.1, .6)),
+    Type == "Corr. with CDI Comp." ~ scale_y_continuous(limits = c(-.5, 0))
+  )
+)
+```
+## Recommendation 4: Trial-level and child-level exclusions for low amounts of data are generally unnecessary, but light exclusions are okay too.  
+
 A common issue with developmental research is when to exclude trials for behavioral patterns that don't seem to match the task and when to exclude children for contributing too few valid trials. 
 
 For LWL studies, trial-level exclusions tend to be either for contributing too few time points (ex. too much tracker loss or a child looking away from the screen too much) [citations] or for "zoning" where a child only looks at one image and not the other. Zoning exclusions are sometimes done for trials where one image was not fixated at all in the entire trial, but can also be done for trials where one image was not fixated prior to the point of disambiguation. 
 
 If trials with zoning or with few valid looking points still provide signal of the child-level language behavior, excluding them will decrease reliability and validity. On the other side, if these trials are not representing the construct and are just noise, excluding them will increase reliability and validity. 
 
-We found .... On a trial-by-trial basis, excluding trials where kids don't look at both target and distractor (either during a pre-window, or ever) does not improve ICC reliability or the correlation with CDI measures. Additionally, excluding trials with looks away from the target and distractor also does not improve ICC reliability or correlation with CDI measures. We do not recommend any trial-level exclusions to accuracy data. 
+On a trial by trial basis, ICC tends to slightly increase the more noisy trials are excluded, but this comes at the cost of fewer trials. CDI correlations are higher when there are no zoner exclusions; test-retest is highest if there are no zoner exclusions or if exclusions are only done for the whole window (not just pre-window). Overall, based on these different trade-offs, we recommend making light trial-level exclusions if any. It is reasonable to not filter trials at all and include those with any looking, but is also to set a minimum proportion data for up to 50%. More stringent looking requirements will mostly reduce the amount of useable data without validity gains to offset it. 
 
 
-Another consideration is when to exclude children who contribute few good trials. 
+Excluding children for contributing too few trials is generally not necessary. There is little difference in ICC reliability or CDI validity for 1-5 trials. For test retest relability, the reliability is higher if there are at least a few trials from each test, although there are concerns that children who contribute fewer than 5 trials may be different in some way than children who contribute more, so the population generalizability may have issues. 
 
-As a side note, one other child-level concern is children who predominantly look at one side of the screen across trials ("side-bias"). Across our dataset, only TODO children (TODO trials, TODO % of the dataset) looked at one side more than 90% of the time across trials. Since this behavior is rare, excluding it is generally necessary. 
+It's acceptable, but probably not necessary, to exclude children for too few trials. 
 
-TODO can't write that much until we get data back
- <!--   Recommendation 4: Excluding trials or children for side-bias or low numbers of trials is generally unnecessary.
+For RT, it's reasonable to set low minimums for number of trials (like 2 trials) which does make for stronger correlations with CDI production. There are much stronger tradeoffs between test-retest reliability and number of children included. It's also reasonable to not exclude. 
 
-    Recommendation 5: When measuring individual differences, excluding children with fewer than 2 RT measures or 3 accuracy measures may be reasonable.
-(uncertain what our recommendation here should be since evidence is weak and confusing)
-(could be combined with other exclusion recommendation)
+As a side note, one other child-level concern is children who predominantly look at one side of the screen across trials ("side-bias"). Across our dataset, only TODO children (TODO trials, TODO % of the dataset) looked at one side more than 90% of the time across trials. Since this behavior is rare, excluding it is generally not necessary, but also probably harmless. 
 
 
 
-On a administration basis, children who show a cross-trial side-bias or who did not contribute some minimum number of trials are often excluded. 
- We also do not find that setting a minimum number of trials for inclusion improves ICC or CDI validity. 
+```{r}
+trial_boot <- readRDS(here("cached_intermediates/4_acc_trial_icc_boot.rds")) |> unnest(num_trials) 
 
-For RTs, exclusions based on number of trials does not improve ICC or correlations with CDI. 
+num_trials <- trial_boot|> group_by(t_start, t_end, exclude_less_than, look_both) |> summarize(num_trials=sum(num_trials, na.rm=T), .groups="drop") |> 
+  group_by(t_end, t_start) |> 
+  mutate(pct=num_trials/max(num_trials)) |> 
+  rename(estimate=pct)
 
-[may want to combine this with rec 4]
-The one case where exclusions based on minimum trial count may be helpful is for individual difference measures where high test-retest reliability is desired. However, the children who contribute fewer trials might vary in other ways from kids who contribute more so exclusions may hurt generalizability in addition to decreasing effective sample size. 
+trial_icc <- trial_boot |> do_meta(c("t_start", "t_end", "exclude_less_than", "look_both")) 
 
-While our results are uncertain, it appears that test-retest reliability is higher when children have to have 2 RTs from each testing session. Reliability may also increase slightly over the 2-5 RT minimum, but the data loss is substantial. For analysis of archival datasets, tradeoffs between better measurement of each child and fewer children must be considered. 
+trial_cdi <- readRDS(here("cached_intermediates/4_acc_trial_cdi_boot.rds")) |> do_cdi_meta(c("t_start", "t_end","exclude_less_than", "look_both"))
 
-For accuracy, results were again uncertain, but a minimum of 3 accuracy trials had slightly better test-retest reliability than 2 trials (which in turn was better than 1). Most children had plenty of accuracy trials, so data loss is unlikely to be a concern. 
+trial_trt <- readRDS(here("cached_intermediates/4_acc_trial_test_retest_boot.rds")) |> do_meta(c("t_start", "t_end","exclude_less_than", "look_both"))
 
-Effects of different trial-level accuracy exclusions on data validity and reliability. (If we include the graph, bootstrapped error bars can be produced)
--->
+trial_all <- combined_metrics(trial_icc, trial_cdi, trial_trt)
+```
+
+```{r fig-trial-acc, fig.cap="TODO"}
+trial_all |> filter(t_end==3000) |>  ggplot(aes(x = exclude_less_than, col = look_both, y = estimate, ymin = ci.lb, ymax = ci.ub)) +
+  geom_pointrange(position = position_dodge2(width = .05)) +
+  coord_flip() +
+  facet_wrap(~Type, scales = "free_x", nrow = 1) +
+  theme(legend.position = "bottom", ) +
+  labs(y = "Correlation", x = "Minimum Data Proportion", color = "Must look both?") +
+  scale_color_brewer(palette="Dark2")+
+  facetted_pos_scales(
+  y = list(
+    Type == "ICC reliability" ~ scale_y_continuous(limits = c(0.2, .7)),
+    Type == "Corr. with CDI Prod." ~ scale_y_continuous(limits = c(0, .5)),
+        Type == "Test-retest reliability" ~ scale_y_continuous(limits = c(0.15, .65)),
+    Type == "Corr. with CDI Comp." ~ scale_y_continuous(limits = c(0, .5)),
+            Type == "Pct data" ~ scale_y_continuous(limits = c(0, 1))
+
+  )
+)
+```
+
+```{r, eval=F}
+d_aoi <- readRDS(here("cached_intermediates/0_d_aoi.rds"))
+
+ d_aoi |> filter(t_norm>=400, t_norm<=3000) |> 
+  group_by(dataset_name, trial_id, dataset_id, subject_id, administration_id) |>summarize(prop_data = mean(!is.na(correct))) |> 
+  cross_join(expand_grid(min_trial=c(1, 2, 3, 4, 5, 8, 10, 15), exclude_less_than=c(0, .2, .5))) |> 
+  filter(prop_data>=exclude_less_than) |> group_by(exclude_less_than, min_trial, administration_id)  |> tally()|> filter(n>=min_trial) |> group_by(exclude_less_than, min_trial)|> summarize(num_kids=n(), .groups="drop") |> 
+  group_by(exclude_less_than) |> 
+  mutate(pct=num_kids/max(num_kids)) |> 
+  rename(estimate=pct) |> saveRDS(here("cached_intermediates/paper_dataloss_acc.rds"))
+
+
+```
+
+
+```{r}
+kid_boot <- readRDS(here("cached_intermediates/4_acc_kid_icc_boot.rds")) |> unnest(num_trials) 
+
+num_kids_acc <- readRDS(here("cached_intermediates/paper_dataloss_acc.rds"))
+
+kid_icc <- kid_boot |> do_meta(c("t_start", "t_end", "exclude_less_than", "look_both", "min_trial")) 
+
+kid_cdi <- readRDS(here("cached_intermediates/4_acc_kid_cdi_boot.rds")) |> do_cdi_meta(c("t_start", "t_end","exclude_less_than", "look_both", "min_trial"))
+
+kid_trt <- readRDS(here("cached_intermediates/4_acc_kid_test_retest_boot.rds")) |> do_meta(c("t_start", "t_end","exclude_less_than", "look_both", "min_trial"))
+
+kid_all <- combined_metrics(kid_icc, kid_cdi,  kid_trt) |> 
+   filter(t_end==3000) |> 
+  bind_rows(num_kids_acc |> mutate(Type="Pct admins"))
+```
+
+```{r fig-kid-acc, fig.cap="TODO"}
+kid_all |>  ggplot(aes(x = min_trial, col = as.factor(exclude_less_than), y = estimate, ymin = ci.lb, ymax = ci.ub)) +
+  geom_pointrange(position = position_dodge2(width = .5)) +
+  coord_flip() +
+  facet_wrap(~Type, scales = "free_x", nrow = 1) +
+  theme(legend.position = "bottom", ) +
+  labs(y = "Correlation", x = "Minimum Trials", color = "Exclusion rate") +
+  scale_color_brewer(palette="Set1")+
+  facetted_pos_scales(
+  y = list(
+    Type == "ICC reliability" ~ scale_y_continuous(limits = c(0.2, .7)),
+    Type == "Corr. with CDI Prod." ~ scale_y_continuous(limits = c(0, .5)),
+        Type == "Test-retest reliability" ~ scale_y_continuous(limits = c(0.25, .75)),
+    Type == "Corr. with CDI Comp." ~ scale_y_continuous(limits = c(0, .5)),
+        Type == "Pct admins" ~ scale_y_continuous(limits = c(0, 1))
+
+  )
+)
+```
+
+```{r, eval=F}
+ readRDS(here("cached_intermediates/3_rts.rds")) |> filter(window==400, time_0, time_end, frac==1)|> preprocess_rt_dt() |> regroup_rt() |> name_rt() |> filter(!is.na(rt)) |> group_by(administration_id, dataset_name, approach) |> tally() |> 
+  cross_join(expand_grid(min_trial=c(1,2,3,4,5,6))) |> filter(n>=min_trial) |> 
+  group_by(min_trial, approach) |> summarize(total=n()) |> 
+  group_by(approach) |> 
+  mutate(pct=total/max(total)) |> 
+  rename(estimate=pct) |> saveRDS(here("cached_intermediates/paper_dataloss_rt.rds"))
+```
+
+
+```{r}
+kid_rt_boot <- readRDS(here("cached_intermediates/4_rt_icc_boot.rds")) 
+
+
+num_rt_trials <- readRDS(here("cached_intermediates/paper_dataloss_rt.rds"))
+
+
+kid_rt_icc <- kid_rt_boot |> regroup_rt() |> name_rt() |> do_meta(c("approach", "window", "min_trial")) 
+
+kid_rt_cdi <- readRDS(here("cached_intermediates/4_rt_cdi_boot.rds")) |> regroup_rt() |> name_rt() |> do_cdi_meta(c("approach", "window", "min_trial")) 
+
+kid_rt_trt <- readRDS(here("cached_intermediates/4_rt_test_retest_boot.rds")) |> 
+  filter(dataset_name!="potter_remix") |>  regroup_rt() |> name_rt() |> do_meta(c("approach", "window", "min_trial")) 
+
+kid_rt_all <- combined_metrics(kid_rt_icc, kid_rt_cdi, kid_rt_trt) |> 
+  bind_rows(num_rt_trials |> mutate(Type="Pct admins"))
+```
+
+```{r fig-kid-rt, fig.cap="TODO"}
+kid_rt_all |>  ggplot(aes(x = min_trial, col = as.factor(approach), y = estimate, ymin = ci.lb, ymax = ci.ub)) +
+  geom_pointrange(position = position_dodge2(width = .5)) +
+  coord_flip() +
+  facet_wrap(~Type, scales = "free_x", nrow = 1) +
+  theme(legend.position = "bottom", ) +
+  labs(y = "Correlation", x = "Minimum Trials", color = "RT Approach") +
+  scale_color_brewer(palette="Set1")+
+  facetted_pos_scales(
+  y = list(
+    Type == "ICC reliability" ~ scale_y_continuous(limits = c(0.3, .8)),
+    Type == "Corr. with CDI Prod." ~ scale_y_continuous(limits = c(-.5, 0)),
+        Type == "Test-retest reliability" ~ scale_y_continuous(limits = c(0.1, .6)),
+    Type == "Corr. with CDI Comp." ~ scale_y_continuous(limits = c(-.5, 0)),
+        Type == "Pct admins" ~ scale_y_continuous(limits = c(0, 1))
+
+  )
+)
+```
+
 
 # Design recommendations
 
 Our focus for this work was to explore how data processing choices affected the reliability and validity of the resultant measures. However, along the way, we came across a couple key experimental design questions that could impact reliability and validity. 
 
 ## Recommendation 5: Design studies to have a minimum of 10 trials per kid. Studies targeting individual differences in processing speed should target 30 trials if possible.
-(uncertain about numbers here because we should look more at per-dataset data)
 
-In the section above, we said .... 
-While it is difficult to determine whether to do post-hoc exclusion of children who contributed too few data points, it is much clearer that it is better to design experiments to increase the likelihood of having more valid trials. 
+```{r}
+downsample_icc_acc <- readRDS(here("cached_intermediates/5_acc_icc_boot.rds"))|> do_meta(c("t_start", "t_end", "sample_down", "start_point"))
 
-To understand how different numbers of trials would impact test-retest reliability, we sampled trials from each administration with replacement. This allows for up-sampling of children with low numbers of trials, simulating what might have happened in a longer experiment. 
+downsample_cdi_acc <- readRDS(here("cached_intermediates/5_acc_cdi_boot.rds"))|> do_cdi_meta(c("t_start", "t_end", "sample_down", "start_point"))
 
-TODO highly dependent on results and re-analysis! 
+downsample_trt_acc <- readRDS(here("cached_intermediates/5_acc_downsample_test_retest_boot.rds"))|> do_meta(c("t_start", "t_end", "sample_down", "start_point"))
 
-For accuracy, the benefits of increasing numbers of trials seems to flatten out around 10-15 trials. As nearly all trials produce useable accuracy data, this suggests a target minimum of 10-15 trials. 
 
-For RT, it seems much better to have 2 RTs rather than just 1 whenever possible. On average, 1/3 of trials result in useable RT data, but this varies per child, so having 10 trials is recommended to ensure that most children have at least 2 valid RT trials. Test-retest reliability for RT does seem to increase with more trials, with benefits diminishing after 10 trials. Thus, for individual-differences studies where consistent measures of individual language processing speed are desired, we recommend 30 trials, to end up with an average of 10 RT trials per child. 
+downsample_acc <-  combined_metrics(downsample_icc_acc, downsample_cdi_acc, downsample_trt_acc) |> 
+  filter(t_end==3000)
+```
 
-10 trials should result in multiple RT measures for each child and a fairly reliable measure of accuracy; however, for individual differences in processing speed, 30 trials is recommended where possible. 
+```{r fig-downsample-acc, fig.cap="TODO"}
+downsample_acc |>  ggplot(aes(x = sample_down, col = as.factor(start_point), y = estimate, ymin = ci.lb, ymax = ci.ub)) +
+  geom_pointrange(position = position_dodge2(width = .5)) +
+  coord_flip() +
+  facet_wrap(~Type, scales = "free_x", nrow = 1) +
+  theme(legend.position = "bottom", ) +
+  geom_line()+
+  labs(y = "Correlation", x = "Simulated Trial count", color = "Real Trials") +
+  scale_color_brewer(palette="Set1")+
+  facetted_pos_scales(
+  y = list(
+    Type == "ICC reliability" ~ scale_y_continuous(limits = c(0.1, .6)),
+    Type == "Corr. with CDI Prod." ~ scale_y_continuous(limits = c(-.1, .4)),
+        Type == "Test-retest reliability" ~ scale_y_continuous(limits = c(0, .5)),
+    Type == "Corr. with CDI Comp." ~ scale_y_continuous(limits = c(-.2, .3))
 
-(note for discussion: Alvin brings up that up-sampling might be artificially inflating reliability. may want to consider alternatives or make sure results are consistent with downsample only results??)
+  )
+)
+```
+
+```{r}
+downsample_icc_rt <- readRDS(here("cached_intermediates/5_rt_icc_boot.rds"))|> regroup_rt() |> name_rt() |> do_meta(c("approach", "sample_down", "start_point"))
+
+downsample_cdi_rt <- readRDS(here("cached_intermediates/5_rt_cdi_boot.rds"))|>  regroup_rt() |> name_rt() |> do_cdi_meta(c("approach", "sample_down", "start_point"))
+
+downsample_trt_rt <- readRDS(here("cached_intermediates/5_rt_test_retest_boot.rds"))|>  regroup_rt() |> name_rt() |> do_meta(c("approach", "sample_down", "start_point"))
+
+
+downsample_rt <-  combined_metrics(downsample_icc_rt, downsample_cdi_rt, downsample_trt_rt) |>  filter(approach=="Log Land RT") |> filter(start_point<11)
+```
+
+```{r fig-downsample-rt, fig.cap="TODO"}
+downsample_rt |>  ggplot(aes(x = sample_down, col = as.factor(start_point), y = estimate, ymin = ci.lb, ymax = ci.ub)) +
+  geom_pointrange(position = position_dodge2(width = .5)) +
+  coord_flip() +
+  facet_wrap(~Type, scales = "free_x", nrow = 1) +
+  theme(legend.position = "bottom", ) +
+  geom_line()+
+  labs(y = "Correlation", x = "Simulated Trial count", color = "Real Trials") +
+ scale_color_brewer(palette="Set1")#+
+#   facetted_pos_scales(
+#   y = list(
+#     Type == "ICC reliability" ~ scale_y_continuous(limits = c(0.1, .6)),
+#     Type == "Corr. with CDI Prod." ~ scale_y_continuous(limits = c(-.1, .4)),
+#         Type == "Test-retest reliability" ~ scale_y_continuous(limits = c(0, .5)),
+#     Type == "Corr. with CDI Comp." ~ scale_y_continuous(limits = c(-.2, .3))
+# 
+#   )
+# )
+```
+For ICC reliability, there isn't that much sensitivity to number of trials per subject. 
+
+For accuracy trials, having more trials per session increases t-rt reliability up to at least 10 trials, and (at a lower rate) above that. For reliable accuracy measures of individual children/differences, use at least 10 trials / condition. 
+
+For comparison with CDI, definitely at least 10 trials, more is probably better, but the biggest gains are early on. (much much better to have 5 than 1). 
+
+For RT, TRT definitely gains to 5 -- gets a lot harder to measure after that since there are fewer valid pairs. But probably 7 is better than 5.For CDI measures, again high uncertainty, but seem to be gains for having 4 trials? (which means 12+)
+
+If you want stable individual differences of RT, as many trials as possible is important, we recommend aiming for 20 to try to end up with an average around 7 per child, as roughly 1/3 of trials will have a valid RT (other approaches such as gaze-triggering might also be possibilities for increasing the rate of valid RTs). Reasonable correlation with CDI can be reached with 4-5 trials. Hard to say much about benefits of even more trials because there aren't that many kids in the data we have with more trials / session. 
+
 
 ## Recommendation 6: Match target and distractor images based on animacy.
 As mentioned in Recommendation 2, one concern with LWL trial design is that children may have preferences for which image to look at separate from the auditory stimuli, and some of their looking behavior may be independent of the auditory stimulus. One approach is to decrease the preference discrepancy between a pair of images, so that overall, in the absense of auditory cues, children prefer to look at both images equally. While there are a number of factors that could play into children's image preferences [citations], one factor that stood out in the data was animacy. Children have a strong preference for looking at animals and humans (and parts of humans). When trials have one animate and one inanimate, children look more at the animate in the pre-stimulus period (Figure \ref{fig:animacy}) and are slower to respond when the inanimate is named. In contrast, for trials with target and distractor matched on animacy, children's early looking patterns are not sensitive to animacy. This difference is particularly relevant for the younger children, whose stimulus-contingent looking behavior is weakest, so more of the looking behavior is driven by animacy (Figure Swhatever). 
@@ -413,7 +655,7 @@ readRDS(here("cached_intermediates/6_animacy.rds")) |> filter(t_norm>=-500, t_no
     T ~ "inanimate target, animate distractor")) |> 
   ggplot(aes(x = t_norm, y = y, ymin=ymin, ymax=ymax, fill = type)) +
   geom_ribbon(alpha=.5) +
-  geom_line(size=1)+
+  geom_line(linewidth=1)+
   geom_hline(yintercept=.5)+
   geom_vline(xintercept = 0) +
       geom_vline(xintercept = 400, lty = "dashed") +
@@ -518,7 +760,37 @@ For the "analytic" (really data-processing) decisions, how many trials are useab
 
 For the "design" decisions, we're simulating hypotheticals about what the data would look like with fewer or more (or differently structured) trials.
 
+## Additional descriptives
 
+## Additional Methods 
+
+## Additional Rec 1 (accuracy)
+
+[ ] accuracy split by age!
+
+## Additional Rec 2 baseline correction
+
+[ ] age split
+[ ] long pre-window only 
+
+## Additional Rec 3 (RT)
+
+[ ] what exactly is a switch to the target? you do almost as well even if you don't pay attention to where exactly the child is looking in between 0 and when you start counting as long as it isn't the target. 
+(also try with CDI etc??)
+
+[ ] age split
+
+## Additional Rec 4 (trial/kid exclusion)
+
+[ ] kid side bias rates? 
+
+## Additional Rec 5 (simulated trials)
+
+## Additional Rec 6 (animacy)
+
+## Additional Order fx
+
+[ ] plots for this
 \newpage
 
 # References
