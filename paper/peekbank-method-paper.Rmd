@@ -57,7 +57,8 @@ header-includes:
   - \renewcommand{\floatpagefraction}{1}
   - \setcounter{topnumber}{5}
   - \setcounter{bottomnumber}{5}
-  - \setcounter{totalnumber}{6}  
+  - \setcounter{totalnumber}{6} 
+  - \renewcommand{\arraystretch}{0.75} 
 ---
 <!-- (title ideas) -->
 
@@ -68,22 +69,14 @@ header-includes:
 <!-- Data-driven guidance for processing LWL data to maximize reliability and validity -->
 <!-- Data-driven guidance for extracting the most reliability and validity from LWL data  -->
 
-Things that might want to go somewhere:
 
-* we often look at time course plots that are very averaged, but this hides the trial/item/kid level variance that we are selecting over 
-* what to do for how much this matters -- is there an effect to look at 
-* framing as people running a LWL study have a lot of decisions to make (ideally before they have their data) -- which ones matter, which ones don't 
-* why we can't get significance meaning error bars -- all of them include the intercept uncertainty 
-* are there any complements/alternatives to downsampling?
-TODOs:
-
-* table of descriptives 
 
 # Introduction
 
 ```{r setup, include = FALSE}
 library("papaja")
 library("here")
+library(kableExtra)
 source(here("helper/common.R"))
 source(here("helper/notebook_helper.R"))
 source(here("helper/rt_helper.R"))
@@ -92,7 +85,7 @@ source(here("helper/rt_helper.R"))
 ```{r analysis-preferences}
 # Seed for random number generation
 set.seed(42)
-knitr::opts_chunk$set(cache.extra = knitr::rand_seed)
+knitr::opts_chunk$set(cache.extra = knitr::rand_seed )
 ```
 
 Over the first few months of life, children become experts on their native language, organizing the phonological system of the speech that they hear and parsing speech into meaningful units. A bit later, children begin to show early signs of comprehension of words or phrases through simple behaviors such as turning their head when their name is called (e.g., "Hey, Billy!") or reaching for an object that is named (e.g., "Where's the ball?"). These everyday accomplishments mark important milestones in children’s development, yet such global assessments may miss continuous processes of growth in underlying skills and the millisecond-level processes that take place during real-time language comprehension. Children, like adults, process speech incrementally, as it unfolds in time [@fernald1998;@snedeker2013;@frank2026], and use features of the speech signal to extract meaning that will support language comprehension [@law2014;@fernald2016]. 
@@ -111,7 +104,7 @@ One key reason for the success of this research is the care that has been invest
 
 This lack of consensus likely stems from structural factors: infant recruitment is time- and cost-intensive and datasets collected by individual labs are often small [@frank2017;@bergmann2018]. These issues make it difficult for any one researcher to systematically evaluate the consequences of specific analytic choices independently of the data collected for a particular study [cf. @peelle2021]. Instead, researchers are often forced to make ad-hoc decisions or to adopt idiosyncratic lab practices that themselves originate from ad-hoc subjective judgments of what "seems to work". How can we put the measurement and analysis of infant word recognition and online language processing on firmer empirical footing?
 
-Peekbank is a new data resource that offers a potential solution to this core issue by providing a large database of infant eye-tracking data from the looking-while-listening paradigm for exploring potential methodological questions [@zettersten2022]. The most recent release of Peekbank at time of writing (version 2026.1), currently houses XYZ datasets from infants across a wide age range [XYZ - XYZ] and across a broad range of test words and materials, resulting in observations from over XYZ infants participating in the looking-while-listening task. The goal of the current manuscript is to use these data to systematically explore key analytic decisions that researchers make when using this paradigm, offering best-practices guidance for measurement. 
+Peekbank is a new data resource that offers a potential solution to this core issue by providing a large database of infant eye-tracking data from the looking-while-listening paradigm for exploring potential methodological questions [@zettersten2022]. The most recent release of Peekbank at time of writing (version 2026.1), currently houses 44 datasets from infants across a wide age range [6 months - 5 years] and across a broad range of test words and materials, resulting in observations from over 3915 infants participating in the looking-while-listening task. The goal of the current manuscript is to use these data to systematically explore key analytic decisions that researchers make when using this paradigm, offering best-practices guidance for measurement. 
 
 Our approach throughout is to seek analytic choices that distill the best possible measures from the rich time course of behavior in the looking-while-listening task.  Ideally, these measures should be reliable, yielding the maximal signal about individual children relative to both measurement error and irrelevant artifacts [@byers-heinlein2022;@schreiner2024limited;@rhemtulla2022reliability]. Here, to measure reliability, we use both within-dataset inter-item reliability (ICC) and test-retest reliability within datsets with multiple LWL sessions close in time for the same children. 
 
@@ -164,21 +157,117 @@ dataset_summ <- readRDS(here("cached_intermediates/paper_dataset_summary.rds"))
 ```
 
 
-This paper is based on `r dataset_summ |> distinct(dataset_id) |> nrow()` datasets, comprising `r dataset_summ |> distinct(subject_id) |> nrow()` children, `r dataset_summ |> distinct(administration_id) |> nrow()` administrations, and `r dataset_summ |> distinct(trial_id) |> nrow()` trials. There is MB-CDI comprehension scores for `r dataset_summ |> filter(!is.na(comp)) |> distinct(subject_id) |> nrow()` children from `r dataset_summ |> filter(!is.na(comp)) |> distinct(dataset_id) |> nrow()` of the datasets, and MB-CDI production scores for `r dataset_summ |> filter(!is.na(prod)) |> distinct(subject_id) |> nrow()` children from `r dataset_summ |> filter(!is.na(prod)) |> distinct(dataset_id) |> nrow()` of the datasets. Our test-retest data comes from `r make_test_retest_pairs(dataset_summ) |> distinct(dataset_name) |> nrow()` datasets with multiple administrations within 1.5 months of each other, covering `r make_test_retest_pairs(dataset_summ) |> distinct(subject_id) |> nrow()` children (`r make_test_retest_pairs(dataset_summ) |> distinct(pair_number) |> nrow()` administration pairs). 
+This paper is based on `r dataset_summ |> distinct(dataset_id) |> nrow()` datasets, comprising `r dataset_summ |> distinct(subject_id) |> nrow()` children, `r dataset_summ |> distinct(administration_id) |> nrow()` administrations, and `r dataset_summ |> distinct(trial_id) |> nrow()` trials. There is MB-CDI comprehension scores for `r dataset_summ |> filter(!is.na(comp)) |> distinct(subject_id) |> nrow()` children from `r dataset_summ |> filter(!is.na(comp)) |> distinct(dataset_id) |> nrow()` of the datasets, and MB-CDI production scores for `r dataset_summ |> filter(!is.na(prod)) |> distinct(subject_id) |> nrow()` children from `r dataset_summ |> filter(!is.na(prod)) |> distinct(dataset_id) |> nrow()` of the datasets. Our test-retest data comes from `r make_test_retest_pairs(dataset_summ) |> distinct(dataset_name) |> nrow()` datasets with multiple administrations within 1.5 months of each other, covering `r make_test_retest_pairs(dataset_summ) |> distinct(subject_id) |> nrow()` children (`r make_test_retest_pairs(dataset_summ) |> distinct(pair_number) |> nrow()` administration pairs). See Table \ref{tab:descriptives} for a list of included datasets. 
+
+```{r}
+dataset_table <- dataset_summ |> group_by(dataset_name) |> 
+  summarize(admins=n_distinct(administration_id),
+            subjects=n_distinct(subject_id),
+            trials=n(),
+            age_min=min(age),
+            age_mean=mean(age),
+            age_max=max(age),
+            has_cdi=sum(!is.na(prod)|!is.na(comp))>0) |> 
+  left_join(make_test_retest_pairs(dataset_summ) |> group_by(dataset_name) |> tally() |> mutate(trt=n>0) |> select(-n)) |> 
+  ungroup() |> 
+  mutate(pct_trial=trials/sum(trials),
+         pct_admins=admins/sum(admins),
+         pct_subjects=subjects/sum(subjects)) |> 
+  mutate(age=sprintf("%.0f [%.0f - %.0f]", age_mean, age_min, age_max)) |> 
+  select(-age_mean, -age_min, -age_max) |> 
+  mutate(CDI=ifelse(has_cdi, "x", ""),
+         `Test-retest`=ifelse(!is.na(trt), "x", "")) |> 
+  select(dataset_name, trials, admins, subjects, age, CDI, `Test-retest`, pct_trial)
+
+clean_names <- tribble(
+  ~dataset_name, ~`Dataset Name`, ~`Language`,
+  "reflook_v4", "Yurovsky et al. (2017)", "English",
+  "yurovsky_2017", "Yurovsky & Frank (2017)", "English",
+  "weaver_zettersten_2024", "Weaver et al. (2024)","English",
+  "fernald_marchman_2012", "Fernald & Marchman (2012)","English",
+  "frank_tablet_2016", "Frank et al. (2016)", "English",
+  "fmw_2013", "Fernald et al. (2013)", "English",
+  "adams_marchman_2018", "Adams et al. (2018)" ,"English",
+  "potter_canine", "Potter & Lew Williams (2023)","English",
+  "fernald_totlot", "Fernald et al. (2006)","English",
+"pomper_prime", "Pomper & Saffran (2015)","English",
+"pomper_saffran_2016", "Pomper & Saffran (2016)", "Egnlish",
+"swingley_aslin_2002", "Swingley & Aslin (2002)","English",
+"pomper_salientme", "Pomper & Saffran (2019)", "English",
+"perry_cowpig", "Perry & Saffan (2017)", "English",
+"ronfard_2021", "Ronfard et al. (2022)","English",
+"bacon_gendercues", "Bacon & Saffran (2022)","English",
+"garrison_bergelson_2020", "Garrison et al. (2020)","English",
+"pomper_yumme", "Pomper & Saffran (2018)", "English",
+"mahr_coartic", "Mahr et al. (2015)", "English",
+"potter_remix", "Potter et al. (2019)","English",
+"reflook_socword", "Yurovsky et al. (2013)","English",
+"yoon_simpimp_2015","Yoon et al. (2015)","English",
+"borovsky_2019", "Borovsky & Peters (2019)","English",
+"pomper_dimy", "Pomper & Saffran (2017)","English",
+"weaver_saffran_2026", "Weaver & Saffran (2026)","English",
+"bergelson_swingley_2012", "Bergelson & Swingley (2012)","English",
+"moore_bergelson_2022_verb", "Moore & Bergelson (2022)","English",
+"hurtado_2008", "Hurtado et al. (2008)", "Spanish",
+"kartushina_2019", "Kartushina & Mayor (2019)", "Norwegian", 
+"weisleder_stl", "Weisleder & Fernald (2013)", "Spanish",
+"sander-montant_2022", "Sander-Montant et al. (2023)", "English, French",
+"gazetriggered_2020", "Egger et al. (2020)", "Dutch",
+"xsectional_2007", "Hurtado et al. (2007)", "Spanish", 
+"casillas_tseltal_2015", "Casillas et al. (2017)", "Tseltal",
+"kremin_2021", "Kremin et al. (2023)", "English, French, Spanish",
+"byers-heinlein_2017", "Byers-Heinlein et al. (2017)", "English, French",
+)
+
+global_summary <- dataset_summ |> ungroup() |> summarize(admins=n_distinct(administration_id),
+            subjects=n_distinct(subject_id),
+            trials=n(),
+            age_min=min(age),
+            age_mean=mean(age),
+            age_max=max(age),
+            has_cdi=n_distinct(dataset_name[!is.na(prod)|!is.na(comp)])) |> 
+  bind_cols(make_test_retest_pairs(dataset_summ) |> group_by(dataset_name) |> tally() |> summarize(`Test-retest`=n() |> as.character())) |> 
+  ungroup() |> 
+  mutate(pct_trial=trials/sum(trials),
+         pct_admins=admins/sum(admins),
+         pct_subjects=subjects/sum(subjects)) |> 
+  mutate(age=sprintf("%.0f [%.0f - %.0f]", age_mean, age_min, age_max)) |> 
+  select(-age_mean, -age_min, -age_max) |> 
+  mutate(CDI=as.character(has_cdi),
+         dataset_name="Total",
+         `Dataset Name`="Total",
+         ` `=" ",
+         `Pct Trials` = "100%",
+         `Language` = "") 
+  
+
+dataset_table |> left_join(clean_names) |>  arrange(desc(pct_trial)) |>mutate(` `=row_number() |> as.character(),
+                                                                              `Pct Trials`=sprintf("%.1f%%", pct_trial*100)) |>
+  bind_rows(global_summary) |>
+  select(` `, `Dataset Name`,`Pct Trials`, `Trials`=trials, `Admins`=admins, `Subjects`=subjects, `Age`=age, `CDI`, `Test-retest`, `Language`) |>
+
+   kable(format="latex", caption='TODO \\label{tab:descriptives}', align="rlrrrrrrrrl", digits=2, booktabs=T, linesep="") |> 
+   kable_styling(latex_options="scale_down") |> row_spec(36, hline_after=T)
+```
+
 
 ## Approach
 
 Throughout we use two reliabilty metrics and two validity metrics. 
 
-1. An intra-class correlation (ICC) as a measure of reliability. Specifically, we use a measure of inter-rater reliability that measures (within a dataset) how much different items (target labels) are consistent with each other in "rating" the subjects (kid-administrations). 
+An intra-class correlation (ICC) as a measure of reliability. Specifically, we use a measure of inter-rater reliability that measures (within a dataset) how much different items (target labels) are consistent with each other in "rating" the subjects (kid-administrations). 
 
-2. Test-retest reliability for measures on the same child at two different administrations within 1.5 months of each other. This measure is only possible on a subset of the datasets that have longitudinal data with some closely spaced repeat administrations. 
+Test-retest reliability for measures on the same child at two different administrations within 1.5 months of each other. This measure is only possible on a subset of the datasets that closely spaced repeat administrations. While we are limited in how much data we have for test-retest reliability, this is the metric that is most important for measuring stable individual differences. 
 
-3. Correlation with CDI production measure for validity. We have CDI sumscores from ... (which CDI? also the short ones or not?). We can check how well our metrics correlate with children's CDI sumscores from CDI administrations at roughly the same time. In general, correlating with production and comprehension in the expected directions is desirable, although we also may expect that LWL measures are picking up on slightly different aspects of language learning than is represented in CDI. 
+For validity, we correlate with CDI production measures and CDI comprehension measures, from the datasets where we have CDI administrations. We use both short and long form CDIs, using the fraction of items a child was marked as knowing as our measure. 
+In general, correlating with production and comprehension in the expected directions is desirable, although we also may expect that LWL measures are picking up on slightly different aspects of language learning than is represented in CDI. 
 
-[possibly the more detail oriented methods stuff goes in the supplement]
+Additional details about how these were calculated are in Supplement TODO.
 
 # Data processing recommendations
+
+Looking while listening data takes a lot of processing to go from the experiment to the data that is analysed. Experiment design, and eye-tracking and eye-gaze coding considerations are covered elsewhere [citations], so we focus here on the process of going from a series of timepoints to the measures of accuracy and reaction time that are analysed. There are a number of decisions involved, including what windows and time cutoffs to use, and what exclusions to make around missing or low amounts of data. 
+
 
 ## Recommendation 1: Measure accuracy for more than 2 seconds post disambiguation. 
 
@@ -186,21 +275,7 @@ Throughout we use two reliabilty metrics and two validity metrics.
 
 In LWL studies, accuracy is calculated as the fraction of time a child is looking at the target divided by the time they are looking at the target or the distractor, measured over some window of time. Typically windows start shortly after the point of disambiguation and continue until a couple seconds later, which is intended to capture the peak of children's stimulus-driven looks to the target. Studies vary in exactly what windows are used [examples of the range of practice]. 
 
-[method/results]
-We calculated the reliabilities for accuracy calculated across a range of different window onsets and offsets (\ref{fig:acc-heat-map}). As expected, including time points from before the point of disambiguation decreases reliability. Our initial exploration found a region of high reliability with onsets in the 600-800 range and offsets in the 2800-4000 range, surrounded by a gradual decline in ICC reliability. 
-
-To further explore the impact of longer windows on other measures including reliability and validity, we focused on the comparison between windows ending at 2000ms, 3000ms, and 4000ms as well as fine-grained options for window onset between 0 and 1000ms. ICC, CDI correlations, and test-retest reliability were all calculated and bootstrapped by dataset, and then weighted meta-analytically to get overall estimates and confidence intervals. 
-
-For window end point, both ICC and test-test reliability are higher for the 3000 and 4000 ms end points compared to 2000. Shorter windows have slightly higher correlation with production and slightly higher correlation with comprehension for some start points. Together, this suggests that children's looking behaving between 2 and 4 seconds post disambiguation is a stable child-level property, although we cannot say how related it to to child language per se. 
-
-While the looking signal between 2 and 4 seconds is weaker than between .5 and 2 seconds, there is still signal, especially just after the 2 second mark (even for older children, see SUPP YY). [TODO could try to comment on how this could be language related signal that isn't picked up by comprehension CDI]
-
-Exactly when the accuracy window starts is not important, although we recommend starting between 400ms and 600 milliseconds to balance between the best correlation with comprehension around 400 and other measures like ICC that peak later. 
-
-While we are recommending accuracy be measured over the 400-3000 ms window, we want to be clear that other accuracy windows also have reasonable reliability and validity properties. Strong effects are likely to show up in any reasonable window, but for eking the most reliability out of data, we recommend long windows continuing to at least 3000 ms. 
-
-
-```{r acc-heat-map, fig.cap="TODO heat map, with zone of highest ICC outlined."}
+```{r acc-heat-map, fig.cap="A heat map showing the average ICC across datasets for different start and end points for the accuracy window. A region with the highest ICC (best reliability) is outlined.", fig.width=5, fig.height=3}
 icc_noboot <- readRDS(here("cached_intermediates", "1_acc_icc_noboot.rds"))
 
 icc_noboot_summary <- icc_noboot |>
@@ -221,8 +296,9 @@ ggplot(icc_noboot_summary, aes(x = t_start, y = t_end, fill = mean_icc)) +
   ylab("Window End Time (in ms)")
 ```
 
+As a starting point, we calculated the ICC for accuracy across a range of different window onsets and offsets (\ref{fig:acc-heat-map}). As expected, including time points from before the point of disambiguation decreases reliability. Our initial exploration found a region of high reliability with onsets in the 600-800 range and offsets in the 2800-4000 range, surrounded by a gradual decline in ICC reliability. 
 
-```{r}
+```{r acc-fig-2, fig.cap="Effects of accuracy windowing on reliability and validity measures.", fig.height=4, fig.width=6}
 acc_icc <- readRDS(here("cached_intermediates", "1_acc_icc_boot.rds")) |> do_meta(c("t_start", "t_end"))
 
 acc_cdi <- readRDS(here("cached_intermediates", "1_acc_cdi_boot.rds")) |> do_cdi_meta(c("t_start", "t_end"))
@@ -231,58 +307,58 @@ acc_test_retest <- readRDS(here("cached_intermediates", "1_acc_test_retest_boot.
 
 acc_all <- combined_metrics(acc_icc, acc_cdi, acc_test_retest) |> 
   select(t_start, t_end, Type, estimate, ci.ub, ci.lb)
-```
-
-```{r acc-fig-2, fig.cap="another accuracy figure!"}
 acc_all |>
   #filter(t_start %in% c(0, 200, 400, 600, 800, 1000)) |>
   ggplot(aes(x = t_start, col = as.character(t_end), y = estimate, ymin = ci.lb, group = t_end, ymax = ci.ub)) +
   geom_pointrange(position = position_dodge(50)) +
   coord_flip() +
   facet_wrap(~Type, scales = "free_x", nrow = 1) +
-  theme(legend.position = "bottom", ) +
+  theme(legend.position = "bottom" ) +
   labs(y = "Correlation", x = "Window start time (ms)", color = "Window end time (ms)") +
   scale_color_solarized()+
   facetted_pos_scales(
   y = list(
     Type == "ICC reliability" ~ scale_y_continuous(limits = c(0.15, .65)),
-    Type == "Corr. with CDI Production" ~ scale_y_continuous(limits = c(0, .5)),
+    Type == "Corr. with CDI Prod." ~ scale_y_continuous(limits = c(0, .5)),
         Type == "Test-retest reliability" ~ scale_y_continuous(limits = c(0.15, .65)),
     Type == "Corr. with CDI Comp." ~ scale_y_continuous(limits = c(0, .5))
   )
 )
 ```
 
+To further explore the impact of longer windows on other measures including reliability and validity, we focused on the comparison between windows ending at 2000ms, 3000ms, and 4000ms as well as fine-grained options for window onset between 0 and 1000ms. ICC, CDI correlations, and test-retest reliability were all calculated and bootstrapped by dataset, and then weighted meta-analytically to get overall estimates and confidence intervals [refer to supplement for details]. 
+
+The included datasets are heterogenous on the number and types of items they use and the population (and in particular age) of children tested. Thus, datasets vary substantially in their typical ranges of values for different correlations. As a result, even allowing for dataset-to-dataset variation, the meta-analytic confidence intervals are quite wide as the include both the "intercept" level uncertainty and uncertainty from the parameters of interest. 
+
+For window end point, both ICC and test-test reliability are higher for the 3000 and 4000 ms end points compared to 2000. Shorter windows have slightly higher correlation with production and slightly higher correlation with comprehension for some start points. Together, this suggests that children's looking behaving between 2 and 4 seconds post disambiguation is a stable child-level property, although we cannot say how related it to to child language per se. 
+
+While the looking signal between 2 and 4 seconds is weaker than between .5 and 2 seconds, there is still signal, especially just after the 2 second mark (even for older children, see SUPP YY). [TODO could try to comment on how this could be language related signal that isn't picked up by comprehension CDI]
+
+Exactly when the accuracy window starts is not important, although we recommend starting between 400ms and 600 milliseconds to balance between the best correlation with comprehension around 400 and other measures like ICC that peak later. 
+
+These patterns hold across age (see supplement). 
+
+Continuing windows for longer is not common, but while the "peak" of the aggregated accuracy curve generally occurs before 2000 ms, there is still signal in the high-accuracy post-peak region (see supplement graphs). While we are used to looking at aggregated smoothed plots, this post-peak region both includes some kids who have already looked and are now looking away, but it also includes kids who looked late and are still looking -- something something, per trial or per child, some looking behavior is later peaking so we don't want to cut off too soon. 
+
+Other accuracy windows also have reasonable reliability and validity properties. Strong effects are likely to show up in any reasonable window, but for eking the most reliability out of data, we recommend long windows continuing to 3000 ms. 
+
+
+
 ## Recommendation 2: Don’t use baseline correction to control for variation in image saliency.
 
 [approaches to salience imbalance]
 
-One commonly acknowledged issue in LWL studies is that looking behavior could be partly driven by preferences over the target images themselves [citations]. Children may have a baseline preference to look at one image over another in the absence of auditory stimuli. Researchers have come up with a number of approaches to address this at multiple stages, including design, data processing, and analysis. At the design stage, researchers may pair stimuli to decrease preferential looking discrepancies [citations, see also Rec N]. At the analysis level, researchers may incorporate target and distractor identity as random effects in a regression model [ citations, could mention other options]. 
+One commonly acknowledged issue in LWL studies is that looking behavior could be partly driven by preferences over the target images themselves [citations]. Children may have a baseline preference to look at one image over another in the absence of auditory stimuli. Researchers have come up with a number of approaches to address this at multiple stages, including design, data processing, and analysis. At the design stage, researchers may pair stimuli to decrease preferential looking discrepancies [citations, see also Rec 6]. At the analysis level, researchers may incorporate target and distractor identity as random effects in a regression model [ citations, could mention other options]. 
 
 [baseline-correction: rationale and common methods]
 
 At the data-processing stage, researchers sometimes use a difference measure between accuracy on a post-stimulus window and "accuracy" (looks to target versus looks to target or distractor) on a pre-stimulus window. This difference is referred to as baseline-corrected accuracy. Implementations vary in when the baseline is measured and for how long [citations]. 
 
-[methods]
-
-[results]
-While intuitively appealing, baseline-corrected accuracy led to worse reliability and validity than accuracy. Even for datasets where there was looking data for a long pre-stimulus period (at least 3 seconds), baseline correction using a long pre-stimulus period was as reliable as accuracy without baseline-correction, but still had marginally worse validity.
-
-Children's looking behavior is noisy, and subtracting one noisy measure from another one results in an even noisier measure. Thus, while baseline-correction may lead to more pleasing grand averages, it creates noisier (that is, less reliable) individual level measures. 
-
-Variation in item properties is a worthwhile concern, but can be better handled at other stages, such as in regression analysis [see Barr et al?] or in the design. 
-```{r, eval=F}
-d_aoi <- readRDS(here("cached_intermediates/0_d_aoi.rds"))
-baseline_lengths <- d_aoi |>
-  group_by(dataset_name) |>
-  summarise(t_min = min(t_norm)) |>
-  filter(t_min < 0)
-
-saveRDS(baseline_lengths, here("cached_intermediates", "2_baseline_lengths.rds"))
-```
+We considered baseline-corrected accuracies with various starting and ending points for the baseline window, and used a 400ms-3000ms main window (although the results hold for different end point options). We restricted ourselves to datasets with at least some pre-0 data. We also included a "no baseline" version which was just accuracy on 400-3000ms with no correction. 
 
 
-```{r}
+```{r fig-bc, fig.cap="Comparison between baseline-corrected accuracy with different baseline windows and accuracy with no baseline-correction. All datsets with data before time 0 were included."}
+
 baseline_lengths <- readRDS(here("cached_intermediates", "2_baseline_lengths.rds"))
 bc_icc <- readRDS(here("cached_intermediates", "2_bc_icc_boot.rds")) |>
   bind_rows(readRDS(here("cached_intermediates", "1_acc_icc_boot.rds")) |> filter(t_start == 400)) |>
@@ -311,11 +387,6 @@ bc_acc_all <-combined_metrics(bc_icc, bc_cdi, bc_test_retest)|>
     b_end = ifelse(is.na(b_end), "no baseline", as.character(b_end)),
     b_start = ifelse(b_start == "none", "no baseline", b_start)
   )
-```
-
-Comparison between baseline-corrected accuracy with different baseline windows and accuracy with no baseline-correction. All datsets with data before time 0 were included.
-
-```{r fig-bc, fig.cap="baseline correction -- just don't do it"}
 bc_acc_all |> ggplot(aes(x = b_start, col = b_end, y = estimate, ymin = ci.lb, group = t_end, ymax = ci.ub)) +
   geom_pointrange(position = position_dodge2(width = .5)) +
   coord_flip() +
@@ -333,6 +404,14 @@ bc_acc_all |> ggplot(aes(x = b_start, col = b_end, y = estimate, ymin = ci.lb, g
 )
 ```
 
+While intuitively appealing, baseline-corrected accuracy led to worse reliability and validity than accuracy. Even for datasets where there was looking data for a long pre-stimulus period (at least 3 seconds), baseline correction using a long pre-stimulus period was did not outperform regular accuracy (supplement whatever). These results held across different age bands (supplement whatever). 
+
+Children's looking behavior is noisy, and subtracting one noisy measure from another one results in an even noisier measure. Thus, while baseline-correction may lead to more pleasing grand averages, it creates noisier (that is, less reliable) individual level measures. 
+
+Variation in item properties is a worthwhile concern, but can be better handled at other stages, such as in regression analysis [see Barr et al?] or in the design. 
+
+We strongly recommend against using baseline-corrected accuracy. 
+
 
 ## Recommendation 3: Measure reaction times with a minimum reaction time of around 400 ms.
 
@@ -346,21 +425,9 @@ Short RTs are often excluded because they were necessarily or likely to not be a
 RTs can be analysed either on a log scale or a raw RT scale.
 
 [methods & results]
-Our initial exploration suggested that ICC reliability was maximized for log-scale landing-based RT without any shift-length cutoff with minimum RTs around 350-500 ms. For launch-based RT, trimming for only shifts that landed within 600ms of launch had higher ICC than when they were not trimmed (and this is the common practice for lauch based CITATION). 
+In our initial exploration, we considered a wide range of options for measuring RT, fulling crossing a) launch or land based, b) removing RTs with a shift-length greater than 600 ms, c) using a log or raw scale, and d) minimum RTs between 200 and 900 ms. 
 
-For the main validity and reliability measures, we compare a launch-based RT with a 600ms shift-length cutoff (as used in ...TODO) and a land-based RT without a shift-length cutoff (as used in ...TODO). We vary the minimum RT and whether the RTs are on a log or raw scale. 
-
-Among the 4 types of RT we considered in more detail (log v raw x launch-based v land-based), all have similar correlations with CDI comprehension. Note that correlations between RT and CDI scores are expected to be negative as smaller (faster) RT is associated with better language skills and thus higher CDI scores. Log RT has a slightly stronger (more negative) correlation with CDI production than raw RT especially for minimum RT cutoffs in the 400-450ms range. Launch based RT had slightly stronger correlations with production around 400 ms. 
-
-The highest ICC reliabilities occur around 400 ms. ICC reliability is consistently slightly higher for land-based than launch-based although the scale of difference varies with minimum RT. Test-retest reliability is reasonable for all measures. 
-
-We recommend that researchers use minimum RT cutoffs around 400 ms as these increase reliability (and correlation with CDI measures) compared to shorter cutoffs like 200 ms. While the differences between different methods are small, we recommend using landing-based RT on the log scale to maximize overall reliability and validity. 
-
-Some comment on age splits 
-
-As an additional note, trials are generally only included in RT analyses if the child is looking at the distractor at the point of disambiguation and continues looking at the distractor for the entire minimum RT period. We found that a more lax threshold of looking at the distractor at time 0ms and 400ms and not looking at the target in between can be used with no loss of reliability or validity. However, little bits of missing data were rare, and is likely to be very dataset specific depending on the tracking and imputation process. 
-
-```{r fig-rt-heat, fig.cap="TODO"}
+```{r rt-heat, fig.cap="Heat map of different parameter options for measuring RT", fig.width=7, fig.height=3}
 rt_icc <- readRDS(here("cached_intermediates/3_rt_icc_boot.rds"))
 
 rt_icc_meta <- rt_icc |> do_meta(c("window", "time_0", "time_end", "during", "frac", "measure"))
@@ -371,8 +438,11 @@ rt_icc_meta |> regroup_rt() |> filter(window!="1000") |>
   scale_fill_viridis(discrete = F, option="inferno")
 ```
 
-```{r}
+An initial exploration of ICC reliability (Figure \ref{fig:rt-heat}) indicated that  ICC reliability was maximized for log-scale landing-based RT without any shift-length cutoff with minimum RTs around 350-500 ms. For launch-based RT, trimming for only shifts that landed within 600ms of launch had higher ICC than when they were not trimmed (and this is the common practice for lauch based CITATION). 
 
+For the main validity and reliability measures, we compare a launch-based RT with a 600ms shift-length cutoff (as used in ...TODO) and a land-based RT without a shift-length cutoff (as used in ...TODO). We vary the minimum RT and whether the RTs are on a log or raw scale. 
+
+```{r fig-rt, fig.cap="TODO"}
 rt_icc <- readRDS(here("cached_intermediates/3_rt_icc_boot.rds"))
 
 rt_icc_meta <- rt_icc |> do_meta(c("window", "time_0", "time_end", "during", "frac", "measure")) |> regroup_rt() |> name_rt()
@@ -383,9 +453,7 @@ rt_trt_meta <-  readRDS(here("cached_intermediates/3_rt_test_retest_boot.rds")) 
   
 
 rt_all <- combined_metrics(rt_icc_meta, rt_cdi_meta, rt_trt_meta)
-```
 
-```{r fig-rt, fig.cap="TODO"}
 rt_all |> filter(window<600) |>  ggplot(aes(x = window, col = approach, y = estimate, ymin = ci.lb, ymax = ci.ub)) +
   geom_pointrange(position = position_dodge2(width = 15)) +
   coord_flip() +
@@ -396,12 +464,27 @@ rt_all |> filter(window<600) |>  ggplot(aes(x = window, col = approach, y = esti
   facetted_pos_scales(
   y = list(
     Type == "ICC reliability" ~ scale_y_continuous(limits = c(0.3, .8)),
-    Type == "Corr. with CDI Production" ~ scale_y_continuous(limits = c(-.5, 0)),
+    Type == "Corr. with CDI Prod." ~ scale_y_continuous(limits = c(-.5, 0)),
         Type == "Test-retest reliability" ~ scale_y_continuous(limits = c(0.1, .6)),
     Type == "Corr. with CDI Comp." ~ scale_y_continuous(limits = c(-.5, 0))
   )
 )
 ```
+
+Among the 4 types of RT we considered in more detail (log v raw x launch-based v land-based), all have similar correlations with CDI comprehension. Note that correlations between RT and CDI scores are expected to be negative as smaller (faster) RT is associated with better language skills and thus higher CDI scores. Log RT has a slightly stronger (more negative) correlation with CDI production than raw RT especially for minimum RT cutoffs in the 400-450ms range. Launch based RT had slightly stronger correlations with production around 400 ms. 
+
+The highest ICC reliabilities occur around 400 ms. ICC reliability is consistently slightly higher for land-based than launch-based although the scale of difference varies with minimum RT. Test-retest reliability is reasonable for all measures. 
+
+We recommend that researchers use minimum RT cutoffs around 400 ms as these increase reliability (and correlation with CDI measures) compared to shorter cutoffs like 200 ms. While the differences between different methods are small, we recommend using landing-based RT on the log scale to maximize overall reliability and validity. 
+
+Some comment on age splits and ref to supplement 
+
+While it is traditional to only measure RT when the child is looking at the distractor the entire time from disambiguation to the minimum RT, this is not strictly necessary for good reliability; reliability is good even if there are small amounts of missing or other timepoints in this time window (see supplement, probably interactions with imputation practices). 
+However, little bits of missing data were rare, and is likely to be very dataset specific depending on the tracking and imputation process. 
+
+Overall RT measures complement accuracy measures and capture substantial signal; the exact details don't matter that much. 
+
+
 ## Recommendation 4: Trial-level and child-level exclusions for low amounts of data are generally unnecessary, but light exclusions are okay too.  
 
 A common issue with developmental research is when to exclude trials for behavioral patterns that don't seem to match the task and when to exclude children for contributing too few valid trials. 
@@ -410,20 +493,7 @@ For LWL studies, trial-level exclusions tend to be either for contributing too f
 
 If trials with zoning or with few valid looking points still provide signal of the child-level language behavior, excluding them will decrease reliability and validity. On the other side, if these trials are not representing the construct and are just noise, excluding them will increase reliability and validity. 
 
-On a trial by trial basis, ICC tends to slightly increase the more noisy trials are excluded, but this comes at the cost of fewer trials. CDI correlations are higher when there are no zoner exclusions; test-retest is highest if there are no zoner exclusions or if exclusions are only done for the whole window (not just pre-window). Overall, based on these different trade-offs, we recommend making light trial-level exclusions if any. It is reasonable to not filter trials at all and include those with any looking, but is also to set a minimum proportion data for up to 50%. More stringent looking requirements will mostly reduce the amount of useable data without validity gains to offset it. 
-
-
-Excluding children for contributing too few trials is generally not necessary. There is little difference in ICC reliability or CDI validity for 1-5 trials. For test retest relability, the reliability is higher if there are at least a few trials from each test, although there are concerns that children who contribute fewer than 5 trials may be different in some way than children who contribute more, so the population generalizability may have issues. 
-
-It's acceptable, but probably not necessary, to exclude children for too few trials. 
-
-For RT, it's reasonable to set low minimums for number of trials (like 2 trials) which does make for stronger correlations with CDI production. There are much stronger tradeoffs between test-retest reliability and number of children included. It's also reasonable to not exclude. 
-
-As a side note, one other child-level concern is children who predominantly look at one side of the screen across trials ("side-bias"). Across our dataset, only TODO children (TODO trials, TODO % of the dataset) looked at one side more than 90% of the time across trials. Since this behavior is rare, excluding it is generally not necessary, but also probably harmless. 
-
-
-
-```{r}
+```{r fig-trial-acc, fig.cap="TODO"}
 trial_boot <- readRDS(here("cached_intermediates/4_acc_trial_icc_boot.rds")) |> unnest(num_trials) 
 
 num_trials <- trial_boot|> group_by(t_start, t_end, exclude_less_than, look_both) |> summarize(num_trials=sum(num_trials, na.rm=T), .groups="drop") |> 
@@ -438,9 +508,6 @@ trial_cdi <- readRDS(here("cached_intermediates/4_acc_trial_cdi_boot.rds")) |> d
 trial_trt <- readRDS(here("cached_intermediates/4_acc_trial_test_retest_boot.rds")) |> do_meta(c("t_start", "t_end","exclude_less_than", "look_both"))
 
 trial_all <- combined_metrics(trial_icc, trial_cdi, trial_trt)
-```
-
-```{r fig-trial-acc, fig.cap="TODO"}
 trial_all |> filter(t_end==3000) |>  ggplot(aes(x = exclude_less_than, col = look_both, y = estimate, ymin = ci.lb, ymax = ci.ub)) +
   geom_pointrange(position = position_dodge2(width = .05)) +
   coord_flip() +
@@ -460,6 +527,11 @@ trial_all |> filter(t_end==3000) |>  ggplot(aes(x = exclude_less_than, col = loo
 )
 ```
 
+We first explored trial-level exclusions, both on the basis of amount of missing or away looks and on the basis of whether both target and distractor were looked at (and when). 
+On a trial by trial basis, ICC tends to slightly increase the more noisy trials are excluded, but this comes at the cost of fewer trials. CDI correlations are higher when there are no zoner exclusions; test-retest is highest if there are no zoner exclusions or if exclusions are only done for the whole window (not just pre-window). Overall, based on these different trade-offs, we recommend making light trial-level exclusions if any. It is reasonable to not filter trials at all and include those with any looking, but is also to set a minimum proportion data for up to 50%. More stringent looking requirements will mostly reduce the amount of useable data without validity gains to offset it. 
+
+
+We then explored the effects of excluding children for too few trials. Because datasets vary in the number of trials, and within datasets there may be variation is the max number of trials in a session (for different ages or different sub-experiments), we set thresholds for the total trials rather than the fraction of useable trials. 
 ```{r, eval=F}
 d_aoi <- readRDS(here("cached_intermediates/0_d_aoi.rds"))
 
@@ -471,11 +543,17 @@ d_aoi <- readRDS(here("cached_intermediates/0_d_aoi.rds"))
   mutate(pct=num_kids/max(num_kids)) |> 
   rename(estimate=pct) |> saveRDS(here("cached_intermediates/paper_dataloss_acc.rds"))
 
+  readRDS(here("cached_intermediates/3_rts.rds")) |> filter(window==400, time_0, time_end, frac==1)|> preprocess_rt_dt() |> regroup_rt() |> name_rt() |> filter(!is.na(rt)) |> group_by(administration_id, dataset_name, approach) |> tally() |> 
+  cross_join(expand_grid(min_trial=c(1,2,3,4,5,6))) |> filter(n>=min_trial) |> 
+  group_by(min_trial, approach) |> summarize(total=n()) |> 
+  group_by(approach) |> 
+  mutate(pct=total/max(total)) |> 
+  rename(estimate=pct) |> saveRDS(here("cached_intermediates/paper_dataloss_rt.rds"))
 
 ```
 
 
-```{r}
+```{r fig-kid-acc, fig.cap="TODO"}
 kid_boot <- readRDS(here("cached_intermediates/4_acc_kid_icc_boot.rds")) |> unnest(num_trials) 
 
 num_kids_acc <- readRDS(here("cached_intermediates/paper_dataloss_acc.rds"))
@@ -489,9 +567,7 @@ kid_trt <- readRDS(here("cached_intermediates/4_acc_kid_test_retest_boot.rds")) 
 kid_all <- combined_metrics(kid_icc, kid_cdi,  kid_trt) |> 
    filter(t_end==3000) |> 
   bind_rows(num_kids_acc |> mutate(Type="Pct admins"))
-```
 
-```{r fig-kid-acc, fig.cap="TODO"}
 kid_all |>  ggplot(aes(x = min_trial, col = as.factor(exclude_less_than), y = estimate, ymin = ci.lb, ymax = ci.ub)) +
   geom_pointrange(position = position_dodge2(width = .5)) +
   coord_flip() +
@@ -511,17 +587,17 @@ kid_all |>  ggplot(aes(x = min_trial, col = as.factor(exclude_less_than), y = es
 )
 ```
 
-```{r, eval=F}
- readRDS(here("cached_intermediates/3_rts.rds")) |> filter(window==400, time_0, time_end, frac==1)|> preprocess_rt_dt() |> regroup_rt() |> name_rt() |> filter(!is.na(rt)) |> group_by(administration_id, dataset_name, approach) |> tally() |> 
-  cross_join(expand_grid(min_trial=c(1,2,3,4,5,6))) |> filter(n>=min_trial) |> 
-  group_by(min_trial, approach) |> summarize(total=n()) |> 
-  group_by(approach) |> 
-  mutate(pct=total/max(total)) |> 
-  rename(estimate=pct) |> saveRDS(here("cached_intermediates/paper_dataloss_rt.rds"))
-```
 
 
-```{r}
+Excluding children for contributing too few trials is generally not necessary. There is little difference in ICC reliability or CDI validity for 1-5 trials. For test retest relability, the reliability is higher if there are at least a few trials from each test, although there are concerns that children who contribute fewer than 5 trials may be different in some way than children who contribute more, so the population generalizability may have issues. 
+
+It's acceptable, but probably not necessary, to exclude children for too few trials. 
+
+We also considered the effects of minimum trial requirements on RT data. 
+
+
+```{r fig-kid-rt, fig.cap="TODO"}
+
 kid_rt_boot <- readRDS(here("cached_intermediates/4_rt_icc_boot.rds")) 
 
 
@@ -537,9 +613,7 @@ kid_rt_trt <- readRDS(here("cached_intermediates/4_rt_test_retest_boot.rds")) |>
 
 kid_rt_all <- combined_metrics(kid_rt_icc, kid_rt_cdi, kid_rt_trt) |> 
   bind_rows(num_rt_trials |> mutate(Type="Pct admins"))
-```
 
-```{r fig-kid-rt, fig.cap="TODO"}
 kid_rt_all |>  ggplot(aes(x = min_trial, col = as.factor(approach), y = estimate, ymin = ci.lb, ymax = ci.ub)) +
   geom_pointrange(position = position_dodge2(width = .5)) +
   coord_flip() +
@@ -559,14 +633,19 @@ kid_rt_all |>  ggplot(aes(x = min_trial, col = as.factor(approach), y = estimate
 )
 ```
 
+For RT, it's reasonable to set low minimums for number of trials (like 2 trials) which does make for stronger correlations with CDI production. There are much stronger tradeoffs between test-retest reliability and number of children included. It's also reasonable to not exclude. 
+
+As a side note, one other child-level concern is children who predominantly look at one side of the screen across trials ("side-bias"). Across our dataset, only TODO children (TODO trials, TODO % of the dataset) looked at one side more than 90% of the time across trials. Since this behavior is rare, excluding it is generally not necessary, but also probably harmless. Pull numbers from supplement -- it's on average under 1% but there's weird dataset to dataset variation we should look into?
+
+
 
 # Design recommendations
 
 Our focus for this work was to explore how data processing choices affected the reliability and validity of the resultant measures. However, along the way, we came across a couple key experimental design questions that could impact reliability and validity. 
 
-## Recommendation 5: Design studies to have a minimum of 10 trials per kid. Studies targeting individual differences in processing speed should target 30 trials if possible.
+## Recommendation 5: Design studies to have a minimum of 10 trials per kid. Studies targeting individual differences in processing speed should target 30 trials if possible. TODO revise after sim re-runs!
 
-```{r}
+```{r, eval=F}
 downsample_icc_acc <- readRDS(here("cached_intermediates/5_acc_icc_boot.rds"))|> do_meta(c("t_start", "t_end", "sample_down", "start_point"))
 
 downsample_cdi_acc <- readRDS(here("cached_intermediates/5_acc_cdi_boot.rds"))|> do_cdi_meta(c("t_start", "t_end", "sample_down", "start_point"))
@@ -578,7 +657,7 @@ downsample_acc <-  combined_metrics(downsample_icc_acc, downsample_cdi_acc, down
   filter(t_end==3000)
 ```
 
-```{r fig-downsample-acc, fig.cap="TODO"}
+```{r fig-downsample-acc, eval=F, include=F,  fig.cap="TODO"}
 downsample_acc |>  ggplot(aes(x = sample_down, col = as.factor(start_point), y = estimate, ymin = ci.lb, ymax = ci.ub)) +
   geom_pointrange(position = position_dodge2(width = .5)) +
   coord_flip() +
@@ -598,7 +677,7 @@ downsample_acc |>  ggplot(aes(x = sample_down, col = as.factor(start_point), y =
 )
 ```
 
-```{r}
+```{r, eval=F}
 downsample_icc_rt <- readRDS(here("cached_intermediates/5_rt_icc_boot.rds"))|> regroup_rt() |> name_rt() |> do_meta(c("approach", "sample_down", "start_point"))
 
 downsample_cdi_rt <- readRDS(here("cached_intermediates/5_rt_cdi_boot.rds"))|>  regroup_rt() |> name_rt() |> do_cdi_meta(c("approach", "sample_down", "start_point"))
@@ -609,7 +688,7 @@ downsample_trt_rt <- readRDS(here("cached_intermediates/5_rt_test_retest_boot.rd
 downsample_rt <-  combined_metrics(downsample_icc_rt, downsample_cdi_rt, downsample_trt_rt) |>  filter(approach=="Log Land RT") |> filter(start_point<11)
 ```
 
-```{r fig-downsample-rt, fig.cap="TODO"}
+```{r fig-downsample-rt, eval=F, include=F, fig.cap="TODO"}
 downsample_rt |>  ggplot(aes(x = sample_down, col = as.factor(start_point), y = estimate, ymin = ci.lb, ymax = ci.ub)) +
   geom_pointrange(position = position_dodge2(width = .5)) +
   coord_flip() +
@@ -640,11 +719,7 @@ If you want stable individual differences of RT, as many trials as possible is i
 
 
 ## Recommendation 6: Match target and distractor images based on animacy.
-As mentioned in Recommendation 2, one concern with LWL trial design is that children may have preferences for which image to look at separate from the auditory stimuli, and some of their looking behavior may be independent of the auditory stimulus. One approach is to decrease the preference discrepancy between a pair of images, so that overall, in the absense of auditory cues, children prefer to look at both images equally. While there are a number of factors that could play into children's image preferences [citations], one factor that stood out in the data was animacy. Children have a strong preference for looking at animals and humans (and parts of humans). When trials have one animate and one inanimate, children look more at the animate in the pre-stimulus period (Figure \ref{fig:animacy}) and are slower to respond when the inanimate is named. In contrast, for trials with target and distractor matched on animacy, children's early looking patterns are not sensitive to animacy. This difference is particularly relevant for the younger children, whose stimulus-contingent looking behavior is weakest, so more of the looking behavior is driven by animacy (Figure Swhatever). 
-
-Another potential concern regarding stimulus preferences is that repeating the same pairs of images may cause children to prefer to look at the image that was previously the target. We investigated this in a series of model [TODO supplement], and found that effects of repeating target labels (and target and distractor images) are likely quite small, with unclear directionality. Repeating the same target nouns and target images, such as in a counterbalanced design, is an acceptable practice. 
-
-Animacy is not the only factor affecting children's viewing behavior, but it is an easy to measure one that makes a big difference. Other item variability could be accounted for in the statistical or analytic approach [citation for some approaches]. 
+As mentioned in Recommendation 2, one concern with LWL trial design is that children may have preferences for which image to look at separate from the auditory stimuli, and some of their looking behavior may be independent of the auditory stimulus. One approach is to decrease the preference discrepancy between a pair of images, so that overall, in the absence of auditory cues, children prefer to look at both images equally. While there are a number of factors that could play into children's image preferences [citations], one factor that stood out in the data was animacy. Children have a strong preference for looking at animals and humans (and parts of humans). When trials have one animate and one inanimate, children look more at the animate in the pre-stimulus period (Figure \ref{fig:animacy}) and are slower to respond when the inanimate is named. In contrast, for trials with target and distractor matched on animacy, children's early looking patterns are not sensitive to animacy. This difference is particularly relevant for the younger children, whose stimulus-contingent looking behavior is weakest, so more of the looking behavior is driven by animacy (Figure Swhatever). 
 
 ```{r animacy, fig.cap="animacy-plot", out.width="80%"}
 readRDS(here("cached_intermediates/6_animacy.rds")) |> filter(t_norm>=-500, t_norm<=3500) |> 
@@ -665,6 +740,12 @@ readRDS(here("cached_intermediates/6_animacy.rds")) |> filter(t_norm>=-500, t_no
   scale_fill_brewer(type="qual",palette=1)
 ```
 
+
+Another potential concern regarding stimulus preferences is that repeating the same pairs of images may cause children to prefer to look at the image that was previously the target. We investigated this in a series of model [TODO supplement], and found that effects of repeating target labels (and target and distractor images) are likely quite small, with unclear directionality. Repeating the same target nouns and target images, such as in a counterbalanced design, is an acceptable practice. 
+
+Animacy is not the only factor affecting children's viewing behavior, but it is an easy to measure one that makes a big difference. Other item variability could be accounted for in the statistical or analytic approach [citation for some approaches]. 
+
+
 # Discussion
 
 ## Summary
@@ -682,115 +763,6 @@ peekbank is not a comprehensive set of LWL studies nor is it a random sample of 
 
 We focused our explorations on the questions that are specific to LWL and where data-driven results based on a combined dataset can be most helpful. Other guidance both on LWL specific design considerations and options for coding LWL data are discussed elsewhere. More general advice on experiment design and analysis, especially of developemental datasets, is discussed elsewhere as well (TODO). 
 
-# Supplement
-(list of things that need to go in a supplement/appendix)
-
-* age splits for accuracy 
-* age splits for RT
-* age splits for animacy
-* robustness checks for exclusions (if you made different choices for acc & RT)
-* robustness checks for # of trials (if you made different choices for acc & RT)
-
-* details about how we get ICC and correlations and dataset exclusions and aggregation 
-
-* age split animacy preferences
-* results of order analyses
-
-## Text that might go in supplement
-
-The goal of the peekbank-methods project is to give recommendations about the design and analysis of LWL studies. To do so, we need some criteria for what is a better outcome. Here, we take a "data-driven" approach to look at how different potential data-processing and (using simulation) study design factors affect reliability and validity. 
-
-We use "vanilla" (real word target, real word distractor, plain carrier phrase) trials from peekbank to explore how different look at different possible data-processing and methodological choices affect 3 outcomes measures. 
-
-* one outcome is ICC (intra-class correlation) which is a variance partition metric that is a generalization of correlation. This measures (within a dataset) how much different items (target labels) are consistent with each other in "rating" the subjects (kid-administrations). We think that LWL measures like accuracy and RT are getting at some kid-level properties of language processing speed (and receptive vocabulary). All else equal, we want to process the data (and design studies) in a way that maximizes the ability to get at this language knowledge. 
-
-* in addition to being reliable, we also want valid metrics. We don't want to just be measuring any kid-level-property, we want to be measuring something about kid *language*. For these datasets, we have CDI data (some production and some comprehension). We can check how well our metrics correlate with children's CDI sumscores from CDI administrations at roughly the same time. I also correlate with children's age, as a basic check. In general, correlating with production, comprehension, and age in the expected directions is desirable, although we also may expect that LWL measures are picking up on slightly different aspects of language learning. 
-
-* another reliability measure is test-retest reliability. For a few longitudinal datasets, we have repeated administrations within a couple months of one another. For these, we can do test-retest correlations across the pair of administrations. 
-
-For all these measures, we have to do them within each dataset, due to cross-dataset variability, but we can look at the mean correlations across the datasets. 
-
-## Rabbit hole 1: A digression on ICC
-There are a *ton* of different ICC measures, that vary in what assumptions they make and what sources of variance they compare. And different references list different subsets and label them differently (fun!).
-
-We are using the ICC for *inter*-rater reliability for a "random factorial model without interaction" measuring consistency and looking for the reliability of an average of raters. This is provided by the "agreement" package we use, but I don't think it is fully documented anywhere. 
-
-Basically, this ICC looks at the ratio between by-subject variance (by-subject variance + by-rater variance + error variance) 
-
-* inter-rater reliability means we want to know how well raters (i.e.) items correlate with each other (as opposed to with themselves)
-* the "random factorial model" (type 2 in standard ICC classification) is for when all raters rate all subjects (not quite true for us), but may have varying numbers of measures on each combination. Both raters and subjects are assumed to be sampled from a larger population of interest. 
-* the "without interaction" is a variant for when there are (or may frequently be) single ratings per subject and per rater and/or when subject-rater interactions are not of interest (and can be lumped into the overall error). (Using interaction or not can be a bias-variance trade-off; adding the interactions decreases bias but increases variance.) This version is documented in Gwet 2014 (Handbook of Inter-Rater Reliability, page 256) This measures the ratio of by-subject variance / (by-subject variance + by-rater variance + error variance) 
-* consistency. We aren't interested in exact agreement between raters but rather whether the slopes across raters for different subjects are the same, so it's okay if one rater is consistently lower (i.e. a later-learned word). This omits the by-rater variance from the denominator (I don't know that this is ever explicitly documented for the random factorial model, but it sort of aligns with later discussion of consistency on 272 of Gwet 2014 and is somewhat consistent with https://pmc.ncbi.nlm.nih.gov/articles/PMC4913118/ 's pattern of formulae for different types of ICC)
-* average across raters divides the error term by the number of raters (seems vaguely consistent with https://pmc.ncbi.nlm.nih.gov/articles/PMC4913118/)
-
-so, the overall formula for ICC is then by-subject variance / (by-subject variance + error variance / number of raters) 
-
-The package "agreement" that we use seems to be one of few that (by using Gwet's formulation) handles cases where there is missing or uneven data (very common in peekbank, especially for post-exclusion or RT data).
-
-The main point is to have an ICC measure can be used for comparison across the same datasets for different methodological questions. We don't try to interpret the ICC against external cutoffs for reliability. 
-
-## Handling uncertainty
-
-How do we tell what numerical differences in ICC or in correlations are substantial? The approach we take here is to use bootstrapping which lets us generate per-dataset confidence intervals around the point estimate. We then can use point-estimates and the bootstrapped CIs to calculate a variance-weighted meta-analytic estimate (and CI) to get an overall estimate. 
-
-### Rabbit hole 2: a digression on bootstrapping
-For ICC which is a trial-level measure, we do the bootstrap resampling over trials. For the test-retest and CDI correlations, the correlation used is between the mean value for that administration and another administration/the external CDI. 
-
-It turns out that "take the mean across trials then correlate" is a very biased statistic. So, if you do trial-wise bootstrapping on this statistic, the results from the bootstrap samples are not evenly distributed around the sample value, and in fact often are all lower than the sample mean. The easy way to think about this is that sampling trials from the population (bootstrapping) increases the noise on the means-across-trials, and with a noisier measure, the correlation will go down.
-
-Because of this, we do administration-level bootstrapping for the CDI and age correlations and pair-of-admins-level bootstrapping for the test-retest.
-
-In some cases, the ICC values also are somewhat biased (judging from the bootstrapped CIs), but this seems less severe. 
-
-(While bias sounds bad and makes for wonky plots, our main purpose for bootstrapping is to get measures of variance which we can use for meta-analytic CIs, which should work, biased estimators or not. )
-
-## Turning this into recommendations
-
-This project has a non-standard aim with the statistics. We are neither trying to do just estimation nor are we trying to do "traditional" inferential (p<.05) statistics. We are trying to make inferences as to what data practices to recommend (and how strongly). 
-
-Often in our other statistical applications, we like to see differences. Here, though, it's not a bad thing, if say, exactly where one starts an accuracy window doesn't make a difference. It would be surprising and worrying if small differences in window start dramatically altered results! 
-
-Other factors may also influence what data practices to choose (and to recommend). In particular, we probably prefer parsimony -- given two processes with equivalent goodness of outcome, we should prefer the simpler one. There may also be theoretical commitments that lead to preferences over one measure or another (ex: log vs raw RT). 
-
-## Structure of analyses
-
-There are two classes of decisions we're hoping to give recommendations about: ones that apply after the data has been collected and ones that apply before the data is collected. 
-
-For the "analytic" (really data-processing) decisions, how many trials are useable is probably correlated with various kid factors (maybe squirmy kids know fewer words because they're younger). 
-
-For the "design" decisions, we're simulating hypotheticals about what the data would look like with fewer or more (or differently structured) trials.
-
-## Additional descriptives
-
-## Additional Methods 
-
-## Additional Rec 1 (accuracy)
-
-[ ] accuracy split by age!
-
-## Additional Rec 2 baseline correction
-
-[ ] age split
-[ ] long pre-window only 
-
-## Additional Rec 3 (RT)
-
-[ ] what exactly is a switch to the target? you do almost as well even if you don't pay attention to where exactly the child is looking in between 0 and when you start counting as long as it isn't the target. 
-(also try with CDI etc??)
-
-[ ] age split
-
-## Additional Rec 4 (trial/kid exclusion)
-
-[ ] kid side bias rates? 
-
-## Additional Rec 5 (simulated trials)
-
-## Additional Rec 6 (animacy)
-
-## Additional Order fx
-
-[ ] plots for this
 \newpage
 
 # References

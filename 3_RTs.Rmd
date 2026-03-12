@@ -124,33 +124,7 @@ rt_icc_meta |> regroup_rt() |> filter(window>300, window<700) |>
 ```
 375-400 is the best? 
 
-## weird
-```{r}
-#normie stuff
-rt_icc_meta |> mutate(
-    type = case_when(
-      str_detect(measure, "first_launch_rt") ~ "first_launch",
-      str_detect(measure, "last_launch_rt") ~ "last_launch",
-      str_detect(measure, "land_rt") ~ "land"
-    ),
-    logged = case_when(
-      str_detect(measure, "log") ~ "log",
-      T ~ "raw"
-    ),
-    trimming = case_when(
-      str_detect(measure, "trim_first") ~ "trim_first",
-      str_detect(measure, "trim_last") ~ "trim_last",
-      T ~ "untrimmed"
-    )
-  ) |>
-  filter(logged=="log", trimming=="untrimmed", type=="land") |> filter(window==400) |> 
-  ggplot(aes(y = estimate, color = as.character(frac), group=interaction(frac, during, time_0, time_end), x = str_c(time_0, " ", time_end, " ", during), ymin = ci.lb, ymax = ci.ub)) +
-  geom_pointrange(position=position_dodge(width=.5)) +
-  coord_flip() +
-  facet_wrap(~trimming)+
-  geom_hline(yintercept = .7) +
-  scale_color_viridis(discrete = T)
-```
+
 you do almost as well even if you don't pay attention to where exactly the child is looking in between 0 and when you start counting as long as it isn't the target. 
 
 ## by age
@@ -298,6 +272,58 @@ rt_trt_meta <- rt_trt |> do_meta(c("window", "time_0", "time_end", "during", "fr
   scale_color_viridis(discrete = F)
 ```
 
+# weird
+
+so, how essential is it they their eyeballs be glued to the distractor? is a little wandering into other/NA okay?
+
+```{r}
+weird_icc <- readRDS(here("cached_intermediates/3_rt_icc_boot.rds")) |> filter(window==400, measure %in% c("land_rt", "log_land_rt")) |> do_meta(c("time_0", "time_end", "frac", "measure"))
+
+weird_cdi <- readRDS(here("cached_intermediates/3_rt_cdi_boot_weird.rds")) |> 
+  filter(window==400, measure %in% c("land_rt", "log_land_rt"))|> do_cdi_meta(c("time_0", "time_end", "frac", "measure"))
+
+weird_trt <- readRDS(here("cached_intermediates/3_rt_test_retest_boot_weird.rds")) |> 
+  filter(window==400, measure %in% c("land_rt", "log_land_rt"))|> do_meta(c("time_0", "time_end", "frac", "measure"))
+```
+
+
+```{r}
+weird_icc |>  
+  ggplot(aes(y = estimate, color = as.character(frac), group=interaction(frac, time_0, time_end), x = str_c("start:", time_0, ", end:", time_end), ymin = ci.lb, ymax = ci.ub)) +
+  geom_pointrange(position=position_dodge(width=.5)) +
+  coord_flip() +
+  facet_wrap(~measure) +
+  geom_hline(yintercept = .7) +
+  scale_color_viridis(discrete = T)
+```
+
+```{r}
+weird_cdi |>  
+  ggplot(aes(y = comp_estimate, color = as.character(frac), group=interaction(frac, time_0, time_end), x = str_c("start:", time_0, ", end:", time_end), ymin = comp_ci.lb, ymax = comp_ci.ub)) +
+  geom_pointrange(position=position_dodge(width=.5)) +
+  coord_flip() +
+  facet_wrap(~measure) +
+  geom_hline(yintercept = -.25) +
+  scale_color_viridis(discrete = T)
+```
+```{r}
+weird_cdi |>  
+  ggplot(aes(y = prod_estimate, color = as.character(frac), group=interaction(frac, time_0, time_end), x = str_c("start:", time_0, ", end:", time_end), ymin = prod_ci.lb, ymax = prod_ci.ub)) +
+  geom_pointrange(position=position_dodge(width=.5)) +
+  coord_flip() +
+  facet_wrap(~measure) +
+  geom_hline(yintercept = -.25) +
+  scale_color_viridis(discrete = T)
+```
+```{r}
+weird_trt |>  
+  ggplot(aes(y = estimate, color = as.character(frac), group=interaction(frac, time_0, time_end), x = str_c("start:", time_0, ", end:", time_end), ymin = ci.lb, ymax = ci.ub)) +
+  geom_pointrange(position=position_dodge(width=.5)) +
+  coord_flip() +
+  facet_wrap(~measure) +
+  geom_hline(yintercept = -.25) +
+  scale_color_viridis(discrete = T)
+```
 
 
 # Summary

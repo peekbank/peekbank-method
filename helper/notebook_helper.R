@@ -7,17 +7,20 @@ library(metafor)
 library(ggh4x)
 knitr::opts_chunk$set(
   cache.extra = knitr::rand_seed, cache = TRUE,
-  message = FALSE, warning = FALSE, error = FALSE
+  message = FALSE, warning = FALSE, error = FALSE,
+  fig.height = 4, fig.width = 6
 )
 options(dplyr.summarise.inform = FALSE)
 
 
 theme_set(theme_bw(base_size = 10))
 theme_update(
-  panel.grid = element_blank(),
+  panel.grid.minor = element_blank(),
+  pane.grid.major.x = element_line(),
+  pane.grid.major.y = element_blank(),
   strip.background = element_blank(),
   legend.key = element_blank(),
-  panel.border = element_blank(),
+  # panel.border = element_blank(),
   axis.line = element_line(),
   strip.text = element_text(face = "bold")
 )
@@ -108,4 +111,15 @@ combined_metrics <- function(icc, cdi, trt) {
     bind_rows(cdi |> rename(estimate = prod_estimate, ci.lb = prod_ci.lb, ci.ub = prod_ci.ub) |> mutate(Type = "Corr. with CDI Prod.")) |>
     bind_rows(cdi |> rename(estimate = comp_estimate, ci.lb = comp_ci.lb, ci.ub = comp_ci.ub) |> mutate(Type = "Corr. with CDI Comp.")) |>
     bind_rows(trt |> mutate(Type = "Test-retest reliability"))
+}
+
+combined_metrics_age <- function(icc, cdi) {
+  icc |>
+    mutate(Type = "ICC reliability") |>
+    bind_rows(cdi |> rename(estimate = prod_estimate, ci.lb = prod_ci.lb, ci.ub = prod_ci.ub) |> mutate(Type = "Corr. with CDI Prod.")) |>
+    bind_rows(cdi |> rename(estimate = comp_estimate, ci.lb = comp_ci.lb, ci.ub = comp_ci.ub) |> mutate(Type = "Corr. with CDI Comp."))
+}
+
+order_age <- function(df) {
+  df |> mutate(age_bin = factor(age_bin, levels = c("<18", "18-24", "24-36", ">=36")))
 }

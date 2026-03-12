@@ -47,6 +47,16 @@ baseline_lengths <- d_aoi |>
 ```
 
 # Data prep
+```{r, eval=F}
+d_aoi <- readRDS(here("cached_intermediates/0_d_aoi.rds"))
+baseline_lengths <- d_aoi |>
+  group_by(dataset_name) |>
+  summarise(t_min = min(t_norm),
+            t_max = max(t_norm)) |>
+  filter(t_min < 0)
+
+saveRDS(baseline_lengths, here("cached_intermediates", "2_baseline_lengths.rds"))
+```
 See scripts
 # Viz
 ## ICC
