@@ -11,35 +11,43 @@ d_rt_dt <- preprocess_rt_dt(rts)
 
 cluster <- setup_cluster(
   libs = c("dplyr", "stringr", "purrr", "tidyr", "agreement"),
-  copy_names = c("bootstrap_icc", "get_icc")
+  copy_names = c("bootstrap_icc", "get_icc", "empirical_ci")
 )
 
 
 params <- expand_grid(
   start_point = c(3, 5, 7, 10, 15),
-  sample_down = c(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15)
+  sample_down = c(2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15)
 ) |> filter(sample_down <= start_point)
 
 
-rt_iccs <- pmap_dfr(params, \(start_point, sample_down) {
-  d_rt_dt |>
-    group_by(dataset_name, administration_id, time_0, window, time_end, during, frac, measure) |>
-    mutate(count = sum(!is.na(rt))) |>
-    filter(count >= start_point) |>
-    select(-count) |>
-    cross_join(tibble(iteration = 1:100)) |>
-    group_by(dataset_name, administration_id, time_0, window, time_end, during, frac, measure, iteration) |>
-    slice_sample(n = sample_down) |>
-    ungroup() |>
-    mutate(start_point = start_point, sample_down = sample_down)
-}) |>
+rt_iccs <- params |>
+  pmap_dfr(\(start_point, sample_down) {
+    d_rt_dt |>
+      group_by(dataset_name, administration_id, time_0, window, time_end, during, frac, measure) |>
+      mutate(count = sum(!is.na(rt))) |>
+      filter(count >= start_point) |>
+      select(-count) |>
+      cross_join(tibble(iteration = 1:1000)) |>
+      group_by(dataset_name, administration_id, time_0, window, time_end, during, frac, measure, iteration) |>
+      slice_sample(n = sample_down) |>
+      ungroup() |>
+      mutate(start_point = start_point, sample_down = sample_down)
+  }) |>
   group_by(dataset_name, time_0, window, time_end, during, frac, administration_id, target_label, measure, start_point, sample_down, iteration) |>
   mutate(repetition = row_number()) |>
-  group_by(dataset_name, time_0, window, time_end, during, frac, measure, start_point, sample_down, iteration) |>
+  group_by(time_0, window, time_end, during, frac, measure, start_point, sample_down) |>
   nest() |>
   partition(cluster) |>
   mutate(icc_admin = map(data, \(d) {
-    get_icc(d, column = "rt")
+    d |>
+      group_by(dataset_name, iteration) |>
+      nest() |>
+      mutate(corr = map(data, \(x) get_icc(x, "rt"))) |>
+      select(-data) |>
+      unnest(corr) |>
+      ungroup() |>
+      empirical_ci()
   })) |>
   collect() |>
   select(-data) |>

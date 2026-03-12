@@ -37,37 +37,39 @@ downsample_summarize_accuracy <- function(d, t_start, t_end, start_point, sample
 }
 
 # Bootstrap ICCs on pre-computed trial-level summaries.
-run_icc_bootstrap <- function(d) {
+run_icc <- function(d) {
   d |>
-    group_by(dataset_name, across(any_of("age_bin"))) |>
+    group_by(dataset_name, iteration) |>
     nest() |>
-    mutate(icc = map(data, \(x) get_icc(x, "accuracy"))) |>
+    mutate(corr = map(data, \(x) get_icc(x, "accuracy"))) |>
     select(-data) |>
-    unnest(icc)
+    unnest(corr) |>
+    ungroup() |>
+    empirical_ci()
 }
 
 params <- expand_grid(
   t_start = c(400),
   t_end = c(2000, 3000, 4000),
   start_point = c(5, 10, 15, 20),
-  sample_down = c(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20)
+  sample_down = c(2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20)
 ) |> filter(sample_down <= start_point)
 
 
 # Pre-compute trial-level summaries on main process
 accs_summarized <- params |>
-  mutate(iteration = 100) |>
-  mutate(summary_data = pmap(list(t_start, t_end, start_point, sample_down, iteration), \(t_s, t_e, s_p, s_d, iteration) downsample_summarize_accuracy(d_aoi, t_s, t_e, s_p, s_d, iteration)))
+  mutate(iters = 1000) |>
+  mutate(summary_data = pmap(list(t_start, t_end, start_point, sample_down, iters), \(t_s, t_e, s_p, s_d, iters) downsample_summarize_accuracy(d_aoi, t_s, t_e, s_p, s_d, iters)))
 
 
 cluster <- setup_cluster(
   libs = c("dplyr", "tidyr", "purrr", "agreement"),
-  copy_names = c("bootstrap_icc", "run_icc_bootstrap", "get_icc")
+  copy_names = c("bootstrap_icc", "run_icc_bootstrap", "get_icc", "empirical_ci")
 )
 
 accs_boot <- accs_summarized |>
   partition(cluster) |>
-  mutate(icc = map(summary_data, run_icc_bootstrap)) |>
+  mutate(icc = map(summary_data, run_icc)) |>
   collect() |>
   select(-summary_data) |>
   unnest(col = icc)

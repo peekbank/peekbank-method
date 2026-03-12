@@ -16,10 +16,13 @@ Our goal is to determine how different number of hypothetical trials would impac
 
 One way to look at this is by down-sampling for kids who had more than a threshold of trials
 
+
 ## T-RT
 ```{r}
 downsample_trt <- readRDS(here("cached_intermediates/5_acc_downsample_test_retest_boot.rds"))
-downsample_trt_summ <- downsample_trt |> do_meta(c("t_start", "t_end", "sample_down", "start_point"))
+
+
+#downsample_trt_summ <- downsample_trt |> do_meta(c("t_start", "t_end", "sample_down", "start_point"))
 
 ```
 

@@ -27,12 +27,13 @@ downsample_acc_cdi <- function(t_start = -500, t_end = 4000, start_point, sample
     group_by(administration_id, dataset_name, iteration) |>
     summarize(mean_var = mean(accuracy, na.rm = T)) |>
     filter(!is.na(mean_var)) |>
-    left_join(cdi_data)
+    ungroup() |>
+    left_join(cdi_data, by = c("administration_id", "dataset_name"))
 }
 
 cluster <- setup_cluster(
   libs = c("dplyr", "stringr", "purrr", "tidyr", "stats", "tibble", "boot"),
-  copy_names = c("safe_boot_ci", "safe_cor", "do_cdi", "boot_cdi")
+  copy_names = c("safe_boot_ci", "safe_cor", "do_cdi", "boot_cdi", "empirical_ci_cdi")
 )
 
 
@@ -45,12 +46,21 @@ params <- expand_grid(
 ) |> filter(sample_down <= start_point)
 
 accs_boot_cdi <- params |>
-  mutate(iteration = 100) |>
-  mutate(summary_data = pmap(list(t_start, t_end, start_point, sample_down, iteration), \(t_s, t_e, s_p, s_d, iteration) downsample_acc_cdi(t_s, t_e, s_p, s_d, iteration))) |>
+  mutate(iters = 1000) |>
+  mutate(summary_data = pmap(list(t_start, t_end, start_point, sample_down, iters), \(t_s, t_e, s_p, s_d, iters) downsample_acc_cdi(t_s, t_e, s_p, s_d, iters))) |>
   partition(cluster) |>
-  mutate(cdi = map(summary_data, \(d) do_cdi(d, 1:nrow(d)))) |>
+  mutate(cdi = map(summary_data, \(d) {
+    d |>
+      group_by(dataset_name, iteration) |>
+      nest() |>
+      mutate(corr = map(data, \(d) do_cdi(d, 1:nrow(d)))) |>
+      select(-data) |>
+      unnest_wider(corr) |>
+      ungroup() |>
+      empirical_ci_cdi()
+  })) |>
   collect() |>
   select(-summary_data) |>
-  unnest_wider(cdi)
+  unnest(cdi)
 
 saveRDS(accs_boot_cdi, "../cached_intermediates/5_acc_cdi_boot.rds")

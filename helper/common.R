@@ -259,3 +259,29 @@ setup_cluster <- function(libs, copy_names = character(), envir = parent.frame()
 }
 
 options(dplyr.summarise.inform = FALSE)
+
+empirical_ci <- function(d) {
+  d |>
+    group_by(dataset_name) |>
+    summarize(
+      est = mean(corr, na.rm = T),
+      lower = quantile(corr, probs = c(.025), na.rm = T),
+      upper = quantile(corr, probs = c(.975), na.rm = T)
+    )
+}
+
+empirical_ci_cdi <- function(d) {
+  d |>
+    group_by(dataset_name) |>
+    summarize(
+      comp_est = mean(cor_comp, na.rm = T),
+      comp_lower = quantile(cor_comp, probs = c(.025), na.rm = T),
+      comp_upper = quantile(cor_comp, probs = c(.975), na.rm = T),
+      prod_est = mean(cor_prod, na.rm = T),
+      prod_lower = quantile(cor_prod, probs = c(.025), na.rm = T),
+      prod_upper = quantile(cor_prod, probs = c(.975), na.rm = T),
+      age_est = mean(cor_age, na.rm = T),
+      age_lower = quantile(cor_age, probs = c(.025), na.rm = T),
+      age_upper = quantile(cor_age, probs = c(.975), na.rm = T)
+    )
+}

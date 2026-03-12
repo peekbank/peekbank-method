@@ -5,9 +5,6 @@ d_aoi <- readRDS("../cached_intermediates/0_d_aoi.rds")
 pairs_long <- make_test_retest_pairs(d_aoi)
 pairs_aoi_data <- pairs_long |> left_join(d_aoi)
 
-rm(d_aoi, pairs_long)
-gc()
-
 acc_downsample_test_retest <- function(t_start, t_end, start_point, sample_down, iter) {
   d <- pairs_aoi_data |>
     filter(t_norm > t_start, t_norm < t_end) |>
@@ -31,22 +28,28 @@ acc_downsample_test_retest <- function(t_start, t_end, start_point, sample_down,
   wide_data <- d |>
     select(-administration_id) |>
     filter(!is.na(mean_var)) |>
-    group_by(dataset_name, subject_id, pair_number) |>
+    group_by(dataset_name, subject_id, pair_number, iteration) |>
     mutate(count = n()) |>
     filter(count == 2) |>
     select(-count)
 
   wide_data |>
     pivot_wider(names_from = session_num, values_from = mean_var) |>
-    group_by(dataset_name) |>
+    group_by(dataset_name, iteration) |>
     nest() |>
-    test_retest_corr( 1:nrow(d))
+    mutate(corr = map(data, \(d) test_retest_corr(d, 1:nrow(d)))) |>
+    select(-data) |>
+    unnest(corr) |>
+    empirical_ci()
 }
 
 
 cluster <- setup_cluster(
   libs = c("dplyr", "stringr", "purrr", "tidyr", "stats", "tibble", "boot"),
-  copy_names = c("safe_boot_ci", "safe_cor", "test_retest_corr", "boot_test_retest", "pairs_aoi_data", "acc_downsample_test_retest")
+  copy_names = c(
+    "safe_boot_ci", "safe_cor", "test_retest_corr", "boot_test_retest",
+    "pairs_aoi_data", "acc_downsample_test_retest", "empirical_ci"
+  )
 )
 
 
@@ -58,10 +61,9 @@ params <- expand_grid(
 ) |> filter(sample_down <= start_point)
 
 acc_downsample <- params |>
-  mutate(iteration = 100) |>
+  mutate(iters = 1000) |>
   partition(cluster) |>
-  # head(1) |>
-  mutate(corr = pmap(list(t_start, t_end, start_point, sample_down, iteration), \(t_s, t_e, s_p, s_d, iteration) acc_downsample_test_retest(t_s, t_e, s_p, s_d, iteration))) |>
+  mutate(corr = pmap(list(t_start, t_end, start_point, sample_down, iters), \(t_s, t_e, s_p, s_d, iters) acc_downsample_test_retest(t_s, t_e, s_p, s_d, iters))) |>
   collect() |>
   unnest(corr)
 
