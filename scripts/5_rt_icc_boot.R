@@ -1,17 +1,44 @@
 source("../helper/common.R")
 source("../helper/rt_helper.R")
 
-d_aoi <- readRDS("../cached_intermediates/0_d_aoi.rds")
-
-age_bin_cutoff <- get_age_bin_cutoff(d_aoi)
+# d_aoi <- readRDS("../cached_intermediates/0_d_aoi.rds")
 
 rts <- readRDS("../cached_intermediates/3_rts.rds") |> filter(time_0, time_end, frac == 1, window == 400)
 
-d_rt_dt <- preprocess_rt_dt(rts)
+
+d_rt_dt <- preprocess_rt_dt(rts) |> filter(measure == "log_land_rt")
+
+downsample_summarize_rt <- function(start_point, sample_down, iterations) {
+  d_rt_dt |>
+    group_by(dataset_name, administration_id) |>
+    mutate(count = sum(!is.na(rt))) |>
+    filter(count >= start_point) |>
+    select(-count) |>
+    cross_join(tibble(iteration = 1:iterations)) |>
+    group_by(dataset_name, administration_id, iteration) |>
+    slice_sample(n = sample_down) |>
+    group_by(dataset_name, administration_id, target_label, iteration) |>
+    mutate(repetition = row_number()) |>
+    ungroup() |>
+    run_icc()
+}
+
+
+
+run_icc <- function(d) {
+  d |>
+    group_by(dataset_name, iteration) |>
+    nest() |>
+    mutate(corr = map(data, \(x) get_icc(x, "rt"))) |>
+    select(-data) |>
+    unnest(corr) |>
+    ungroup() |>
+    empirical_ci()
+}
 
 cluster <- setup_cluster(
   libs = c("dplyr", "stringr", "purrr", "tidyr", "agreement"),
-  copy_names = c("bootstrap_icc", "get_icc", "empirical_ci")
+  copy_names = c("run_icc", "get_icc", "empirical_ci", "downsample_summarize_rt")
 )
 
 
@@ -22,35 +49,10 @@ params <- expand_grid(
 
 
 rt_iccs <- params |>
-  pmap_dfr(\(start_point, sample_down) {
-    d_rt_dt |>
-      group_by(dataset_name, administration_id, time_0, window, time_end, during, frac, measure) |>
-      mutate(count = sum(!is.na(rt))) |>
-      filter(count >= start_point) |>
-      select(-count) |>
-      cross_join(tibble(iteration = 1:1000)) |>
-      group_by(dataset_name, administration_id, time_0, window, time_end, during, frac, measure, iteration) |>
-      slice_sample(n = sample_down) |>
-      ungroup() |>
-      mutate(start_point = start_point, sample_down = sample_down)
-  }) |>
-  group_by(dataset_name, time_0, window, time_end, during, frac, administration_id, target_label, measure, start_point, sample_down, iteration) |>
-  mutate(repetition = row_number()) |>
-  group_by(time_0, window, time_end, during, frac, measure, start_point, sample_down) |>
-  nest() |>
+  mutate(iters = 1000) |>
   partition(cluster) |>
-  mutate(icc_admin = map(data, \(d) {
-    d |>
-      group_by(dataset_name, iteration) |>
-      nest() |>
-      mutate(corr = map(data, \(x) get_icc(x, "rt"))) |>
-      select(-data) |>
-      unnest(corr) |>
-      ungroup() |>
-      empirical_ci()
-  })) |>
+  mutate(corr = pmap(list(start_point, sample_down, iters), \(s_p, s_d, iters) downsample_summarize_rt(s_p, s_d, iters))) |>
   collect() |>
-  select(-data) |>
-  unnest(icc_admin)
+  unnest(corr)
 
 saveRDS(rt_iccs, "../cached_intermediates/5_rt_icc_boot.rds")

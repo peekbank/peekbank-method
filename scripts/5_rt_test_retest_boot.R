@@ -4,20 +4,52 @@ source("../helper/rt_helper.R")
 d_aoi <- readRDS("../cached_intermediates/0_d_aoi.rds")
 rts <- readRDS("../cached_intermediates/3_rts.rds") |> filter(time_0, time_end, frac == 1, window == 400)
 
+d_rt_dt_long <- preprocess_rt_dt(rts) |> filter(measure == "log_land_rt")
+
 pairs_long <- make_test_retest_pairs(d_aoi)
-
-cluster <- setup_cluster(
-  libs = c("dplyr", "stringr", "purrr", "tidyr", "stats", "tibble", "boot"),
-  copy_names = c("safe_boot_ci", "safe_cor", "test_retest_corr", "boot_test_retest", "empirical_ci")
-)
-
-d_rt_dt_long <- preprocess_rt_dt(rts)
 
 rt_pairs <- pairs_long |>
   left_join(d_rt_dt_long |> select(
-    administration_id, rt, measure, window, time_0, time_end, during,
-    frac, dataset_name
+    administration_id, rt, dataset_name
   ), relationship = "many-to-many")
+
+rm(d_aoi, rts, d_rt_dt_long, pairs_long)
+gc()
+
+downsample_rt_test_retest <- function(start_point, sample_down, iters) {
+  d <- rt_pairs |>
+    group_by(administration_id, dataset_name, subject_id, pair_number, session_num) |>
+    mutate(count = sum(!is.na(rt))) |>
+    filter(count >= start_point) |>
+    select(-count) |>
+    cross_join(tibble(iteration = 1:iters)) |>
+    group_by(administration_id, dataset_name, subject_id, pair_number, session_num, iteration) |>
+    slice_sample(n = sample_down) |>
+    group_by(administration_id, dataset_name, subject_id, pair_number, session_num, iteration) |>
+    summarize(mean_var = mean(rt, na.rm = T), .groups = "drop")
+
+  wide_data <- d |>
+    select(-administration_id) |>
+    filter(!is.na(mean_var)) |>
+    group_by(dataset_name, subject_id, pair_number, iteration) |>
+    mutate(count = n()) |>
+    filter(count == 2) |>
+    select(-count)
+
+  wide_data |>
+    pivot_wider(names_from = session_num, values_from = mean_var) |>
+    group_by(dataset_name, iteration) |>
+    nest() |>
+    mutate(corr = map(data, \(d) test_retest_corr(d, 1:nrow(d)))) |>
+    select(-data) |>
+    unnest(corr) |>
+    empirical_ci()
+}
+
+cluster <- setup_cluster(
+  libs = c("dplyr", "stringr", "purrr", "tidyr", "stats", "tibble", "boot"),
+  copy_names = c("safe_cor", "test_retest_corr", "empirical_ci", "downsample_rt_test_retest")
+)
 
 
 params <- expand_grid(
@@ -27,44 +59,10 @@ params <- expand_grid(
 
 
 rt_bootstrap_test_retest <- params |>
-  pmap_dfr(\(start_point, sample_down) {
-    rt_pairs |>
-      group_by(administration_id, dataset_name, subject_id, pair_number, session_num, time_0, time_end, measure, window, during, frac) |>
-      mutate(count = sum(!is.na(rt))) |>
-      filter(count >= start_point) |>
-      select(-count) |>
-      cross_join(tibble(iteration = 1:1000)) |>
-      group_by(administration_id, dataset_name, subject_id, pair_number, session_num, time_0, time_end, measure, window, during, frac, iteration) |>
-      slice_sample(n = sample_down) |>
-      ungroup() |>
-      mutate(start_point = start_point, sample_down = sample_down)
-  }) |>
-  group_by(administration_id, dataset_name, subject_id, pair_number, session_num, time_0, time_end, measure, window, during, frac, start_point, sample_down, iteration) |>
-  summarize(mean_var = mean(rt, na.rm = T), .groups = "drop") |>
-  group_by(measure, window, time_0, time_end, during, frac, start_point, sample_down) |>
-  nest() |>
+  mutate(iters = 1000) |>
   partition(cluster) |>
-  mutate(corr = map(data, \(d) {
-    wide_data <- d |>
-      select(-administration_id) |>
-      filter(!is.na(mean_var)) |>
-      group_by(dataset_name, subject_id, pair_number, iteration) |>
-      mutate(count = n()) |>
-      filter(count == 2) |>
-      select(-count)
-
-    wide_data |>
-      pivot_wider(names_from = session_num, values_from = mean_var) |>
-      group_by(dataset_name, iteration) |>
-      nest() |>
-      mutate(corr = map(data, \(d) test_retest_corr(d, 1:nrow(d)))) |>
-      select(-data) |>
-      unnest(corr) |>
-      ungroup() |>
-      empirical_ci()
-  })) |>
+  mutate(corr = pmap(list(start_point, sample_down, iters), \(s_p, s_d, iters) downsample_rt_test_retest(s_p, s_d, iters))) |>
   collect() |>
-  select(-data) |>
   unnest(corr)
 
 saveRDS(rt_bootstrap_test_retest, "../cached_intermediates/5_rt_test_retest_boot.rds")
