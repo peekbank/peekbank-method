@@ -22,13 +22,13 @@ One way to look at this is by down-sampling for kids who had more than a thresho
 downsample_trt <- readRDS(here("cached_intermediates/5_acc_downsample_test_retest_boot.rds"))
 
 
-#downsample_trt_summ <- downsample_trt |> do_meta(c("t_start", "t_end", "sample_down", "start_point"))
+downsample_trt_summ <- downsample_trt |> do_meta(c("t_start", "t_end", "sample_down", "start_point"))
 
 ```
 
 ```{r}
 
-downsample_trt |> filter(t_end==3000) |> ggplot(aes(x=sample_down, y=est, ymin=lower, ymax=upper, color=as.character(dataset_name), group=interaction(t_start, t_end, start_point, dataset_name)))+geom_pointrange()+geom_line()+geom_smooth(aes(group=1))+geom_hline(yintercept=0)+facet_grid(~start_point)+theme(legend.position = "bottom")
+downsample_trt |> filter(t_end==3000) |> ggplot(aes(x=sample_down, y=est, ymin=lower, ymax=upper, color=as.character(dataset_name), group=interaction(t_start, t_end, start_point, dataset_name)))+geom_pointrange()+geom_line()+geom_hline(yintercept=0)+facet_grid(~start_point)+theme(legend.position = "bottom")
 ```
 ```{r}
 downsample_trt_summ |> ggplot(aes(x=sample_down, y=estimate, ymin=ci.lb, ymax=ci.ub, color=as.character(start_point), group=interaction(t_start, t_end, start_point)))+geom_pointrange()+geom_line()+geom_smooth(aes(group=1))+geom_hline(yintercept=0)+facet_grid(~t_end)+theme(legend.position = "bottom")
