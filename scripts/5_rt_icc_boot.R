@@ -38,7 +38,7 @@ run_icc <- function(d) {
 
 cluster <- setup_cluster(
   libs = c("dplyr", "stringr", "purrr", "tidyr", "agreement"),
-  copy_names = c("run_icc", "get_icc", "empirical_ci", "downsample_summarize_rt")
+  copy_names = c("d_rt_dt", "run_icc", "get_icc", "empirical_ci", "downsample_summarize_rt")
 )
 
 

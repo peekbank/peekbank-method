@@ -25,7 +25,7 @@ downsample_rt_cdi <- function(start_point, sample_down, iters) {
 
 cluster <- setup_cluster(
   libs = c("dplyr", "stringr", "purrr", "tidyr", "stats", "tibble", "boot"),
-  copy_names = c("safe_cor", "do_cdi", "empirical_ci_cdi")
+  copy_names = c("safe_cor", "do_cdi", "empirical_ci_cdi", "d_rt_dt")
 )
 
 params <- expand_grid(

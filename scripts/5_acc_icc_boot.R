@@ -62,11 +62,11 @@ params <- expand_grid(
 
 cluster <- setup_cluster(
   libs = c("dplyr", "tidyr", "purrr", "agreement"),
-  copy_names = c("run_icc", "get_icc", "empirical_ci", "summarized_accuracy")
+  copy_names = c("run_icc", "get_icc", "empirical_ci", "summarized_accuracy", "downsample_summarize_accuracy")
 )
 
 accs_boot <- params |>
-  mutate(iters = 1000) |>
+  mutate(iters = 500) |>
   partition(cluster) |>
   mutate(corr = pmap(list(start_point, sample_down, iters), \(s_p, s_d, iters) downsample_summarize_accuracy(s_p, s_d, iters))) |>
   collect() |>

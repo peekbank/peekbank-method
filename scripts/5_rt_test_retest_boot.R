@@ -48,7 +48,7 @@ downsample_rt_test_retest <- function(start_point, sample_down, iters) {
 
 cluster <- setup_cluster(
   libs = c("dplyr", "stringr", "purrr", "tidyr", "stats", "tibble", "boot"),
-  copy_names = c("safe_cor", "test_retest_corr", "empirical_ci", "downsample_rt_test_retest")
+  copy_names = c("rt_pairs", "safe_cor", "test_retest_corr", "empirical_ci", "downsample_rt_test_retest")
 )
 
 
