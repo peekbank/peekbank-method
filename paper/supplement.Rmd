@@ -1,0 +1,392 @@
+---
+title: "Supplemental Information: TODO TITLE"
+output: 
+  bookdown::pdf_document2:
+    fig_caption: yes
+    keep_tex: yes
+    toc: false
+header-includes:
+  - \usepackage{threeparttablex}
+  - \usepackage{booktabs}
+  - \usepackage{placeins}
+  - \usepackage{lscape}
+  - \usepackage{multirow}	
+  - \usepackage{tabularx}
+  - \renewcommand{\thefigure}{S\arabic{figure}}
+  - \renewcommand{\thetable}{S\arabic{table}}
+  - \usepackage{float}
+  - \renewcommand{\textfraction}{0.00}
+  - \renewcommand{\topfraction}{1}
+  - \renewcommand{\bottomfraction}{1}
+  - \renewcommand{\floatpagefraction}{1}
+  - \setcounter{topnumber}{5}
+  - \setcounter{bottomnumber}{5}
+  - \setcounter{totalnumber}{6} 
+---
+
+```{r setup, include = FALSE}
+library("papaja")
+library("here")
+source(here("helper/common.R"))
+source(here("helper/notebook_helper.R"))
+source(here("helper/rt_helper.R"))
+```
+
+# Data description
+
+
+```{r}
+dataset_summary <- readRDS(here("cached_intermediates/paper_dataset_summary.rds"))
+```
+
+Figure \ref{fig:dist-age} shows the distribution of ages in the Peekbank data used in this paper. 
+
+```{r dist-age, fig.cap="Age distribution for trials and administrations, with the age bins used for analysis.", fig.width=6, fig.height=3}
+dataset_summary |>  mutate(age_bin = case_when(
+      age < 18 ~ "<18",
+      age < 24 ~ "18-24",
+      age < 36 ~ "24-36",
+      age >= 36 ~ ">=36"
+    )) |> order_age() |> mutate(type="Trials") |> 
+  bind_rows(
+    dataset_summary |> ungroup() |>  distinct(age, administration_id) |>  mutate(age_bin = case_when(
+      age < 18 ~ "<18",
+      age < 24 ~ "18-24",
+      age < 36 ~ "24-36",
+      age >= 36 ~ ">=36"
+    )) |> order_age() |> mutate(type="Administrations")
+    ) |> ggplot(aes(x=age, fill=age_bin))+geom_histogram(binwidth=1)+scale_fill_viridis(discrete=T)+facet_wrap(~type, scales="free_y")+labs(x="Age in months", fill="Age bin", y="Count")
+```
+
+
+
+# Methods details
+
+## Criteria for inclusion 
+
+TODO long version of what makes a trial vanilla (if needed)
+
+## Details about ICC
+
+There are a number of different correlations that all go by the name ICC.
+
+We are using the ICC for *inter*-rater reliability for a "random factorial model without interaction" measuring consistency and looking for the reliability of an average of raters. This is provided by the "agreement" package we use, but I don't think it is fully documented anywhere. 
+
+Basically, this ICC looks at the ratio between by-subject variance (by-subject variance + by-rater variance + error variance) 
+
+* inter-rater reliability means we want to know how well raters (i.e.) items correlate with each other (as opposed to with themselves)
+
+* the "random factorial model" (type 2 in standard ICC classification) is for when all raters rate all subjects (not quite true for us), but may have varying numbers of measures on each combination. Both raters and subjects are assumed to be sampled from a larger population of interest. 
+
+* the "without interaction" is a variant for when there are (or may frequently be) single ratings per subject and per rater and/or when subject-rater interactions are not of interest (and can be lumped into the overall error). (Using interaction or not can be a bias-variance trade-off; adding the interactions decreases bias but increases variance.) This version is documented in Gwet 2014 (Handbook of Inter-Rater Reliability, page 256) This measures the ratio of by-subject variance / (by-subject variance + by-rater variance + error variance) 
+
+* consistency. We aren't interested in exact agreement between raters but rather whether the slopes across raters for different subjects are the same, so it's okay if one rater is consistently lower (i.e. a later-learned word). This omits the by-rater variance from the denominator (I don't know that this is ever explicitly documented for the random factorial model, but it sort of aligns with later discussion of consistency on 272 of Gwet 2014 and is somewhat consistent with https://pmc.ncbi.nlm.nih.gov/articles/PMC4913118/ 's pattern of formulae for different types of ICC)
+
+* average across raters divides the error term by the number of raters (seems vaguely consistent with https://pmc.ncbi.nlm.nih.gov/articles/PMC4913118/)
+
+so, the overall formula for ICC is then by-subject variance / (by-subject variance + error variance / number of raters) 
+
+The package "agreement" that we use seems to be one of few that (by using Gwet's formulation) handles cases where there is missing or uneven data (very common in peekbank, especially for post-exclusion or RT data).
+
+The main point is to have an ICC measure can be used for comparison across the same datasets for different methodological questions. We don't try to interpret the ICC against external cutoffs for reliability. 
+
+## Handling uncertainty
+
+How do we tell what numerical differences in ICC or in correlations are substantial? The approach we take here is to use bootstrapping which lets us generate per-dataset confidence intervals around the point estimate. We then can use point-estimates and the bootstrapped CIs to calculate a variance-weighted meta-analytic estimate (and CI) to get an overall estimate. 
+
+We run separate meta-analytic estimates for each set of parameters, so each parameter's CI includes all the variation from uncertainty over what the "center" of the distribution across datasets is. This is different from the uncertainty we'd get if we stuck the parameters in as fixed effects of the model -- there we'd see wide uncertainty about the "intercept" and a narrower estimate for the fixed effect. However, we don't have specific pair-wise comparisons to test, so we stick with running separate models to show, descriptively, the range of meta-analytic uncertainty. 
+
+For ICC which is a trial-level measure, we do the bootstrap resampling over trials. For the test-retest and CDI correlations, the correlation used is between the mean value for that administration and another administration/the external CDI. 
+
+It turns out that "take the mean across trials then correlate" is a very biased statistic. So, if you do trial-wise bootstrapping on this statistic, the results from the bootstrap samples are not evenly distributed around the sample value, and in fact often are all lower than the sample mean. The easy way to think about this is that sampling trials from the population (bootstrapping) increases the noise on the means-across-trials, and with a noisier measure, the correlation will go down.
+
+Because of this, we do administration-level bootstrapping for the CDI and age correlations and pair-of-admins-level bootstrapping for the test-retest.
+
+\FloatBarrier
+
+# Accuracy 
+
+Figure \ref{fig:acc-fig-age} shows the results for different accuracy windows split out by age bin. TODO any comments on results
+
+Figure \ref{fig:timecourse} shows the distribution of AOIs for different datasets and different timepoints. Some datasets have less data at the start or end due to varying length recordings, or being a mix of multiple experiments with different recording windows. Most (but not all) datasets had data before the point of disambiguation and up to 3000ms. Datasets varied dramatically in overall size. 
+
+```{r acc-fig-age, fig.cap="Bootstrapped results of different accuracy parameter combinations, split out by age of participants.", fig.height=8, fig.width=6}
+acc_icc_age <- readRDS(here("cached_intermediates", "1_acc_icc_boot_byage.rds")) |> do_meta(c("t_start", "t_end", "age_bin"))
+
+acc_cdi_age <- readRDS(here("cached_intermediates", "1_acc_cdi_boot_byage.rds")) |> do_cdi_meta(c("t_start", "t_end", "age_bin"))
+
+acc_all_age <- combined_metrics_age(acc_icc_age, acc_cdi_age) |> 
+  select(t_start, t_end, Type, estimate, ci.ub, ci.lb, age_bin)
+
+acc_all_age |> order_age() |> 
+  filter(t_start %in% c(0, 200, 400, 600, 800, 1000)) |>
+  ggplot(aes(x = t_start, col = as.character(t_end), y = estimate, ymin = ci.lb, group = t_end, ymax = ci.ub)) +
+  geom_pointrange(position = position_dodge(50)) +
+  coord_flip() +
+  facet_grid(age_bin~Type, scales = "free_x") +
+  theme(legend.position = "bottom", ) +
+  labs(y = "Correlation", x = "Window start time (ms)", color = "Window end time (ms)") +
+  scale_color_solarized()+
+  facetted_pos_scales(
+  y = list(
+    Type == "ICC reliability" ~ scale_y_continuous(limits = c(0, .7)),
+    Type == "Corr. with CDI Production" ~ scale_y_continuous(limits = c(-.15, .55)),
+    Type == "Corr. with CDI Comp." ~ scale_y_continuous(limits = c(-.15, .55))
+  )
+)
+```
+
+
+```{r, eval=F}
+readRDS(here("cached_intermediates/0_d_aoi.rds")) |>  group_by(dataset_name, t_norm, aoi) |>
+  summarize(n=n()) |>  saveRDS(here("cached_intermediates/supplement_timecourse.rds"))
+```
+
+
+```{r timecourse, fig.cap="Distribution of AOIs across timepoints and datasets. Solid vertical line at point if disambiguation, Dashed lines at 400 and 3000ms, and dotted line at 2000ms.", fig.width=10, fig.height=8}
+readRDS(here("cached_intermediates/supplement_timecourse.rds")) |> group_by(dataset_name) |> mutate(aoi=ifelse(aoi %in% c("missing", "other"), "missing/other", aoi)) |> 
+  ggplot(aes(x=t_norm, y=n, fill=aoi, color=aoi))+geom_col(position="stack")+facet_wrap(~dataset_name, scales="free_y")+
+  coord_cartesian(xlim=c(-4000,4000))+
+  geom_vline(xintercept=0)+geom_vline(xintercept=2000, lty="dotted")+geom_vline(xintercept=3000,lty="dashed")+geom_vline(xintercept=400, lty="dashed")+
+  scale_fill_manual(aesthetics=c("fill", "color"), values=c("target"="darkgreen", "distractor"="red", "missing/other"="grey"))+theme(legend.position="bottom")+labs(x="Time", fill="AOI")
+
+```
+
+\FloatBarrier
+
+# Baseline correction
+
+Figure \ref{fig:bc-age} shows baseline-corrected measures split out by age. TODO interpretation
+
+As some datasets have much shorter pre-disambiguation windows than others, we also looked at baseline-corrected accuracy on the subset with data before 3000ms pre-disambiguation (Figure \ref{fig:bc-early}). Even on this subset, baseline-corrected accuracies have worse validity and reliablity than normal accuracy measures. 
+
+```{r bc-age, fig.cap="Reliability and validity measures for baseline-corrected accuracy, split by age. The post-diambiguation window was 400 to 3000ms."}
+baseline_lengths <- readRDS(here("cached_intermediates", "2_baseline_lengths.rds"))
+bc_icc_age  <- readRDS(here("cached_intermediates", "2_bc_icc_boot_byage.rds")) |>
+  bind_rows(readRDS(here("cached_intermediates", "1_acc_icc_boot_byage.rds")) |> filter(t_start == 400)) |>
+  filter(t_end==3000) |> 
+  semi_join(baseline_lengths) |>
+  mutate(b_start = ifelse(is.na(b_start), "none", as.character(b_start))) |>
+  do_meta(c("t_start", "t_end", "b_start", "b_end", "age_bin"))
+
+
+bc_cdi_age <- readRDS(here("cached_intermediates", "2_bc_cdi_boot_byage.rds")) |>
+  bind_rows(readRDS(here("cached_intermediates", "1_acc_cdi_boot_byage.rds")) |> filter(t_start == 400)) |>
+    filter(t_end==3000) |> 
+  semi_join(baseline_lengths) |>
+  mutate(b_start = ifelse(is.na(b_start), "none", as.character(b_start))) |>
+  do_cdi_meta(c("t_start", "t_end", "b_start", "b_end", "age_bin"))
+
+
+bc_age <-combined_metrics_age(bc_icc_age, bc_cdi_age)|>
+  mutate(
+    b_end = ifelse(is.na(b_end), "no baseline", as.character(b_end)),
+    b_start = ifelse(b_start == "none", "no baseline", b_start)
+  )
+
+bc_age |> order_age() |> 
+  ggplot(aes(x = b_start, col = as.character(b_end), y = estimate, ymin = ci.lb, group = t_end, ymax = ci.ub)) +
+  geom_pointrange(position = position_dodge(.5)) +
+  coord_flip() +
+  facet_grid(age_bin~Type, scales = "free_x") +
+  theme(legend.position = "bottom", ) +
+  labs(y = "Correlation", x = "Window start time (ms)", color = "Window end time (ms)") +
+  scale_color_brewer(palette="Set2")+
+  facetted_pos_scales(
+  y = list(
+    Type == "ICC reliability" ~ scale_y_continuous(limits = c(0, .7)),
+    Type == "Corr. with CDI Production" ~ scale_y_continuous(limits = c(-.15, .55)),
+    Type == "Corr. with CDI Comp." ~ scale_y_continuous(limits = c(-.15, .55))
+  )
+)
+```
+
+
+Comparison between baseline-corrected accuracy with different baseline windows and accuracy with no baseline-correction. All datasets with data before time 0 were included.
+
+```{r bc-early, fig.cap="Reliability and validity outcomes for baseline-corrected accuracy only for datasets with a long pre-window starting before 3000 ms before disambiguation."}
+baseline_lengths <- readRDS(here("cached_intermediates", "2_baseline_lengths.rds"))
+bc_icc_long <- readRDS(here("cached_intermediates", "2_bc_icc_boot.rds")) |>
+  bind_rows(readRDS(here("cached_intermediates", "1_acc_icc_boot.rds")) |> filter(t_start == 400)) |>
+  filter(t_end==3000) |> 
+  semi_join(baseline_lengths |> filter(t_min< -3000)) |>
+  mutate(b_start = ifelse(is.na(b_start), "none", as.character(b_start))) |>
+  do_meta(c("t_start", "t_end", "b_start", "b_end"))
+
+
+bc_cdi_long <- readRDS(here("cached_intermediates", "2_bc_cdi_boot.rds")) |>
+  bind_rows(readRDS(here("cached_intermediates", "1_acc_cdi_boot.rds")) |> filter(t_start == 400)) |>
+    filter(t_end==3000) |> 
+  semi_join(baseline_lengths |> filter(t_min< -3000)) |>
+  mutate(b_start = ifelse(is.na(b_start), "none", as.character(b_start))) |>
+  do_cdi_meta(c("t_start", "t_end", "b_start", "b_end"))
+
+bc_acc_all_long <-combined_metrics_age(bc_icc_long, bc_cdi_long)|>
+  mutate(
+    b_end = ifelse(is.na(b_end), "no baseline", as.character(b_end)),
+    b_start = ifelse(b_start == "none", "no baseline", b_start)
+  )
+
+bc_acc_all_long |> ggplot(aes(x = b_start, col = b_end, y = estimate, ymin = ci.lb, group = t_end, ymax = ci.ub)) +
+  geom_pointrange(position = position_dodge2(width = .5)) +
+  coord_flip() +
+  facet_wrap(~Type, scales = "free_x", nrow = 1) +
+  theme(legend.position = "bottom", ) +
+  labs(y = "Correlation", x = "Baseline start time (ms)", color = "Baseline end time (ms)") +
+  scale_color_brewer(palette="Set2")+
+  facetted_pos_scales(
+  y = list(
+    Type == "ICC reliability" ~ scale_y_continuous(limits = c(0.15, .65)),
+    Type == "Corr. with CDI Production" ~ scale_y_continuous(limits = c(0, .5)),
+        Type == "Test-retest reliability" ~ scale_y_continuous(limits = c(0.15, .65)),
+    Type == "Corr. with CDI Comp." ~ scale_y_continuous(limits = c(0, .5))
+  )
+)
+```
+
+# Reaction Time
+
+Figure \ref{fig:rt-fig-age} shows the reliability and validity of different reaction time parameters, split by age bin. 
+
+Reaction times usually require that all time points between the point of disambiguation and the minimum reaction time have the eyes on the distractor AOI. Given that reaction times require a (stimulus-driven) shift to the target, it makes sense that the target is not being fixated during this period of stimulus processing. However, we wondered how important it was that the eyes were on the distractor (versus other or missing AOIs) during this time period. Our analysis is shown in Figure \ref{fig:rt-fig-weird}. Note that how AOIs are coded may depend on earlier steps around how often AOIs are coded and how any imputations of missing data are handled. TODO interpretation 
+
+```{r rt-fig-age, fig.cap="Measurement properties of RT, split by age bin. "}
+rt_icc_age <- readRDS(here("cached_intermediates", "3_rt_icc_boot_byage.rds")) |> regroup_rt() |> name_rt() |>  do_meta(c("approach", "window", "age_bin"))
+
+rt_cdi_age <- readRDS(here("cached_intermediates", "3_rt_cdi_boot_byage.rds")) |> regroup_rt() |> name_rt() |>  do_cdi_meta(c("approach", "window", "age_bin"))
+
+rt_all_age <- combined_metrics_age(rt_icc_age, rt_cdi_age) |> order_age()
+
+rt_all_age |> order_age() |> filter(window>0,window<600) |> 
+  ggplot(aes(x = window, col = as.character(approach), y = estimate, ymin = ci.lb, ymax = ci.ub)) +
+  geom_pointrange(position = position_dodge(15)) +
+  coord_flip() +
+  facet_grid(age_bin~Type, scales = "free_x") +
+  theme(legend.position = "bottom", ) +
+  labs(y = "Correlation", x = "Minimum RT", color = "RT Approach") +
+  scale_color_brewer(palette="Paired")+
+  facetted_pos_scales(
+  y = list(
+    Type == "ICC reliability" ~ scale_y_continuous(limits = c(.15, .85)),
+    Type == "Corr. with CDI Production" ~ scale_y_continuous(limits = c(-.45, .25)),
+    Type == "Corr. with CDI Comp." ~ scale_y_continuous(limits = c(-.45, .25))
+  )
+)
+```
+
+
+```{r fig-rt-weird, fig.cap="Exploration of relaxing requirements around looking for RT."}
+weird_icc <- readRDS(here("cached_intermediates/3_rt_icc_boot.rds")) |> filter(window==400, measure %in% c("land_rt", "log_land_rt")) |> do_meta(c("time_0", "time_end", "frac", "measure"))
+
+weird_cdi <- readRDS(here("cached_intermediates/3_rt_cdi_boot_weird.rds")) |> 
+  filter(window==400, measure %in% c("land_rt", "log_land_rt"))|> do_cdi_meta(c("time_0", "time_end", "frac", "measure"))
+
+weird_trt <- readRDS(here("cached_intermediates/3_rt_test_retest_boot_weird.rds")) |> 
+  filter(window==400, measure %in% c("land_rt", "log_land_rt"))|> do_meta(c("time_0", "time_end", "frac", "measure"))
+
+weird_rt_all <- combined_metrics(weird_icc, weird_cdi, weird_trt)
+
+weird_rt_all |> filter(measure=="log_land_rt") |>   ggplot(aes(x = str_c(time_0, time_end), col = as.character(frac), y = estimate, ymin = ci.lb, ymax = ci.ub)) +
+  geom_pointrange(position = position_dodge2(width = .5)) +
+  coord_flip() +
+  facet_wrap(~Type, scales = "free_x", nrow = 1) +
+  theme(legend.position = "bottom", ) +
+  labs(y = "Correlation", x = "Minimum RT", color = "Type of RT") +
+  scale_color_brewer(palette="Paired")+
+  facetted_pos_scales(
+  y = list(
+    Type == "ICC reliability" ~ scale_y_continuous(limits = c(0.3, .8)),
+    Type == "Corr. with CDI Production" ~ scale_y_continuous(limits = c(-.5, 0)),
+        Type == "Test-retest reliability" ~ scale_y_continuous(limits = c(0.1, .6)),
+    Type == "Corr. with CDI Comp." ~ scale_y_continuous(limits = c(-.5, 0))
+  )
+)
+```
+
+# Exclusions
+
+kinda weird distribution across different datasets -- but might also be a missing data/low data issue? 
+
+```{r, eval=F}
+# per trial, during target window, what pct is right-side
+side_bias <- d_aoi |> filter(t_norm>=400, t_norm<=3000) |> 
+  group_by(dataset_name, administration_id, trial_id, target_side) |> 
+  summarize(pct_correct= mean(correct, na.rm=T)
+  ) |> 
+  mutate(pct_right=ifelse(target_side=="right", pct_correct, 1-pct_correct))
+
+bias <- side_bias |> group_by(administration_id, dataset_name) |> 
+  summarize(n=n(),
+            right_bias=mean(pct_right>=.9, na.rm=T),
+            left_bias=mean(pct_right<=.1, na.rm=T))
+
+ggplot(bias, aes(x=n, y=right_bias))+geom_jitter()
+ggplot(bias, aes(x=n, y=left_bias))+geom_jitter()
+
+bias |> mutate(biased=case_when(right_bias>.75 ~ T, left_bias>.75 ~ T, T ~ F)) |> 
+  group_by(biased) |> 
+  summarize(n_trial=sum(n),
+            kids=n()) |> 
+  mutate(n_trial=n_trial/sum(n_trial),
+         kids=kids/sum(kids)) |> 
+  filter(biased)
+
+
+bias |> mutate(biased=case_when(right_bias>.75 ~ T, left_bias>.75 ~ T, T ~ F)) |> 
+  group_by(biased, dataset_name) |> 
+  summarize(n_trial=sum(n),
+            kids=n()) |> 
+  group_by(biased) |> 
+  mutate(n_trial=n_trial/sum(n_trial),
+         kids=kids/sum(kids)) |> 
+  filter(biased)
+```
+
+\FloatBarrier
+
+# Animacy
+
+Figure \ref{fig:animacy-age} shows the time course of animate and inanimate targets and distractors, split by age bin. TODO interpretation
+
+```{r animacy-age, fig.cap="Time course of looking for animate and inanimate targets and distractors, split by age bin."}
+readRDS(here("cached_intermediates/6_animacy_byage.rds")) |> order_age() |> 
+  ggplot(aes(x = t_norm, y = y, ymin=ymin, ymax=ymax, fill = interaction(animate_target, animate_distractor))) +
+  geom_ribbon(alpha=.5) +
+  geom_line(linewidth=1)+
+  geom_hline(yintercept = .5, lty = "dashed") +
+  geom_vline(xintercept = 0, lty = "dashed") +
+      geom_vline(xintercept = 500, lty = "dashed") +
+  theme(legend.position = "bottom")+facet_wrap(~age_bin)+scale_fill_brewer(palette="Set1")
+```
+
+# Order Effects
+
+One concern is that TODO  
+
+```{r order, fig.cap="Fitted coefficient estimates from a series of models investigating potential order and repetition effects. "}
+results_summ <- readRDS(here("cached_intermediates/7_model_summary.rds"))
+
+results_summ |>
+  filter(effect == "fixed", term != "(Intercept)") |>
+  mutate(
+    clean_type = case_when(
+      term == "trial_order" ~ "trial order",
+      term == "typeprev_as_target" ~ "prev target",
+      term == "typeprev_as_distractor" ~ "prev distractor",
+      term == "typeprev_as_target:trial_order" ~ "prev target : trial order",
+      term == "typeprev_as_distractor:trial_order" ~ "prev distractor : trial order",
+      T ~ term
+    )
+  ) |>
+  ggplot(aes(dv, y = estimate, ymin = conf.low, ymax = conf.high, color = model, group = interaction(model, dv, term))) +
+  geom_hline(yintercept=0)+
+  geom_pointrange(position = position_dodge(width = .5)) +
+  facet_wrap(~clean_type, scales = "free_x") +
+  coord_flip()+theme(legend.position = "bottom")+scale_color_brewer(palette="Accent")
+```
+\newpage
+
+# References
+
+::: {#refs custom-style="Bibliography"}
+:::
