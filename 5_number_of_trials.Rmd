@@ -31,19 +31,19 @@ downsample_trt_summ <- downsample_trt |> do_meta(c("t_start", "t_end", "sample_d
 downsample_trt |> filter(t_end==3000) |> ggplot(aes(x=sample_down, y=est, ymin=lower, ymax=upper, color=as.character(dataset_name), group=interaction(t_start, t_end, start_point, dataset_name)))+geom_pointrange()+geom_line()+geom_hline(yintercept=0)+facet_grid(~start_point)+theme(legend.position = "bottom")
 ```
 ```{r}
-downsample_trt_summ |> ggplot(aes(x=sample_down, y=estimate, ymin=ci.lb, ymax=ci.ub, color=as.character(start_point), group=interaction(t_start, t_end, start_point)))+geom_pointrange()+geom_line()+geom_smooth(aes(group=1))+geom_hline(yintercept=0)+facet_grid(~t_end)+theme(legend.position = "bottom")
+downsample_trt_summ |> filter(t_end==3000) |>  ggplot(aes(x=sample_down, y=estimate, ymin=ci.lb, ymax=ci.ub, color=as.character(start_point), group=interaction(t_start, t_end, start_point)))+geom_pointrange()+geom_line()+geom_smooth(aes(group=1))+geom_hline(yintercept=0)+facet_grid(~t_end)+theme(legend.position = "bottom")
 ```
-maybe benefits diminish after like 10? trials. 
+pretty clear more is better sign, but maybe flattens out
 
 ## ICC
 ```{r}
 downsample_icc <- readRDS(here("cached_intermediates/5_acc_icc_boot.rds"))
-downsample_icc_summ <- downsample_icc |> do_meta(c("t_start", "t_end", "sample_down", "start_point"))
+downsample_icc_summ <- downsample_icc |> do_meta(c( "sample_down", "start_point"))
 
 ```
 
 ```{r}
-downsample_icc_summ |> filter(t_end==3000) |>  ggplot(aes(x=sample_down, y=estimate, ymin=ci.lb, ymax=ci.ub, color=as.character(start_point), group=interaction(t_start, t_end, start_point)))+geom_pointrange()+geom_line()+geom_hline(yintercept=0)+facet_grid(~t_end)+theme(legend.position = "bottom")
+downsample_icc_summ |>  ggplot(aes(x=sample_down, y=estimate, ymin=ci.lb, ymax=ci.ub, color=as.character(start_point), group=interaction( start_point)))+geom_pointrange()+geom_line()+geom_hline(yintercept=0)+theme(legend.position = "bottom")
 ```
 not meaningful effects 
 
@@ -51,23 +51,23 @@ not meaningful effects
 
 ```{r}
 downsample_cdi <- readRDS(here("cached_intermediates/5_acc_cdi_boot.rds"))
-downsample_cdi_summ <- downsample_cdi |> do_cdi_meta(c("t_start", "t_end", "sample_down", "start_point"))
+downsample_cdi_summ <- downsample_cdi |> do_cdi_meta(c( "sample_down", "start_point"))
 
 ```
 
 
 ```{r}
-downsample_cdi_summ |> filter(t_end==3000) |> ggplot(aes(x=sample_down, y=comp_estimate, ymin=comp_ci.lb, ymax=comp_ci.ub, color=as.character(start_point), group=interaction(t_start, t_end, start_point)))+geom_pointrange()+geom_line()+geom_smooth(aes(group=1))+geom_hline(yintercept=0)+theme(legend.position = "bottom")
+downsample_cdi_summ|> ggplot(aes(x=sample_down, y=comp_estimate, ymin=comp_ci.lb, ymax=comp_ci.ub, color=as.character(start_point), group=interaction( start_point)))+geom_pointrange()+geom_line()+geom_smooth(aes(group=1))+geom_hline(yintercept=0)+theme(legend.position = "bottom")
 
-downsample_cdi_summ |> filter(t_end==3000) |> ggplot(aes(x=sample_down, y=comp_estimate, ymin=comp_ci.lb, ymax=comp_ci.ub, color=as.character(start_point), group=interaction(t_start, t_end, start_point)))+geom_pointrange()+geom_line()+geom_hline(yintercept=0)+theme(legend.position = "bottom")+facet_wrap(~start_point)
+downsample_cdi_summ |> ggplot(aes(x=sample_down, y=comp_estimate, ymin=comp_ci.lb, ymax=comp_ci.ub, color=as.character(start_point), group=interaction( start_point)))+geom_pointrange()+geom_line()+geom_hline(yintercept=0)+theme(legend.position = "bottom")+facet_wrap(~start_point)
 ```
 correlation with comp gets better up to 10; unclear thereafter
 
 
 ```{r}
-downsample_cdi_summ |> filter(t_end==3000) |> ggplot(aes(x=sample_down, y=prod_estimate, ymin=prod_ci.lb, ymax=prod_ci.ub, color=as.character(start_point), group=interaction(t_start, t_end, start_point)))+geom_pointrange()+geom_line()+geom_smooth(aes(group=1))+geom_hline(yintercept=0)+theme(legend.position = "bottom")
+downsample_cdi_summ |> ggplot(aes(x=sample_down, y=prod_estimate, ymin=prod_ci.lb, ymax=prod_ci.ub, color=as.character(start_point), group=interaction( start_point)))+geom_pointrange()+geom_line()+geom_smooth(aes(group=1))+geom_hline(yintercept=0)+theme(legend.position = "bottom")
 
-downsample_cdi_summ |> filter(t_end==3000) |> ggplot(aes(x=sample_down, y=prod_estimate, ymin=prod_ci.lb, ymax=prod_ci.ub, color=as.character(start_point), group=interaction(t_start, t_end, start_point)))+geom_pointrange()+geom_line()+geom_hline(yintercept=0)+theme(legend.position = "bottom")+facet_wrap(~start_point)
+downsample_cdi_summ |> ggplot(aes(x=sample_down, y=prod_estimate, ymin=prod_ci.lb, ymax=prod_ci.ub, color=as.character(start_point), group=interaction( start_point)))+geom_pointrange()+geom_line()+geom_hline(yintercept=0)+theme(legend.position = "bottom")+facet_wrap(~start_point)
 ```
 also broadly supports a gains til around 10, then less clear
 
@@ -80,52 +80,61 @@ One way to look at this is by down-sampling for kids who had more than a thresho
 
 ## T-RT
 ```{r}
-downsample_trt <- readRDS(here("cached_intermediates/5_rt_test_retest_boot.rds")) |> regroup_rt() |> 
-  filter(!is.na(est)) |> filter(start_point!=15)
-downsample_trt_summ <- downsample_trt |> do_meta(c("type", "logged", "trimming", "sample_down", "start_point"))
+downsample_trt <- readRDS(here("cached_intermediates/5_rt_test_retest_boot.rds")) |> 
+  filter(!is.na(est)) 
+downsample_trt_summ <- downsample_trt |> do_meta(c( "sample_down", "start_point"))
+
+downsample_trt_summ_2 <- downsample_trt |> filter(dataset_name!="weaver_zettersten_2024") |>  do_meta(c( "sample_down", "start_point"))
 
 ```
 
 ```{r}
 
-downsample_trt |> filter(trimming=="untrimmed", type=="land") |> ggplot(aes(x=sample_down, y=est, ymin=lower, ymax=upper))+geom_pointrange(aes(color=as.character(dataset_name), group=interaction(type, logged, trimming, start_point, dataset_name)))+geom_line(aes(color=as.character(dataset_name), group=interaction(type, logged, trimming, start_point, dataset_name)))+geom_smooth()+geom_hline(yintercept=0)+facet_grid(logged~start_point)+theme(legend.position = "bottom")+coord_cartesian(ylim=c(-1, 1))
+downsample_trt |>  ggplot(aes(x=sample_down, y=est, ymin=lower, ymax=upper))+geom_pointrange(aes(color=as.character(dataset_name), group=interaction(start_point, dataset_name)))+geom_line(aes(color=as.character(dataset_name), group=interaction(start_point, dataset_name)))+geom_smooth()+geom_hline(yintercept=0)+facet_grid(~start_point)+theme(legend.position = "bottom")+coord_cartesian(ylim=c(-1, 1))
 ```
 ```{r}
-downsample_trt_summ|> filter(trimming=="untrimmed", type=="land") |> ggplot(aes(x=sample_down, y=estimate, ymin=ci.lb, ymax=ci.ub, color=as.character(start_point), group=interaction(type, logged, trimming, start_point)))+geom_pointrange()+geom_line()+geom_smooth(aes(group=1))+geom_hline(yintercept=0)+facet_grid(~logged)+theme(legend.position = "bottom")+coord_cartesian(ylim=c(-1, 1))
+downsample_trt_summ|>  ggplot(aes(x=sample_down, y=estimate, ymin=ci.lb, ymax=ci.ub, color=as.character(start_point), group=interaction( start_point)))+geom_pointrange()+geom_line()+geom_smooth(aes(group=1))+geom_hline(yintercept=0)+theme(legend.position = "bottom")+coord_cartesian(ylim=c(-1, 1))
+
+
+downsample_trt_summ_2|>  ggplot(aes(x=sample_down, y=estimate, ymin=ci.lb, ymax=ci.ub, color=as.character(start_point), group=interaction( start_point)))+geom_pointrange()+geom_line()+geom_smooth(aes(group=1))+geom_hline(yintercept=0)+theme(legend.position = "bottom")+coord_cartesian(ylim=c(-1, 1))
+
+
 ```
 ```{r}
-downsample_trt_summ|> filter(trimming=="untrimmed", type=="land") |> ggplot(aes(x=sample_down, y=estimate, ymin=ci.lb, ymax=ci.ub, color=as.character(start_point), group=interaction(type, logged, trimming, start_point)))+geom_pointrange()+geom_line()+geom_hline(yintercept=0)+facet_grid(logged~start_point)+theme(legend.position = "bottom")+coord_cartesian(ylim=c(-1, 1))
+downsample_trt_summ|> ggplot(aes(x=sample_down, y=estimate, ymin=ci.lb, ymax=ci.ub, color=as.character(start_point), group=interaction( start_point)))+geom_pointrange()+geom_line()+geom_hline(yintercept=0)+facet_grid(~start_point)+theme(legend.position = "bottom")+coord_cartesian(ylim=c(-1, 1))
+
+downsample_trt_summ_2|> ggplot(aes(x=sample_down, y=estimate, ymin=ci.lb, ymax=ci.ub, color=as.character(start_point), group=interaction( start_point)))+geom_pointrange()+geom_line()+geom_hline(yintercept=0)+facet_grid(~start_point)+theme(legend.position = "bottom")+coord_cartesian(ylim=c(-1, 1))
 ```
 RT -- as many as you can get is better -- up to 7, beyond that we don't have dense enough data to know. But note that 7 RT is like 20+ trials 
 
 ## ICC
 ```{r}
-downsample_rt_icc <- readRDS(here("cached_intermediates/5_rt_icc_boot.rds")) |> regroup_rt() |> 
-  filter(!is.na(est)) |> filter(start_point!=15)
-downsample_rt_icc_summ <- downsample_rt_icc |> do_meta(c("type", "logged", "trimming", "sample_down", "start_point"))
+downsample_rt_icc <- readRDS(here("cached_intermediates/5_rt_icc_boot.rds")) |> 
+  filter(!is.na(est))
+downsample_rt_icc_summ <- downsample_rt_icc |> do_meta(c( "sample_down", "start_point"))
 
 ```
 
 ```{r}
-downsample_rt_icc_summ|> filter(trimming=="untrimmed", type=="land") |> ggplot(aes(x=sample_down, y=estimate, ymin=ci.lb, ymax=ci.ub, color=as.character(start_point), group=interaction(type, logged, trimming, start_point)))+geom_pointrange()+geom_line()+geom_smooth(aes(group=1))+geom_hline(yintercept=0)+facet_grid(~logged)+theme(legend.position = "bottom")+coord_cartesian(ylim=c(0, 1))
+downsample_rt_icc_summ|> ggplot(aes(x=sample_down, y=estimate, ymin=ci.lb, ymax=ci.ub, color=as.character(start_point), group=interaction( start_point)))+geom_pointrange()+geom_line()+geom_smooth(aes(group=1))+geom_hline(yintercept=0)+theme(legend.position = "bottom")+coord_cartesian(ylim=c(0, 1))
 ```
 
 ## CDI 
 
 ```{r}
-downsample_rt_cdi <- readRDS(here("cached_intermediates/5_rt_cdi_boot.rds")) |> regroup_rt() |> filter(start_point!=15)
-downsample_rt_cdi_summ <- downsample_rt_cdi|> do_cdi_meta(c("type", "logged", "trimming", "sample_down", "start_point"))
+downsample_rt_cdi <- readRDS(here("cached_intermediates/5_rt_cdi_boot.rds")) |> filter(start_point!=15)
+downsample_rt_cdi_summ <- downsample_rt_cdi|> do_cdi_meta(c( "sample_down", "start_point"))
 
 ```
 
 ```{r}
-downsample_rt_cdi_summ|> filter(trimming=="untrimmed", type=="land") |> ggplot(aes(x=sample_down, y=comp_estimate, ymin=comp_ci.lb, ymax=comp_ci.ub, color=as.character(start_point), group=interaction(type, logged, trimming, start_point)))+geom_pointrange()+geom_line()+geom_smooth(aes(group=1))+geom_hline(yintercept=0)+facet_grid(~logged)+theme(legend.position = "bottom")
+downsample_rt_cdi_summ|> ggplot(aes(x=sample_down, y=comp_estimate, ymin=comp_ci.lb, ymax=comp_ci.ub, color=as.character(start_point), group=interaction( start_point)))+geom_pointrange()+geom_line()+geom_smooth(aes(group=1))+geom_hline(yintercept=0)+theme(legend.position = "bottom")
 ```
 
 definitely some error bars, but having like 3+ is better than having less? 
 
 ```{r}
-downsample_rt_cdi_summ|> filter(trimming=="untrimmed", type=="land") |> ggplot(aes(x=sample_down, y=prod_estimate, ymin=prod_ci.lb, ymax=prod_ci.ub, color=as.character(start_point), group=interaction(type, logged, trimming, start_point)))+geom_pointrange()+geom_line()+geom_smooth(aes(group=1))+geom_hline(yintercept=0)+facet_grid(~logged)+theme(legend.position = "bottom")
+downsample_rt_cdi_summ|> ggplot(aes(x=sample_down, y=prod_estimate, ymin=prod_ci.lb, ymax=prod_ci.ub, color=as.character(start_point), group=interaction( start_point)))+geom_pointrange()+geom_line()+geom_smooth(aes(group=1))+geom_hline(yintercept=0)+theme(legend.position = "bottom")
 ```
 
 so like 3 or 4 minimum??

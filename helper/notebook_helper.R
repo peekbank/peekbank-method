@@ -7,7 +7,7 @@ library(metafor)
 library(ggh4x)
 knitr::opts_chunk$set(
   cache.extra = knitr::rand_seed, cache = TRUE,
-  message = FALSE, warning = FALSE, error = FALSE,
+  message = FALSE, warning = FALSE, error = FALSE, echo = F,
   fig.height = 4, fig.width = 6
 )
 options(dplyr.summarise.inform = FALSE)
@@ -16,8 +16,8 @@ options(dplyr.summarise.inform = FALSE)
 theme_set(theme_bw(base_size = 10))
 theme_update(
   panel.grid.minor = element_blank(),
-  pane.grid.major.x = element_line(),
-  pane.grid.major.y = element_blank(),
+  panel.grid.major.x = element_line(),
+  panel.grid.major.y = element_blank(),
   strip.background = element_blank(),
   legend.key = element_blank(),
   # panel.border = element_blank(),
