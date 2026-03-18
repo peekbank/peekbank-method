@@ -308,20 +308,37 @@ weird_rt_all |> filter(measure=="log_land_rt") |>   ggplot(aes(x = str_c(time_0,
 kinda weird distribution across different datasets -- but might also be a missing data/low data issue? 
 
 ```{r, eval=F}
+
+d_aoi <- readRDS(here("cached_intermediates/0_d_aoi.rds"))
 # per trial, during target window, what pct is right-side
 side_bias <- d_aoi |> filter(t_norm>=400, t_norm<=3000) |> 
   group_by(dataset_name, administration_id, trial_id, target_side) |> 
-  summarize(pct_correct= mean(correct, na.rm=T)
+  summarize(pct_correct= mean(correct, na.rm=T),
+            pct_on=mean(!is.na(correct))
   ) |> 
-  mutate(pct_right=ifelse(target_side=="right", pct_correct, 1-pct_correct))
+  mutate(pct_right=ifelse(target_side=="right", pct_correct, 1-pct_correct)) |> filter(pct_on>0)
 
 bias <- side_bias |> group_by(administration_id, dataset_name) |> 
   summarize(n=n(),
             right_bias=mean(pct_right>=.9, na.rm=T),
             left_bias=mean(pct_right<=.1, na.rm=T))
 
-ggplot(bias, aes(x=n, y=right_bias))+geom_jitter()
-ggplot(bias, aes(x=n, y=left_bias))+geom_jitter()
+ggplot(bias, aes(x=n, y=right_bias))+geom_jitter()+geom_hline(yintercept=.75, color="red")
+ggplot(bias, aes(x=n, y=left_bias))+geom_jitter()+geom_hline(yintercept=.75, color="red")
+
+
+stringent_bias <- side_bias |> group_by(administration_id, dataset_name) |> 
+  summarize(n=n(),
+            right_bias=mean(pct_right>=1, na.rm=T),
+            left_bias=mean(pct_right<=0, na.rm=T))
+
+stringent_bias |> mutate(biased=case_when(right_bias>.75 ~ T, left_bias>.75 ~ T, T ~ F)) |> 
+  group_by(biased) |> 
+  summarize(n_trial=sum(n),
+            kids=n()) |> 
+  mutate(n_trial=n_trial/sum(n_trial),
+         kids=kids/sum(kids)) |> 
+  filter(biased)
 
 bias |> mutate(biased=case_when(right_bias>.75 ~ T, left_bias>.75 ~ T, T ~ F)) |> 
   group_by(biased) |> 
@@ -340,7 +357,14 @@ bias |> mutate(biased=case_when(right_bias>.75 ~ T, left_bias>.75 ~ T, T ~ F)) |
   mutate(n_trial=n_trial/sum(n_trial),
          kids=kids/sum(kids)) |> 
   filter(biased)
+
+biased_kids <- bias |> mutate(biased=case_when(right_bias>.75 ~ T, left_bias>.75 ~ T, T ~ F)) |> filter(biased) |> left_join(side_bias)
+
+biased_kids |> group_by(administration_id, dataset_name) |> mutate(trial_num=row_number()) |> ggplot(aes(x=trial_num,y=pct_on))+facet_wrap(~dataset_name)+geom_point()
+
+biased_kids |> mutate(bias=max(right_bias, left_bias)) |> ggplot(aes(x=administration_id,y=pct_on, color=bias))+facet_wrap(~dataset_name, scales="free_x")+geom_point()
 ```
+Overall 1.5% of kids (contributing less than 1% of trials) show a bias of 90% or more on more than 75% of trials. 
 
 \FloatBarrier
 

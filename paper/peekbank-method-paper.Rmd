@@ -524,6 +524,9 @@ On a trial by trial basis, ICC tends to slightly increase the more noisy trials 
 
 We then explored the effects of excluding children for too few trials. Because datasets vary in the number of trials, and within datasets there may be variation in the max number of trials in a session (for different ages or different sub-experiments), we set thresholds for the total trials rather than the fraction of useable trials. 
 
+Some datasets also exclude children for predominantly look at one side of the screen across trials ("side-bias"). Across our dataset, only 1.5% of administrations (contributing less than 1% of trials) looked at one side (right or left) more than 90% of the time across more than 75% of trials. Since this behavior is rare, excluding it or not probably won't make much of a difference. [I'm confused by this -- side bias is really not equally distributed across datasets and it doesn't seem to always be a low trial/low data/trial issue. so maybe it matters for some datasets? by why?; are we sure it's not a hand-coding/data-processing/import error???] 
+
+
 ```{r, eval=F}
 d_aoi <- readRDS(here("cached_intermediates/0_d_aoi.rds"))
 
@@ -628,7 +631,6 @@ We also considered the effects of minimum trial requirements on RT data (Figure 
 For RT, it's reasonable to set low minimums for number of trials (like 2 trials) which does make for stronger correlations with CDI production. There are much stronger tradeoffs between test-retest reliability and number of children included. It's also reasonable to not exclude. 
 
 
-As a side note, one other child-level concern is children who predominantly look at one side of the screen across trials ("side-bias"). Across our dataset, only TODO children (TODO trials, TODO % of the dataset) looked at one side more than 90% of the time across trials. Since this behavior is rare, excluding it is generally not necessary, but also probably harmless. Pull numbers from supplement -- it's on average under 1% but there's weird dataset to dataset variation we should look into?
 
 Overall, exclusions based on amount of data per-trial or per-child come with trade-offs between amount of data and cleanliness of the data. Depending on the study design and goals, no exclusions, or light exclusions can both be reasonable choices. 
 
@@ -704,6 +706,8 @@ downsample_rt |>  ggplot(aes(x = sample_down, col = as.factor(start_point), y = 
 ```
 
 Excluding children for low trial counts may increase test-retest reliability, but it also decreases the power and generalizability of results by excluding some children. Rather than retrospective exclusions, another approach is prospective, how many trials per child should one aim for to achieve adequate reliability and validity?
+
+[TODO what is common practice for target number of trials / condition and for longitudinal v not?]
 
 To address this prospective question, we considered how reliability and validity measures would have changed in we had fewer trials per child. (Ideally, we would also look at more trials per child, but we don't know what these other trials would be, but it's easier to downsample the trials we do have to simulate fewer trials.) We filtered the data to include only children who had contributed at least N trials (for different values of N) and then repeatedly subsampled their trials and calculated our metrics on the subsets. 
 
