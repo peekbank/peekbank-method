@@ -11,13 +11,13 @@ cdi_data <- readRDS("../cached_intermediates/0_cdi_subjects.rds")
 
 
 rt_params <- expand_grid(
-  option = "recommended",
+  option = c("recommended"),
   window = c(400),
   measure = c("log_land_rt"),
   min_trial = c(1)
 ) |> bind_rows(
   expand_grid(
-    option = "alternative",
+    option = c("alternative"),
     window = c(200),
     measure = c("first_launch_rt"),
     min_trial = c(2)
@@ -26,7 +26,7 @@ rt_params <- expand_grid(
 
 rt_icc <- rt_params |>
   left_join(preprocess_rt_dt(rts) |>
-    group_by(dataset_name, time_0, window, time_end, during, frac, administration_id, target_label, measure, option) |>
+    group_by(dataset_name, time_0, window, time_end, during, frac, administration_id, target_label, measure) |>
     mutate(repetition = row_number())) |>
   group_by(dataset_name, time_0, window, time_end, during, frac, administration_id, measure, option) |>
   mutate(count = sum(!is.na(rt))) |>
@@ -44,7 +44,7 @@ saveRDS(rt_icc, "../cached_intermediates/8_rt_icc.rds")
 
 rt_cdi <- rt_params |>
   left_join(preprocess_rt_dt(rts) |>
-    group_by(dataset_name, time_0, window, time_end, during, frac, administration_id, measure, option) |>
+    group_by(dataset_name, time_0, window, time_end, during, frac, administration_id, measure) |>
     summarize(
       mean_var = mean(rt, na.rm = T),
       count = sum(!is.na(rt))
