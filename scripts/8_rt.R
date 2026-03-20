@@ -19,15 +19,16 @@ rt_params <- expand_grid(
   expand_grid(
     option = "alternative",
     window = c(200),
-    measure = c("launch_rt"),
+    measure = c("first_launch_rt"),
     min_trial = c(2)
   )
 )
+
 rt_icc <- rt_params |>
   left_join(preprocess_rt_dt(rts) |>
-    group_by(dataset_name, time_0, window, time_end, during, frac, administration_id, target_label, measure) |>
+    group_by(dataset_name, time_0, window, time_end, during, frac, administration_id, target_label, measure, option) |>
     mutate(repetition = row_number())) |>
-  group_by(dataset_name, time_0, window, time_end, during, frac, administration_id, measure) |>
+  group_by(dataset_name, time_0, window, time_end, during, frac, administration_id, measure, option) |>
   mutate(count = sum(!is.na(rt))) |>
   filter(count >= min_trial) |>
   select(-count) |>
@@ -43,7 +44,7 @@ saveRDS(rt_icc, "../cached_intermediates/8_rt_icc.rds")
 
 rt_cdi <- rt_params |>
   left_join(preprocess_rt_dt(rts) |>
-    group_by(dataset_name, time_0, window, time_end, during, frac, administration_id, measure) |>
+    group_by(dataset_name, time_0, window, time_end, during, frac, administration_id, measure, option) |>
     summarize(
       mean_var = mean(rt, na.rm = T),
       count = sum(!is.na(rt))
