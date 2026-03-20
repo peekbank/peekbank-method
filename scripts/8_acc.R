@@ -5,7 +5,8 @@ d_aoi <- readRDS("../cached_intermediates/0_d_aoi.rds")
 cdi_data <- readRDS("../cached_intermediates/0_cdi_subjects.rds")
 
 pairs_aoi_data <- make_test_retest_pairs(d_aoi) |>
-  left_join(d_aoi) |>
+  left_join(d_aoi)
+
 pairs_sim <- pairs_aoi_data |> 
   group_by(
     dataset_name, trial_id, dataset_id, subject_id, administration_id,

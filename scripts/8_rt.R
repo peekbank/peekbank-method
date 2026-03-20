@@ -67,7 +67,7 @@ rt_trt <- rt_params |>
       administration_id, rt, measure, window, time_0, time_end, during,
       frac, dataset_name
     ), relationship = "many-to-many")) |>
-  group_by(measure, window, time_0, time_end, during, frac, dataset_name, administration_id, subject_id, pair_number, session_num, option) |>
+  group_by(min_trial, measure, window, time_0, time_end, during, frac, dataset_name, administration_id, subject_id, pair_number, session_num, option) |>
   summarize(
     mean_var = mean(rt, na.rm = T),
     count = sum(!is.na(rt))
