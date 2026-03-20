@@ -16,9 +16,6 @@ pairs_aoi_data_bc_age <- pairs_long |>
   )) |>
   group_by(dataset_name, age_bin) |>
   mutate(count = n()) |>
-  filter(count >= min_per_bin) |>
-  group_by(dataset_name, age_bin) |>
-  mutate(count = n()) |>
   filter(count >= 5) |>
   ungroup() |>
   filter(age_bin %in% c("18-24", "24-36")) |>

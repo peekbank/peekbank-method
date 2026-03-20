@@ -45,6 +45,13 @@ Figure \ref{fig:dist-age} shows the distribution of ages in the Peekbank data us
 dataset_summary |> summarize(mean=mean(age), median=median(age))
 
 dataset_summary |> distinct(age, administration_id) |> summarize(mean=mean(age), median=median(age))
+
+dataset_summary |> make_test_retest_pairs() |> mutate(age_bin = case_when(
+      mean_age < 18 ~ "<18",
+      mean_age < 24 ~ "18-24",
+      mean_age < 36 ~ "24-36",
+      mean_age >= 36 ~ ">=36"
+    )) |> ggplot(aes(x=mean_age, fill=age_bin))+geom_histogram()
 ```
 
 ```{r dist-age, fig.cap="Age distribution for trials and administrations, with the age bins used for analysis.", fig.width=6, fig.height=3}
