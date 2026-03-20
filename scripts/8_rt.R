@@ -61,7 +61,7 @@ rt_cdi <- rt_params |>
 saveRDS(rt_cdi, "../cached_intermediates/8_rt_cdi.rds")
 
 
-rt_trt <- rt_pairs <- rt_params |>
+rt_trt <- rt_params |>
   left_join(make_test_retest_pairs(d_aoi) |>
     left_join(preprocess_rt_dt(rts) |> select(
       administration_id, rt, measure, window, time_0, time_end, during,
@@ -73,7 +73,6 @@ rt_trt <- rt_pairs <- rt_params |>
     count = sum(!is.na(rt))
   ) |>
   filter(!is.na(mean_var)) |>
-  cross_join(params) |>
   filter(count >= min_trial) |>
   select(-count) |>
   group_by(measure, window, time_0, time_end, during, frac, min_trial, option) |>

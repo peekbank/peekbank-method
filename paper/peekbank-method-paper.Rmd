@@ -328,15 +328,16 @@ Exactly when the accuracy window starts is not important, although we recommend 
 
 These patterns hold across age (see Figure SNN). 
 
-```{r acc-fig-age, fig.cap="Bootstrapped results of different accuracy parameter combinations, split out by age of participants.", fig.height=4, fig.width=4}
+```{r acc-fig-age, fig.cap="Bootstrapped results of different accuracy parameter combinations, split out by age of participants.", fig.height=4, fig.width=6}
 acc_icc_age <- readRDS(here("cached_intermediates", "1_acc_icc_boot_byage.rds")) |> do_meta(c("t_start", "t_end", "age_bin"))
 
 acc_cdi_age <- readRDS(here("cached_intermediates", "1_acc_cdi_boot_byage.rds")) |> do_cdi_meta(c("t_start", "t_end", "age_bin"))
 
-acc_all_age <- combined_metrics_age(acc_icc_age, acc_cdi_age) |> 
-  select(t_start, t_end, Type, estimate, ci.ub, ci.lb, age_bin) |> 
-  filter(age_bin%in%c("18-24", "24-36")) |> 
-  filter(Type %in% c("ICC reliability", "Corr. with CDI Prod."))
+acc_trt_age <- readRDS(here("cached_intermediates", "1_acc_test_retest_boot_byage_split.rds")) |> mutate(age_bin=str_sub(dataset_name, 1,5),
+                                                                                                         dataset_name=str_sub(dataset_name, 6, -1))|> do_meta(c("t_start", "t_end", "age_bin"))
+
+acc_all_age <- combined_metrics_split_age(acc_icc_age, acc_cdi_age, acc_trt_age) |> 
+  select(t_start, t_end, Type, estimate, ci.ub, ci.lb, age_bin) 
 
 acc_all_age |> order_age() |> 
   filter(t_start %in% c(0, 200, 400, 600, 800, 1000)) |>
@@ -350,7 +351,9 @@ acc_all_age |> order_age() |>
   facetted_pos_scales(
   y = list(
     Type == "ICC reliability" ~ scale_y_continuous(limits = c(0, .7)),
-    Type == "Corr. with CDI Prod." ~ scale_y_continuous(limits = c(-.15, .55))
+    Type == "Corr. with CDI Prod." ~ scale_y_continuous(limits = c(-.15, .55)),
+            Type == "Test-retest reliability" ~ scale_y_continuous(limits = c(0.15, .65))
+
   )
 )
 ```
@@ -417,6 +420,56 @@ bc_acc_all |> ggplot(aes(x = b_start, col = b_end, y = estimate, ymin = ci.lb, g
 ```
 
 While intuitively appealing, baseline-corrected accuracy led to worse reliability and validity than accuracy (Figure \ref{fig:fig-bc}). Even for datasets where there was looking data for a long pre-stimulus period (at least 3 seconds), baseline correction using a long pre-stimulus period was did not outperform regular accuracy (Figure SXX). These results held across different age bands (Figure SXX). 
+
+```{r bc-age, fig.cap="Reliability and validity measures for baseline-corrected accuracy, split by age. The post-diambiguation window was 400 to 3000ms."}
+baseline_lengths <- readRDS(here("cached_intermediates", "2_baseline_lengths.rds"))
+bc_icc_age  <- readRDS(here("cached_intermediates", "2_bc_icc_boot_byage.rds")) |>
+  bind_rows(readRDS(here("cached_intermediates", "1_acc_icc_boot_byage.rds")) |> filter(t_start == 400)) |>
+  filter(t_end==3000) |> 
+  semi_join(baseline_lengths) |>
+  mutate(b_start = ifelse(is.na(b_start), "none", as.character(b_start))) |>
+  do_meta(c("t_start", "t_end", "b_start", "b_end", "age_bin"))
+
+
+bc_cdi_age <- readRDS(here("cached_intermediates", "2_bc_cdi_boot_byage.rds")) |>
+  bind_rows(readRDS(here("cached_intermediates", "1_acc_cdi_boot_byage.rds")) |> filter(t_start == 400)) |>
+    filter(t_end==3000) |> 
+  semi_join(baseline_lengths) |>
+  mutate(b_start = ifelse(is.na(b_start), "none", as.character(b_start))) |>
+  do_cdi_meta(c("t_start", "t_end", "b_start", "b_end", "age_bin"))
+
+bc_trt_age <- readRDS(here("cached_intermediates", "2_bc_test_retest_boot_age.rds")) |>  mutate(age_bin=str_sub(dataset_name, 1,5),
+                                                                                                         dataset_name=str_sub(dataset_name, 6, -1)) |> 
+  bind_rows(readRDS(here("cached_intermediates", "1_acc_test_retest_boot_byage_split.rds")) |>  mutate(age_bin=str_sub(dataset_name, 1,5),
+                                                                                                         dataset_name=str_sub(dataset_name, 6, -1)) |> filter(t_start == 400)) |>
+    filter(t_end==3000) |> 
+  semi_join(baseline_lengths) |>
+  mutate(b_start = ifelse(is.na(b_start), "none", as.character(b_start))) |>
+  do_meta(c("t_start", "t_end", "b_start", "b_end", "age_bin"))
+  
+bc_age <-combined_metrics_split_age(bc_icc_age, bc_cdi_age, bc_trt_age)|>
+  mutate(
+    b_end = ifelse(is.na(b_end), "no baseline", as.character(b_end)),
+    b_start = ifelse(b_start == "none", "no baseline", b_start)
+  )
+
+bc_age |> order_age() |> 
+  ggplot(aes(x = b_start, col = as.character(b_end), y = estimate, ymin = ci.lb, group = t_end, ymax = ci.ub)) +
+  geom_pointrange(position = position_dodge2(.5)) +
+  coord_flip() +
+  facet_grid(age_bin~Type, scales = "free_x") +
+  theme(legend.position = "bottom", ) +
+  labs(y = "Correlation", x = "Window start time (ms)", color = "Window end time (ms)") +
+  scale_color_brewer(palette="Set2")+
+  facetted_pos_scales(
+  y = list(
+    Type == "ICC reliability" ~ scale_y_continuous(limits = c(0, .7)),
+    Type == "Corr. with CDI Production" ~ scale_y_continuous(limits = c(-.15, .55)),
+            Type == "Test-retest reliability" ~ scale_y_continuous(limits = c(0.15, .65))
+
+  )
+)
+```
 
 Why would incorporating baseline information lead to worse metrics? Children's looking behavior is noisy, and subtracting one noisy measure from another one results in an even noisier measure. Thus, while baseline-correction may lead to more pleasing grand averages, it creates noisier (that is, less reliable) individual level measures. 
 
@@ -493,6 +546,35 @@ All 4 types of RT have similar correlations with CDI comprehension. Note that co
 
 The highest ICC reliabilities occur around 400 ms. ICC reliability is consistently slightly higher for land-based than launch-based although the scale of difference varies with minimum RT. Test-retest reliability is reasonable for all measures. These patterns generally hold for children of different ages (Figure SXX). 
 
+```{r rt-fig-age, fig.cap="Measurement properties of RT, split by age bin. "}
+rt_icc_age <- readRDS(here("cached_intermediates", "3_rt_icc_boot_byage.rds")) |> regroup_rt() |> name_rt() |>  do_meta(c("approach", "window", "age_bin"))
+
+rt_cdi_age <- readRDS(here("cached_intermediates", "3_rt_cdi_boot_byage.rds")) |> regroup_rt() |> name_rt() |>  do_cdi_meta(c("approach", "window", "age_bin"))
+
+rt_trt_age <- readRDS(here("cached_intermediates", "3_rt_test_retest_boot_age.rds")) |>mutate(age_bin=str_sub(dataset_name, 1,5),
+                                                                                                         dataset_name=str_sub(dataset_name, 6, -1)) |> 
+  regroup_rt() |> name_rt() |>  do_meta(c("approach", "window", "age_bin"))
+
+rt_all_age <- combined_metrics_split_age(rt_icc_age, rt_cdi_age, rt_trt_age) |> order_age()
+
+rt_all_age |> order_age() |> filter(window>0,window<600) |> 
+  ggplot(aes(x = window, col = as.character(approach), y = estimate, ymin = ci.lb, ymax = ci.ub)) +
+  geom_pointrange(position = position_dodge(15)) +
+  coord_flip() +
+  facet_grid(age_bin~Type, scales = "free_x") +
+  theme(legend.position = "bottom", ) +
+  labs(y = "Correlation", x = "Minimum RT", color = "RT Approach") +
+  scale_color_brewer(palette="Paired")+
+  facetted_pos_scales(
+  y = list(
+    Type == "ICC reliability" ~ scale_y_continuous(limits = c(.15, .85)),
+    Type == "Corr. with CDI Production" ~ scale_y_continuous(limits = c(-.45, .25)),
+            Type == "Test-retest reliability" ~ scale_y_continuous(limits = c(0.1, .6)),
+    Type == "Corr. with CDI Comp." ~ scale_y_continuous(limits = c(-.45, .25))
+  )
+)
+```
+
 We recommend that researchers use minimum RT cutoffs around 400 ms as these increase reliability compared to shorter cutoffs like 200 ms. While the differences between different methods are small, we recommend using landing-based RT on the log scale to maximize overall reliability and validity. 
 
 Overall RT measures complement accuracy measures and capture substantial signal; the exact details don't matter that much. 
@@ -529,6 +611,50 @@ trial_all |> filter(t_end==3000) |> mutate(look_both=case_when(
   geom_pointrange(position = position_dodge2(width = .05)) +
   coord_flip() +
   facet_wrap(~Type, scales = "free_x", nrow = 1) +
+  theme(legend.position = "bottom", ) +
+  labs(y = "Correlation", x = "Minimum Data Proportion", color = "Must look at both target and distractor?") +
+  scale_color_brewer(palette="Dark2")+
+  facetted_pos_scales(
+  y = list(
+    Type == "ICC reliability" ~ scale_y_continuous(limits = c(0.2, .7)),
+    Type == "Corr. with CDI Prod." ~ scale_y_continuous(limits = c(0, .5)),
+        Type == "Test-retest reliability" ~ scale_y_continuous(limits = c(0.15, .65)),
+    Type == "Corr. with CDI Comp." ~ scale_y_continuous(limits = c(0, .5)),
+            Type == "Pct Trials" ~ scale_y_continuous(limits = c(0, 1))
+
+  )
+)
+```
+
+
+
+```{r trial-acc-kid, fig.cap="TODO"}
+trial_boot_kid <- readRDS(here("cached_intermediates/4_acc_trial_icc_boot_byage.rds")) |> unnest(num_trials) 
+
+num_trials <- trial_boot_kid|> group_by(t_start, t_end, exclude_less_than, look_both, age_bin) |> summarize(num_trials=sum(num_trials, na.rm=T), .groups="drop") |> 
+  group_by(t_end, t_start, age_bin) |> 
+  mutate(pct=num_trials/max(num_trials)) |> 
+  rename(estimate=pct) |> mutate(Type="Pct Trials")
+
+trial_icc_kid <- trial_boot_kid |> do_meta(c("t_start", "t_end", "exclude_less_than", "look_both", "age_bin")) 
+
+trial_cdi_kid <- readRDS(here("cached_intermediates/4_acc_trial_cdi_boot_byage.rds")) |> do_cdi_meta(c("t_start", "t_end","exclude_less_than", "look_both", "age_bin"))
+
+trial_trt_kid <- readRDS(here("cached_intermediates/4_acc_trial_test_retest_boot_age.rds")) |>
+  mutate(age_bin=str_sub(dataset_name, 1,5),
+                                                                                                         dataset_name=str_sub(dataset_name, 6, -1)) |> 
+  do_meta(c("t_start", "t_end","exclude_less_than", "look_both", "age_bin"))
+
+trial_all <- combined_metrics_split_age(trial_icc_kid, trial_cdi_kid, trial_trt_kid) |> bind_rows(num_trials) |>     filter(age_bin %in% c("18-24", "24-36"))
+
+trial_all |> filter(t_end==3000) |> mutate(look_both=case_when(
+  look_both=="before"~ "Before 400ms",
+  look_both=="ever" ~ "Ever",
+  look_both=="no_need"~ "No requirement"
+)) |> ggplot(aes(x = exclude_less_than, col = look_both, y = estimate, ymin = ci.lb, ymax = ci.ub)) +
+  geom_pointrange(position = position_dodge2(width = .05)) +
+  coord_flip() +
+  facet_grid(age_bin~Type, scales = "free_x") +
   theme(legend.position = "bottom", ) +
   labs(y = "Correlation", x = "Minimum Data Proportion", color = "Must look at both target and distractor?") +
   scale_color_brewer(palette="Dark2")+

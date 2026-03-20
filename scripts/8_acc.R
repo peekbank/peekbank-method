@@ -4,9 +4,9 @@ d_aoi <- readRDS("../cached_intermediates/0_d_aoi.rds")
 
 cdi_data <- readRDS("../cached_intermediates/0_cdi_subjects.rds")
 
-
-pairs_sim <- make_test_retest_pairs(d_aoi) |>
+pairs_aoi_data <- make_test_retest_pairs(d_aoi) |>
   left_join(d_aoi) |>
+pairs_sim <- pairs_aoi_data |> 
   group_by(
     dataset_name, trial_id, dataset_id, subject_id, administration_id,
     target_label, pair_number, session_num
@@ -41,7 +41,7 @@ prep_accuracy <- function(d, flags, t_start, t_end, exclude_less_than, look_both
     filter(t_norm > t_start, t_norm < t_end) |>
     group_by(across(all_of(c(
       "dataset_name", "dataset_id", "administration_id", "target_label", "trial_id"
-    ))), across(any_of("age_bin", "subject_id", "pair_number", "session_num"))) |>
+    ))), across(any_of(c("age_bin", "subject_id", "pair_number", "session_num"))))|>
     summarise(
       accuracy = mean(correct, na.rm = TRUE),
       prop_data = mean(!is.na(correct)),
@@ -49,7 +49,7 @@ prep_accuracy <- function(d, flags, t_start, t_end, exclude_less_than, look_both
     ) |>
     filter(prop_data >= exclude_less_than) |>
     filter(!is.na(accuracy)) |>
-    group_by(administration_id, dataset_name, across(any_of("age_bin", "subject_id", "pair_number", "session_num"))) |>
+    group_by(administration_id, dataset_name, across(any_of(c("age_bin", "subject_id", "pair_number", "session_num")))) |>
     mutate(
       count = n(),
     ) |>
@@ -68,10 +68,9 @@ prep_bc <- function(d, flags, t_start, t_end, b_start, b_end, exclude_less_than,
 
   d |>
     semi_join(flags, by = join_cols) |>
-    filter(t_norm > t_start, t_norm < t_end) |>
     group_by(across(all_of(c(
       "dataset_name", "dataset_id", "administration_id", "target_label", "trial_id"
-    ))), across(any_of("age_bin", "subject_id", "pair_number", "session_num"))) |>
+    ))), across(any_of(c("age_bin", "subject_id", "pair_number", "session_num")))) |>
     summarise(
       window_accuracy = mean(correct[t_norm >= t_start & t_norm <= t_end], na.rm = TRUE),
       baseline_accuracy = mean(correct[t_norm >= b_start & t_norm <= b_end], na.rm = TRUE),
@@ -81,7 +80,7 @@ prep_bc <- function(d, flags, t_start, t_end, b_start, b_end, exclude_less_than,
     ) |>
     filter(!is.na(bc_accuracy)) |>
     filter(prop_data >= exclude_less_than) |>
-    group_by(administration_id, dataset_name, across(any_of("age_bin", "subject_id", "pair_number", "session_num"))) |>
+    group_by(administration_id, dataset_name, across(any_of(c("age_bin", "subject_id", "pair_number", "session_num")))) |>
     mutate(
       count = n(),
     ) |>
@@ -123,7 +122,7 @@ cdi_summarize <- function(d) {
     left_join(cdi_data)
 }
 
-do_test_retest <- function(t_start, t_end, exclude_less_than, look_both, min_trial) {
+do_test_retest <- function(d) {
   d |>
     group_by(administration_id, dataset_name, subject_id, pair_number, session_num) |>
     summarize(
@@ -184,7 +183,7 @@ saveRDS(accs_cdi_summarized, "../cached_intermediates/8_acc_cdi.rds")
 accs_boot_test_retest <- acc_params |>
   mutate(corr = pmap(
     list(t_start, t_end, exclude_less_than, look_both, min_trial),
-    \(t_s, t_e, e, l, m) prep_accuracy(t_s, t_e, e, l, m) |> do_test_retest()
+    \(t_s, t_e, e, l, m) prep_accuracy(pairs_sim, trial_flags, t_s, t_e, e, l, m) |> do_test_retest()
   )) |>
   unnest(corr)
 
@@ -204,7 +203,7 @@ bc_icc_summarized <- bc_params |>
 saveRDS(bc_icc_summarized, "../cached_intermediates/8_bc_icc.rds")
 
 
-bc_cdi_summarized <- acc_params |>
+bc_cdi_summarized <- bc_params |>
   mutate(summary_data = pmap(
     list(t_start, t_end, b_start, b_end, exclude_less_than, look_both, min_trial),
     \(t_s, t_e, b_s, b_e, e, l, m) prep_bc(d_aoi, trial_flags, t_s, t_e, b_s, b_e, e, l, m) |> cdi_summarize()
@@ -215,10 +214,10 @@ bc_cdi_summarized <- acc_params |>
 
 saveRDS(bc_cdi_summarized, "../cached_intermediates/8_bc_cdi.rds")
 
-bc_boot_test_retest <- acc_params |>
+bc_boot_test_retest <- bc_params |>
   mutate(corr = pmap(
     list(t_start, t_end, b_start, b_end, exclude_less_than, look_both, min_trial),
-    \(t_s, t_e, b_s, b_e, e, l, m) prep_bc(t_s, t_e, b_s, b_e, e, l, m) |> do_test_retest()
+    \(t_s, t_e, b_s, b_e, e, l, m) prep_bc(pairs_sim, trial_flags, t_s, t_e, b_s, b_e, e, l, m) |> do_test_retest()
   )) |>
   unnest(corr)
 

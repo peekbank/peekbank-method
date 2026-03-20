@@ -120,6 +120,16 @@ combined_metrics_age <- function(icc, cdi) {
     bind_rows(cdi |> rename(estimate = comp_estimate, ci.lb = comp_ci.lb, ci.ub = comp_ci.ub) |> mutate(Type = "Corr. with CDI Comp."))
 }
 
+combined_metrics_split_age <- function(icc, cdi, trt) {
+  icc |>
+    mutate(Type = "ICC reliability") |>
+    bind_rows(cdi |> rename(estimate = prod_estimate, ci.lb = prod_ci.lb, ci.ub = prod_ci.ub) |> mutate(Type = "Corr. with CDI Prod.")) |>
+    bind_rows(cdi |> rename(estimate = comp_estimate, ci.lb = comp_ci.lb, ci.ub = comp_ci.ub) |> mutate(Type = "Corr. with CDI Comp.")) |>
+    bind_rows(trt |> mutate(Type = "Test-retest reliability")) |>
+    filter(age_bin %in% c("18-24", "24-36")) |>
+    filter(Type %in% c("ICC reliability", "Corr. with CDI Prod.", "Test-retest reliability"))
+}
+
 order_age <- function(df) {
   df |> mutate(age_bin = factor(age_bin, levels = c("<18", "18-24", "24-36", ">=36")))
 }
