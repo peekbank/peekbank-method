@@ -39,7 +39,7 @@ pairs_sim_age <- pairs_aoi_age |>
     total_target_prop = mean(correct, na.rm = TRUE),
     pre_looking = mean(correct[t_norm < 400], na.rm = TRUE)
   ) |>
-  left_join(pairs_aoiage)
+  left_join(pairs_aoi_age)
 
 # rm(d_aoi, pairs_aoi_data, pairs_long)
 # gc()
