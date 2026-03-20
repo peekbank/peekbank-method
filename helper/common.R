@@ -33,6 +33,24 @@ make_age_bins <- function(d_aoi, min_per_bin = 5) {
   d_aoi |> inner_join(get_age_bin_cutoff(d_aoi, min_per_bin))
 }
 
+get_age_bin_cutoff_2 <- function(d_aoi, min_per_bin = 10) {
+  d_aoi |>
+    filter(!is.na(correct)) |>
+    distinct(administration_id, age, dataset_name) |>
+    mutate(age_bin = case_when(
+      age < 24 ~ "<24",
+      age >= ~"24+",
+    )) |>
+    group_by(dataset_name, age_bin) |>
+    mutate(count = n()) |>
+    filter(count >= min_per_bin) |>
+    ungroup()
+}
+
+make_age_bins_2 <- function(d_aoi, min_per_bin = 10) {
+  d_aoi |> inner_join(get_age_bin_cutoff_2(d_aoi, min_per_bin))
+}
+
 make_test_retest_pairs <- function(d_aoi) {
   admins <- d_aoi |>
     select(dataset_name, subject_id, administration_id, age) |>

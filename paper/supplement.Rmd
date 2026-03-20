@@ -41,6 +41,12 @@ dataset_summary <- readRDS(here("cached_intermediates/paper_dataset_summary.rds"
 
 Figure \ref{fig:dist-age} shows the distribution of ages in the Peekbank data used in this paper. 
 
+```{r}
+dataset_summary |> summarize(mean=mean(age), median=median(age))
+
+dataset_summary |> distinct(age, administration_id) |> summarize(mean=mean(age), median=median(age))
+```
+
 ```{r dist-age, fig.cap="Age distribution for trials and administrations, with the age bins used for analysis.", fig.width=6, fig.height=3}
 dataset_summary |>  mutate(age_bin = case_when(
       age < 18 ~ "<18",
