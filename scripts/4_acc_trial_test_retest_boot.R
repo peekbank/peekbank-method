@@ -30,7 +30,7 @@ pairs_aoi_age <- pairs_long |>
 #   ) |>
 #   left_join(pairs_aoi_data)
 
-pairs_sim_age <- pairs_aoi_data_age |>
+pairs_sim_age <- pairs_aoi_age |>
   group_by(
     dataset_name, trial_id, dataset_id, subject_id, administration_id,
     target_label, pair_number, session_num, age_bin
@@ -39,7 +39,7 @@ pairs_sim_age <- pairs_aoi_data_age |>
     total_target_prop = mean(correct, na.rm = TRUE),
     pre_looking = mean(correct[t_norm < 400], na.rm = TRUE)
   ) |>
-  left_join(pairs_aoi_data_age)
+  left_join(pairs_aoiage)
 
 # rm(d_aoi, pairs_aoi_data, pairs_long)
 # gc()
@@ -115,7 +115,7 @@ cluster <- setup_cluster(
   libs = c("dplyr", "stringr", "purrr", "tidyr", "stats", "tibble", "boot"),
   copy_names = c(
     "safe_boot_ci", "safe_cor", "test_retest_corr", "boot_test_retest",
-    "pairs_sim", "acc_test_retest",
+   # "pairs_sim", "acc_test_retest",
     "pairs_sim_age", "acc_test_retest_age"
   )
 )
