@@ -645,9 +645,9 @@ trial_trt_kid <- readRDS(here("cached_intermediates/4_acc_trial_test_retest_boot
                                                                                                          dataset_name=str_sub(dataset_name, 6, -1)) |> 
   do_meta(c("t_start", "t_end","exclude_less_than", "look_both", "age_bin"))
 
-trial_all <- combined_metrics_split_age(trial_icc_kid, trial_cdi_kid, trial_trt_kid) |> bind_rows(num_trials) |>     filter(age_bin %in% c("18-24", "24-36"))
+trial_all_age <- combined_metrics_split_age(trial_icc_kid, trial_cdi_kid, trial_trt_kid) |> bind_rows(num_trials) |>     filter(age_bin %in% c("18-24", "24-36"))
 
-trial_all |> filter(t_end==3000) |> mutate(look_both=case_when(
+trial_all_age |> filter(t_end==3000) |> mutate(look_both=case_when(
   look_both=="before"~ "Before 400ms",
   look_both=="ever" ~ "Ever",
   look_both=="no_need"~ "No requirement"
@@ -689,6 +689,14 @@ d_aoi <- readRDS(here("cached_intermediates/0_d_aoi.rds"))
   group_by(exclude_less_than) |> 
   mutate(pct=num_kids/max(num_kids)) |> 
   rename(estimate=pct) |> saveRDS(here("cached_intermediates/paper_dataloss_acc.rds"))
+ 
+  d_aoi |> filter(t_norm>=400, t_norm<=3000) |> make_age_bins() |> 
+  group_by(dataset_name, trial_id, dataset_id, subject_id, administration_id, age_bin) |>summarize(prop_data = mean(!is.na(correct))) |> 
+  cross_join(expand_grid(min_trial=c(1, 2, 3, 4, 5, 8, 10, 15), exclude_less_than=c(0, .2, .5))) |> 
+  filter(prop_data>=exclude_less_than) |> group_by(exclude_less_than, min_trial, administration_id, age_bin)  |> tally()|> filter(n>=min_trial) |> group_by(exclude_less_than, min_trial, age_bin)|> summarize(num_kids=n(), .groups="drop") |> 
+  group_by(exclude_less_than, age_bin) |> 
+  mutate(pct=num_kids/max(num_kids)) |> 
+  rename(estimate=pct) |> saveRDS(here("cached_intermediates/paper_dataloss_acc_per_age.rds"))
 
   readRDS(here("cached_intermediates/3_rts.rds")) |> filter(window==400, time_0, time_end, frac==1)|> preprocess_rt_dt() |> regroup_rt() |> name_rt() |> filter(!is.na(rt)) |> group_by(administration_id, dataset_name, approach) |> tally() |> 
   cross_join(expand_grid(min_trial=c(1,2,3,4,5,6))) |> filter(n>=min_trial) |> 
@@ -696,6 +704,14 @@ d_aoi <- readRDS(here("cached_intermediates/0_d_aoi.rds"))
   group_by(approach) |> 
   mutate(pct=total/max(total)) |> 
   rename(estimate=pct) |> saveRDS(here("cached_intermediates/paper_dataloss_rt.rds"))
+  
+  d_aoi |> make_age_bins() |> distinct(administration_id, dataset_name, age_bin) |> 
+  left_join( readRDS(here("cached_intermediates/3_rts.rds"))) |> filter(window==400, time_0, time_end, frac==1)|> preprocess_rt_dt() |> regroup_rt() |> name_rt() |> filter(!is.na(rt)) |> group_by(administration_id, dataset_name, approach, age_bin) |> tally() |> 
+  cross_join(expand_grid(min_trial=c(1,2,3,4,5,6))) |> filter(n>=min_trial) |> 
+  group_by(min_trial, approach, age_bin) |> summarize(total=n()) |> 
+  group_by(approach, age_bin) |> 
+  mutate(pct=total/max(total)) |> 
+  rename(estimate=pct) |> saveRDS(here("cached_intermediates/paper_dataloss_rt_per_age.rds"))
 
 ```
 
@@ -712,8 +728,7 @@ kid_cdi <- readRDS(here("cached_intermediates/4_acc_kid_cdi_boot.rds")) |> do_cd
 kid_trt <- readRDS(here("cached_intermediates/4_acc_kid_test_retest_boot.rds")) |> do_meta(c("t_start", "t_end","exclude_less_than", "look_both", "min_trial"))
 
 kid_all <- combined_metrics(kid_icc, kid_cdi,  kid_trt) |> 
-   filter(t_end==3000) |> 
-  bind_rows(num_kids_acc |> mutate(Type="Pct admins"))
+   filter(t_end==3000) |> bind_rows(num_kids_acc |> mutate(Type="Pct admins"))
 
 kid_all |> filter(min_trial<11) |>   ggplot(aes(x = min_trial, col = as.factor(exclude_less_than), y = estimate, ymin = ci.lb, ymax = ci.ub)) +
   geom_pointrange(position = position_dodge2(width = .5)) +
@@ -735,6 +750,40 @@ kid_all |> filter(min_trial<11) |>   ggplot(aes(x = min_trial, col = as.factor(e
 ```
 
 
+```{r kid-acc-age, fig.cap="TODO"}
+kid_boot_age <- readRDS(here("cached_intermediates/4_acc_kid_icc_boot_byage.rds")) |> unnest(num_trials) 
+
+num_trials_kid_age <- readRDS(here("cached_intermediates/paper_dataloss_acc_per_age.rds"))
+
+icc_kid_age <- kid_boot_age |> do_meta(c("t_start", "t_end", "exclude_less_than", "look_both", "age_bin", "min_trial")) 
+
+cdi_kid_age <- readRDS(here("cached_intermediates/4_acc_kid_cdi_boot_byage.rds")) |> do_cdi_meta(c("t_start", "t_end","exclude_less_than", "look_both", "age_bin", "min_trial"))
+
+trt_kid_age <- readRDS(here("cached_intermediates/4_acc_kid_test_retest_boot_age.rds")) |>
+  mutate(age_bin=str_sub(dataset_name, 1,5),
+                                                                                                         dataset_name=str_sub(dataset_name, 6, -1)) |> 
+  do_meta(c("t_start", "t_end","exclude_less_than", "look_both", "age_bin", "min_trial"))
+
+kid_all_age <- combined_metrics_split_age(icc_kid_age, cdi_kid_age, trt_kid_age)|>       filter(t_end==3000) |> bind_rows(num_trials_kid_age |> mutate(Type="Pct admins")) |> filter(age_bin %in% c("18-24", "24-36")) 
+
+kid_all_age |>  filter(min_trial<11) |>   ggplot(aes(x = min_trial, col = as.factor(exclude_less_than), y = estimate, ymin = ci.lb, ymax = ci.ub)) +
+  geom_pointrange(position = position_dodge2(width = .5)) +
+  coord_flip() +
+  facet_grid(age_bin~Type, scales = "free_x") +
+  theme(legend.position = "bottom", ) +
+  labs(y = "Correlation", x = "Minimum Trials", color = "Minimum valid data per trial") +
+  scale_color_brewer(palette="Accent")+
+  facetted_pos_scales(
+  y = list(
+    Type == "ICC reliability" ~ scale_y_continuous(limits = c(0.2, .7)),
+    Type == "Corr. with CDI Prod." ~ scale_y_continuous(limits = c(0, .5)),
+        Type == "Test-retest reliability" ~ scale_y_continuous(limits = c(0.25, .75)),
+    Type == "Corr. with CDI Comp." ~ scale_y_continuous(limits = c(0, .5)),
+        Type == "Pct admins" ~ scale_y_continuous(limits = c(0, 1))
+
+  )
+)
+```
 
 Excluding children for contributing too few trials is generally not necessary (Figure \ref{fig:kid-acc}). There is little difference in ICC reliability or CDI validity for 1-5 trials. For test-retest relability, the reliability is higher if there are at least a few trials from each test, although there are concerns that children who contribute fewer than 5 trials may be different in some way than children who contribute more, so the population generalizability may have issues. 
 
@@ -782,6 +831,42 @@ kid_rt_all |> filter(min_trial<5) |>  ggplot(aes(x = min_trial, col = as.factor(
 We also considered the effects of minimum trial requirements on RT data (Figure \ref{fig:kid-rt}). 
 For RT, it's reasonable to set low minimums for number of trials (like 2 trials) which does make for stronger correlations with CDI production. There are much stronger tradeoffs between test-retest reliability and number of children included. It's also reasonable to not exclude. 
 
+```{r kid-rt-age, fig.cap="Effects of different minimum trial cutoffs on the measurement properties of RT. Shown for minimum RT of 400ms.", fig.height=3}
+
+kid_rt_boot_age <- readRDS(here("cached_intermediates/4_rt_icc_boot_byage.rds")) 
+
+
+num_rt_trials_age <- readRDS(here("cached_intermediates/paper_dataloss_rt_per_age.rds"))
+
+
+kid_rt_icc_age <- kid_rt_boot_age |> regroup_rt() |> name_rt() |> do_meta(c("approach", "window", "min_trial", "age_bin")) 
+
+kid_rt_cdi_age <- readRDS(here("cached_intermediates/4_rt_cdi_boot_byage.rds")) |> regroup_rt() |> name_rt() |> do_cdi_meta(c("approach", "window", "min_trial", "age_bin")) 
+
+kid_rt_trt_age <- readRDS(here("cached_intermediates/4_rt_test_retest_boot_age.rds")) |> 
+  filter(dataset_name!="potter_remix") |>  regroup_rt() |> name_rt() |> do_meta(c("approach", "window", "min_trial", "age_bin")) 
+
+kid_rt_all_age <- combined_metrics_split_age(kid_rt_icc_age, kid_rt_cdi_age, kid_rt_trt_age) |> 
+  bind_rows(num_rt_trials_age |> mutate(Type="Pct admins")) |> filter(age_bin %in% c("18-24", "24-36"))
+
+kid_rt_all_age |> filter(min_trial<5) |>  ggplot(aes(x = min_trial, col = as.factor(approach), y = estimate, ymin = ci.lb, ymax = ci.ub)) +
+  geom_pointrange(position = position_dodge2(width = .5)) +
+  coord_flip() +
+  facet_grid(age_bin~Type, scales = "free_x") +
+  theme(legend.position = "bottom", ) +
+  labs(y = "Correlation", x = "Minimum Trials", color = "RT Approach") +
+  scale_color_brewer(palette="Paired")+
+  facetted_pos_scales(
+  y = list(
+    Type == "ICC reliability" ~ scale_y_continuous(limits = c(0.3, .8)),
+    Type == "Corr. with CDI Prod." ~ scale_y_continuous(limits = c(-.5, 0)),
+        Type == "Test-retest reliability" ~ scale_y_continuous(limits = c(0.1, .6)),
+    Type == "Corr. with CDI Comp." ~ scale_y_continuous(limits = c(-.5, 0)),
+        Type == "Pct admins" ~ scale_y_continuous(limits = c(0, 1))
+
+  )
+)
+```
 
 
 Overall, exclusions based on amount of data per-trial or per-child come with trade-offs between amount of data and cleanliness of the data. Depending on the study design and goals, no exclusions, or light exclusions can both be reasonable choices. 
