@@ -33,11 +33,9 @@ rt_icc <- rt_params |>
   select(-count) |>
   group_by(dataset_name, time_0, window, time_end, during, frac, measure, min_trial, option) |>
   nest() |>
-  partition(cluster) |>
   mutate(icc_admin = map(data, \(d) {
     bootstrap_icc(d, column = "rt", bootstrap = 2000)
   })) |>
-  collect() |>
   select(-data) |>
   unnest(icc_admin)
 
@@ -80,9 +78,7 @@ rt_trt <- rt_pairs <- rt_params |>
   select(-count) |>
   group_by(measure, window, time_0, time_end, during, frac, min_trial, option) |>
   nest() |>
-  partition(cluster) |>
   mutate(cdi = map(data, boot_test_retest)) |>
-  collect() |>
   select(-data) |>
   unnest(cdi)
 
