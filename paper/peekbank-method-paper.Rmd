@@ -328,6 +328,32 @@ Exactly when the accuracy window starts is not important, although we recommend 
 
 These patterns hold across age (see Figure SNN). 
 
+```{r acc-fig-age, fig.cap="Bootstrapped results of different accuracy parameter combinations, split out by age of participants.", fig.height=4, fig.width=4}
+acc_icc_age <- readRDS(here("cached_intermediates", "1_acc_icc_boot_byage.rds")) |> do_meta(c("t_start", "t_end", "age_bin"))
+
+acc_cdi_age <- readRDS(here("cached_intermediates", "1_acc_cdi_boot_byage.rds")) |> do_cdi_meta(c("t_start", "t_end", "age_bin"))
+
+acc_all_age <- combined_metrics_age(acc_icc_age, acc_cdi_age) |> 
+  select(t_start, t_end, Type, estimate, ci.ub, ci.lb, age_bin) |> 
+  filter(age_bin%in%c("18-24", "24-36")) |> 
+  filter(Type %in% c("ICC reliability", "Corr. with CDI Prod."))
+
+acc_all_age |> order_age() |> 
+  filter(t_start %in% c(0, 200, 400, 600, 800, 1000)) |>
+  ggplot(aes(x = t_start, col = as.character(t_end), y = estimate, ymin = ci.lb, group = t_end, ymax = ci.ub)) +
+  geom_pointrange(position = position_dodge(50)) +
+  coord_flip() +
+  facet_grid(age_bin~Type, scales = "free_x") +
+  theme(legend.position = "bottom", ) +
+  labs(y = "Correlation", x = "Window start time (ms)", color = "Window end time (ms)") +
+  scale_color_solarized()+
+  facetted_pos_scales(
+  y = list(
+    Type == "ICC reliability" ~ scale_y_continuous(limits = c(0, .7)),
+    Type == "Corr. with CDI Prod." ~ scale_y_continuous(limits = c(-.15, .55))
+  )
+)
+```
 Continuing windows for longer is not common, but while the "peak" of the aggregated accuracy curve generally occurs before 2000 ms, there is still signal in the high-accuracy post-peak region (see supplement graphs). While we are used to looking at aggregated smoothed plots, this post-peak region both includes some kids who have already looked and are now looking away, but it also includes kids who looked late and are still looking -- something something, per trial or per child, some looking behavior is later peaking so we don't want to cut off too soon. 
 
 Strong effects are likely to show up in any reasonable window, but for eking the most reliability out of data, we recommend long windows continuing to (at least) 3000 ms post disambiguation. 

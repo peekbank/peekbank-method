@@ -3,17 +3,25 @@ source("../helper/common.R")
 d_aoi <- readRDS("../cached_intermediates/0_d_aoi.rds")
 
 pairs_long <- make_test_retest_pairs(d_aoi)
+
 pairs_aoi_data <- pairs_long |> left_join(d_aoi)
 
-pairs_aoi_data_age_split <- pairs_aoi_data |>
+pairs_aoi_data_age <- pairs_long |>
   mutate(age_bin = case_when(
-    mean_age < 24 ~ "<24",
-    mean_age >= ~"24+",
+    mean_age < 18 ~ "<18",
+    mean_age < 24 ~ "18-24",
+    mean_age < 36 ~ "24-36",
+    mean_age >= 36 ~ ">=36"
   )) |>
   group_by(dataset_name, age_bin) |>
   mutate(count = n()) |>
+  filter(count >= min_per_bin) |>
+  group_by(dataset_name, age_bin) |>
+  mutate(count = n()) |>
   filter(count >= 5) |>
-  ungroup()
+  ungroup() |>
+  filter(age_bin %in% c("18-24", "24-36")) |>
+  left_join(d_aoi)
 
 
 acc_test_retest <- function(t_start = -500, t_end = 4000) {
@@ -36,7 +44,7 @@ acc_test_retest <- function(t_start = -500, t_end = 4000) {
 acc_test_retest_age_split <- function(t_start = -500, t_end = 4000) {
   print(paste(t_start, t_end))
 
-  pairs_aoi_data_age_split |>
+  pairs_aoi_data_age |>
     filter(t_norm > t_start, t_norm < t_end) |>
     group_by(administration_id, dataset_name, subject_id, pair_number, session_num, target_label, trial_id, age_bin) |>
     summarise(
@@ -57,7 +65,7 @@ cluster <- setup_cluster(
   copy_names = c(
     "safe_boot_ci", "safe_cor", "test_retest_corr", "boot_test_retest",
     "pairs_aoi_data", "acc_test_retest",
-    "pairs_aoi_data_age_split", "acc_test_retest_age_split"
+    "pairs_aoi_data_age", "acc_test_retest_age_split"
   )
 )
 

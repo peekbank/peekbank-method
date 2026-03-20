@@ -14,19 +14,60 @@ cluster <- setup_cluster(
 
 d_rt_dt_long <- preprocess_rt_dt(rts)
 
-rt_pairs <- pairs_long |>
+# rt_pairs <- pairs_long |>
+#   left_join(d_rt_dt_long |> select(
+#     administration_id, rt, measure, window, time_0, time_end, during,
+#     frac, dataset_name
+#   ), relationship = "many-to-many")
+
+
+rt_pairs_age <- pairs_long |>
+  mutate(age_bin = case_when(
+    mean_age < 18 ~ "<18",
+    mean_age < 24 ~ "18-24",
+    mean_age < 36 ~ "24-36",
+    mean_age >= 36 ~ ">=36"
+  )) |>
+  group_by(dataset_name, age_bin) |>
+  mutate(count = n()) |>
+  filter(count >= min_per_bin) |>
+  group_by(dataset_name, age_bin) |>
+  mutate(count = n()) |>
+  filter(count >= 5) |>
+  ungroup() |>
+  filter(age_bin %in% c("18-24", "24-36")) |>
   left_join(d_rt_dt_long |> select(
     administration_id, rt, measure, window, time_0, time_end, during,
     frac, dataset_name
   ), relationship = "many-to-many")
 
-rm(d_aoi, rts, d_rt_dt_long, pairs_long)
-gc()
+# rm(d_aoi, rts, d_rt_dt_long, pairs_long)
+# gc()
 
 params <- expand_grid(min_trial = c(1, 2, 3, 4, 5, 6))
 
-rt_bootstrap_test_retest <- rt_pairs |>
-  group_by(measure, window, time_0, time_end, during, frac, dataset_name, administration_id, subject_id, pair_number, session_num) |>
+# rt_bootstrap_test_retest <- rt_pairs |>
+#   group_by(measure, window, time_0, time_end, during, frac, dataset_name, administration_id, subject_id, pair_number, session_num) |>
+#   summarize(
+#     mean_var = mean(rt, na.rm = T),
+#     count = sum(!is.na(rt))
+#   ) |>
+#   filter(!is.na(mean_var)) |>
+#   cross_join(params) |>
+#   filter(count >= min_trial) |>
+#   select(-count) |>
+#   group_by(measure, window, time_0, time_end, during, frac, min_trial) |>
+#   nest() |>
+#   partition(cluster) |>
+#   mutate(cdi = map(data, boot_test_retest)) |>
+#   collect() |>
+#   select(-data) |>
+#   unnest(cdi)
+#
+# saveRDS(rt_bootstrap_test_retest, "../cached_intermediates/4_rt_test_retest_boot.rds")
+
+rt_bootstrap_test_retest_age <- rt_pairs_age |>
+  group_by(measure, window, time_0, time_end, during, frac, dataset_name, administration_id, subject_id, pair_number, session_num, age_bin) |>
   summarize(
     mean_var = mean(rt, na.rm = T),
     count = sum(!is.na(rt))
@@ -35,7 +76,8 @@ rt_bootstrap_test_retest <- rt_pairs |>
   cross_join(params) |>
   filter(count >= min_trial) |>
   select(-count) |>
-  group_by(measure, window, time_0, time_end, during, frac, min_trial) |>
+  group_by(measure, window, time_0, time_end, during, frac, min_trial, age_bin) |>
+  mutate(dataset_name = str_c(dataset_name, age_bin)) |>
   nest() |>
   partition(cluster) |>
   mutate(cdi = map(data, boot_test_retest)) |>
@@ -43,4 +85,4 @@ rt_bootstrap_test_retest <- rt_pairs |>
   select(-data) |>
   unnest(cdi)
 
-saveRDS(rt_bootstrap_test_retest, "../cached_intermediates/4_rt_test_retest_boot.rds")
+saveRDS(rt_bootstrap_test_retest_age, "../cached_intermediates/4_rt_test_retest_boot_age.rds")
