@@ -40,3 +40,7 @@
 .Rprofile
 renv/activate.R
 peekbank-method.Rproj
+/paper/peekbank-method-paper_cache
+/paper/peekbank-method-paper_files
+paper/peekbank-method-paper.log
+paper/peekbank-method-paper.tex

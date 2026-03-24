@@ -1164,10 +1164,19 @@ Animacy is not the only factor affecting children's viewing behavior, but it is 
 
 # Discussion
 
-## Summary
+
+Measuring infant looking time is notoriously noisy, making decisions about measurement practices highly consequential for the conclusions we draw about infant language development.
+How can we maximize reliable, valid signal when measuring infant word recognition?
+In our analyses, we took a practical, data-driven approach to this question, using a large-scale dataset of infant looking-while-listening data to quantify the impact of different analysis choices on core measurement properties, leading to 6 recommendations for data processing and experimental design.
+
+For data processing, our strongest take-homes from these analyses concern window choice and baseline correction.
+In general, longer time windows (e.g., windows that end around 3000 ms post target word onset) maximize the reliability of accuracy measures (as measured by ICC), with no deleterious consequences for validity.
+While average accuracy tends to peak earlier in the timecourse of a trial (typically 1000-2000 ms post target word onset), leading shorter windows to be preferred in the literature, these findings suggest that later looking windows still capture signal that boosts the consistency of word recognition measures.
+Short accuracy windows might therefore be leaving reliable signal on the table.
+Baseline correction, while an intuitive solution to imbalances in the saliency of images, causes large decrements in reliability; we therefore generally recommend avoiding this practice, especially when maximizing reliability is a high priority (e.g., when investigating individual differences).
+
 
 ## How much can this matter? 
-TODO waiting on data
 
 ```{r}
 do_meta_comparison <- function(d, col_est, col_upper, col_lower) {
@@ -1287,15 +1296,27 @@ acc_icc |>
   facet_grid(measure ~ type)
 ```
 
-
+To quantify the potential cumulative consequences of different combinations of choices, we computed the difference in reliability when making all of the recommended choices with respect to data processing (in particular, X, Y, Z) to an instance in which researchers made all of the "worst-case" choices. 
+[results - should this actually be in the results section?]
 
 ## Limitations & generalizability 
 
-focused on “vanilla” trials, where it’s clear what reliability and validity would mean; we don’t know how practices would generalize to experimental settings
+The scope of our recommendations is fundamentally limited by the characterstics of the Peekbank dataset considered here.
+First, while the Peekbank database is by far the largest dataset of its kind, and one of the largest harmonized infant eyetracking datasets, it is not a comprehensive or representative set of looking-while-listening studies. 
+To highlight just a few of these limitations, (1) the data is predominantly English word recognition collected from infants living in the U.S., and (2) the dataset is a convenience sample from labs who made their data openly available or otherwise accessible on request from the Peekbank team.
+Looking-while-listening studies as a whole are likely more homogeneous than what is represented in Peekbank --- datasets often predominantly came from a small group of labs or networks of researchers with similar training in looking-while-listening data collection.
+
+At the same time, there is also substantial heterogeneity in the studies included in Peekbank, due to different studies pursuing different research questions and therefore making a variety of design choices (e.g., surrounding target words, image properties, and characteristics of the auditory stimuli).
+To mitigate this concern, our analyses focused exclusively on what we term “vanilla” trials, i.e., trials that present familiar words with familiar images with limited or no targeted manipulations of the stimuli.
+The main benefit of focusing on vanilla trials is that it allows for a clear interpretation of reliability and validity --- trials are truly designed to measure word recognition, rather than some other property of .
+We view the remaining heterogeneity of study properties (e.g., specific words; differences in age) as a strength of our approach --- our findings generalize broadly across a wide range of items and ages.
+However, by focusing on vanilla trials only, we also somewhat limit where it’s clear what reliability and validity would mean; we don’t know how practices would generalize to experimental settings
 limited by datasets which are heterogenous by age/length/items
+
+
 often a smooth, wide range of options with similar metrics – we focus on “best” to inform future practice where one wants to know what is necessary or what (otherwise arbitrary) cutoff to choose, but robust findings will show up robustly over a range of data practices.
 
-peekbank is not a comprehensive set of LWL studies nor is it a random sample of the literature. It's dependent on where raw data was available in a useable format and who shared data with us. 
+
 
 We focused our explorations on the questions that are specific to LWL and where data-driven results based on a combined dataset can be most helpful. Other guidance both on LWL specific design considerations and options for coding LWL data are discussed elsewhere. More general advice on experiment design and analysis, especially of developemental datasets, is discussed elsewhere as well (TODO). 
 
