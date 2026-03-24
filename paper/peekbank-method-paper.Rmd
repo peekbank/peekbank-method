@@ -1,28 +1,51 @@
 ---
-title             : "Maximizing reliability and validity in measuring infant word recognition: Insights from the Peekbank dataset"
+title             : "Data-driven recommendations for increasing reliability in measures of infant word recognition"
 shorttitle        : "Peekbank"
 
-author: 
-  - name          : "First Author"
-    affiliation   : "1"
-    corresponding : yes    # Define only one corresponding author
-    address       : "Postal address"
-    email         : "my@email.com"
-    role:         # Contributorship roles (e.g., CRediT, https://casrai.org/credit/)
-      - "Conceptualization"
-      - "Writing - Original Draft Preparation"
-      - "Writing - Review & Editing"
-  - name          : "More authors"
-    affiliation   : "1,2"
-    role:
-      - "Writing - Review & Editing"
-      - "Supervision"
-
-affiliation:
-  - id            : "1"
-    institution   : "Stanford University"
-  - id            : "2"
-    institution   : "UC San Diego"
+author:
+  - name: Veronica Boyce
+    affiliation: a
+  - name: Virginia A. Marchman
+    affiliation: a
+  - name: Claire Augusta Bergey
+    affiliation: b
+  - name: Mika Braginsky
+    affiliation: a
+  - name: George Kachergis
+    affiliation: a
+  - name: Jess Mankewitz
+    affiliation: c
+  - name: Stephan Meylan
+    affiliation: d
+  - name: Ben Prystawski
+    affiliation: a
+  - name: Robert Z. Sparks
+    affiliation: a
+  - name: Adrian Steffan
+    affiliation: e
+  - name: Alvin Wei Ming Tan
+    affiliation: a
+  - name: Tian Linger Xu
+    affiliation: f
+  - name: Michael C. Frank
+    affiliation: a
+  - name: Martin Zettersten
+    affiliation: g
+address:
+  - code: a
+    address: Department of Psychology, Stanford University, Stanford, CA, USA
+  - code: b
+    address: Department of Linguistics, Stanford University, Stanford, CA, USA
+  - code: c
+    address: Department of Psychology, University of Wisconsin, Madison, WI, USA
+  - code: d
+    address: Department of Linguistics, University of California, Berkeley, CA, USA
+  - code: e
+    address: Department of Psychology, Ludwig Maximilian University, Munich, Germany
+  - code: f
+    address: Department of Psychology, Indiana University, Bloomington, IA, USA
+  - code: g
+    address: Department of Cognitive Science, University of California, San Diego, CA, USA
 
 authornote: |
   Enter author note here.
@@ -90,40 +113,46 @@ set.seed(42)
 knitr::opts_chunk$set(cache.extra = knitr::rand_seed)
 ```
 
-[pre-intro] Over the first few months of life, children become experts on their native language, organizing the phonological system of the speech that they hear and parsing speech into meaningful units. A bit later, children begin to show early signs of comprehension of words or phrases through simple behaviors such as turning their head when their name is called (e.g., "Hey, Billy!") or reaching for an object that is named (e.g., "Where's the ball?"). These everyday accomplishments mark important milestones in children’s development, yet such global assessments may miss continuous processes of growth in underlying skills and the millisecond-level processes that take place during real-time language comprehension. Children, like adults, process speech incrementally, as it unfolds in time [@fernald1998;@snedeker2013;@frank2026], and use features of the speech signal to extract meaning that will support language comprehension [@law2014;@fernald2016]. 
+<!-- [pre-intro]  -->
+Over the first few months of life, children become experts on their native language, organizing the phonological system of the speech that they hear and parsing speech into meaningful units. A bit later, children begin to show early signs of comprehension of words or phrases through simple behaviors such as turning their head when their name is called (e.g., "Hey, Billy!") or reaching for an object that is named (e.g., "Where's the ball?"). These everyday accomplishments mark important milestones in children’s development, yet such global assessments may miss continuous processes of growth in underlying skills and the millisecond-level processes that take place during real-time language comprehension. Children, like adults, process speech incrementally, as it unfolds in time [@fernald1998;@snedeker2013;@frank2026], and use features of the speech signal to extract meaning that will support language comprehension [@law2015;@Weisleder2013]. 
 
-<!-- VB comment: attempts to identify the following citations have not succeeded
-fernald2016
-law2014
-peter2018 (possibly is actually peter2019?)
- -->
+<!-- [what is LWL]  -->
+These moment-to-moment processes are difficult to document without child-friendly procedures that allow precision in capturing how children’s behaviors are time-locked to speech. In particular, the "looking while listening" (LWL) procedure has emerged as a *de facto* standard for measuring language in infants and children, especially when they are younger than two years old, as other options for direct assessment during this period are limited [@frank2021].^[Here we adopt LWL as a convenient label while recognizing that the procedure goes by a number of different names in the literature including the "intermodal preferential looking procedure" [@hirsh1996intermodal;@reznick1990visual;@fernald2008].] In the standard version of LWL, children see two pictures on a screen and hear a referring expression, e.g. "look at the ball"; their time-locked eye-movements to the ball over the distractor image are then taken to be evidence for language comprehension [@fernald2008].
 
-[what is LWL] These moment-to-moment processes are difficult to document without child-friendly procedures that allow precision in capturing how children’s behaviors are time-locked to speech. In particular, the "looking while listening" (LWL) procedure has emerged as a *de facto* standard for measuring language in infants and children, especially when they are younger than two years old, as other options for direct assessment during this period are limited [@frank2021].^[Here we adopt LWL as a convenient label while recognizing that the procedure goes by a number of different names in the literature including the "intermodal preferential looking procedure" [@hirsh1996intermodal;@reznick1990visual;@fernald2008].] In the standard version of LWL, children see two pictures on a screen and hear a referring expression, e.g. "look at the ball"; their time-locked eye-movements to the ball over the distractor image are then taken to be evidence for language comprehension [@fernald2008].
+<!-- [what has LWL achieved -- a lot]  -->
+LWL has been a key tool for enhancing our understanding of infants’ language processing and knowledge. For example, using LWL methods, we can measure increases in speed and accuracy in responding to familiar words [@fernald2006;@frank2026] and increases in the detail of their phonological representations [@swingley2000;@moore2024] during the first years after birth. Moreover, measures of children’s skill in the LWL task have also proven useful as an index of individual differences. For example, children who show more efficient language processing at 18 months show larger vocabulary size and more rapid vocabulary growth over the second and third years than children with less efficient processing [@fernald2012;@fernald2006;@frank2026;@peter2019]. Language processing efficiency has also been shown to link to later language, cognitive, and non-verbal outcomes in both typically-developing [@peter2019;@law2014] and preterm children [@marchman2016;@marchman2018;@marchman2023]. 
 
-[what has LWL achieved -- a lot] LWL has been a key tool for enhancing our understanding of infants’ language processing and knowledge. For example, using LWL methods, we can measure increases in speed and accuracy in responding to familiar words [@fernald2006;@frank2026] and increases in the detail of their phonological representations [@swingley2000;@moore2024] during the first years after birth. Moreover, measures of children’s skill in the LWL task have also proven useful as an index of individual differences. For example, children who show more efficient language processing at 18 months show larger vocabulary size and more rapid vocabulary growth over the second and third years than children with less efficient processing [@fernald2012;@fernald2006;@frank2026;@peter2019]. Language processing efficiency has also been shown to link to later language, cognitive, and non-verbal outcomes in both typically-developing [@peter2018;@law2014] and preterm children [@marchman2016;@marchman2018;@marchman2023]. 
+<!-- [LWL requires lots of decisions at all points of experiment; some parts of the pipeline have been covered before, but data processing is an area of variation and limited consensus (could frame this as new researcher)]  -->
+One key reason for the success of this research is the care that has been invested in the development of the looking-while-listening method. Past work has articulated best practices in collecting and analyzing looking-while-listening measures, with a particular focus on stimulus and design choices that make looking preferences maximally informative about word recognition processes [@fernald2008]. However, despite widespread use of the looking-while-listening method in language development research, there is still tremendous variation and limited consensus on how to best process and analyze time-series data of this type [from either adults or infants; @mirman2008;@bergelson2012;@peelle2021;@vonholzen2012]. 
 
-[LWL requires lots of decisions at all points of experiment; some parts of the pipeline have been covered before, but data processing is an area of variation and limited consensus (could frame this as new researcher)] One key reason for the success of this research is the care that has been invested in the development of the looking-while-listening method. Past work has articulated best practices in collecting and analyzing looking-while-listening measures, with a particular focus on stimulus and design choices that make looking preferences maximally informative about word recognition processes [@fernald2008]. However, despite widespread use of the looking-while-listening method in language development research, there is still tremendous variation and limited consensus on how to best process and analyze time-series data of this type [from either adults or infants; @mirman2008;@bergelson2012;@peelle2021;@vonholzen2012]. 
+<!-- [the gap -- why data processing is an open question and hard to address (and important?)]  -->
+This lack of consensus likely stems from structural factors: infant recruitment is time- and cost-intensive and datasets collected by individual labs are often small [@frank2017;@bergmann2018]. These issues make it difficult for any one researcher to systematically evaluate the consequences of specific analytic choices independently of the data collected for a particular study [cf. @peelle2021]. Instead, researchers are often forced to make ad-hoc decisions or to adopt idiosyncratic lab practices that themselves originate from ad-hoc subjective judgments of what "seems to work". How can we put the measurement and analysis of infant word recognition and online language processing on firmer empirical footing?
 
-[the gap -- why data processing is an open question and hard to address (and important?)] This lack of consensus likely stems from structural factors: infant recruitment is time- and cost-intensive and datasets collected by individual labs are often small [@frank2017;@bergmann2018]. These issues make it difficult for any one researcher to systematically evaluate the consequences of specific analytic choices independently of the data collected for a particular study [cf. @peelle2021]. Instead, researchers are often forced to make ad-hoc decisions or to adopt idiosyncratic lab practices that themselves originate from ad-hoc subjective judgments of what "seems to work". How can we put the measurement and analysis of infant word recognition and online language processing on firmer empirical footing?
+<!-- [we fill the gap]  -->
+Peekbank is a new data resource that offers a potential solution to this core issue by providing a large database of infant eye-tracking data from the looking-while-listening paradigm for exploring potential methodological questions [@zettersten2022]. The most recent release of Peekbank at time of writing (version 2026.1), currently houses 44 datasets from infants across a wide age range [6 months - 5 years] and across a broad range of test words and materials, resulting in observations from over 3915 infants participating in the looking-while-listening task. The goal of the current manuscript is to use these data to systematically explore key analytic decisions that researchers make when using this paradigm, offering best-practices guidance for measurement. 
 
-[we fill the gap] Peekbank is a new data resource that offers a potential solution to this core issue by providing a large database of infant eye-tracking data from the looking-while-listening paradigm for exploring potential methodological questions [@zettersten2022]. The most recent release of Peekbank at time of writing (version 2026.1), currently houses 44 datasets from infants across a wide age range [6 months - 5 years] and across a broad range of test words and materials, resulting in observations from over 3915 infants participating in the looking-while-listening task. The goal of the current manuscript is to use these data to systematically explore key analytic decisions that researchers make when using this paradigm, offering best-practices guidance for measurement. 
-
-[desiderata] Our approach throughout is to seek analytic choices that distill the best possible measures from the rich time course of behavior in the looking-while-listening task.  Ideally, these measures should be reliable, yielding the maximal signal about individual children relative to both measurement error and irrelevant artifacts [@byers-heinlein2022;@schreiner2024limited;@rhemtulla2022reliability]. Here, to measure reliability, we use both within-dataset inter-item reliability (ICC) and test-retest reliability within datsets with multiple LWL sessions close in time for the same children. 
+<!-- [desiderata]  -->
+Our approach throughout is to seek analytic choices that distill the best possible measures from the rich time course of behavior in the looking-while-listening task.  Ideally, these measures should be reliable, yielding the maximal signal about individual children relative to both measurement error and irrelevant artifacts [@byers-heinlein2022;@schreiner2024limited;@rhemtulla2022reliability].  Here, to measure reliability, we use both within-dataset inter-item reliability (ICC) and test-retest reliability within datasets with multiple LWL sessions close in time for the same children. 
 
 Further, LWL measures should be valid, meaning operationally that they should relate to other measures that are thought to reflect related constructs [@kominsky2022simplicity;@flake2020]. Here, we select as our primary measure the correlations between LWL measures and parent reports of vocabulary measured with the MacArthur-Bates Communicative Development Inventories [MB-CDI, a popular parent report measure of early vocabulary that is widely used in conjunction with LWL tasks; @frank2021; @fenson1994variability]. Here we are specifically interested in the relationships between aggregate measures of vocabulary size from the MB-CDI and LWL data, given both the documented relationships between these [reviewed in @marchman2023] and the mixed evidence on item-level alignment between LWL and MB-CDI data [@lopezperez2024]. This correspondence reflects the general relationship between word recognition in the moment (indexed by LWL) and the growth of early vocabulary over time (indexed by the MB-CDI) [@frank2026]. 
 
-[too in the weeds?] Our focus here is on providing guidance for navigating some of the many decisions facing an investigator analyzing LWL data. For instance, one common measure of LWL is *accuracy*: how much of the time a child looks at the target image compared to looking at either the target or distractor image over some period of time after the auditory stimulus. Children's responses unfold over time, but it is not known what start and end time maximizes the signal of children's response to the stimulus [@peelle2021]. A second commonly used measure is *reaction time* -- how long it takes a child to change where they are looking in response to the stimulus [@fernald2008]. There are even more analytic options available for this metric -- whether to measure to a child leaving the distractor or looking at the target, whether to measure RT on a log or raw scale, and how long after the start of the stimulus to start counting the RTs. For both of these measures, there are also questions about whether and when to exclude either children or trials. 
+Our focus here is on providing guidance for navigating some of the many decisions facing an investigator analyzing LWL data. (@sanderkeeping provide a similar analysis, also using Peekbank and focusing on the selection of different dependent measures and the general construct structure of LWL measures). One common measure of LWL is *accuracy*: how much of the time a child looks at the target image compared to looking at either the target or distractor image over some period of time after the auditory stimulus. Children's responses unfold over time, but it is not known what start and end time maximizes the signal of children's response to the stimulus [@peelle2021]. A second commonly used measure is *reaction time* -- how long it takes a child to change where they are looking in response to the stimulus [@fernald2008]. There are even more analytic options available for this metric -- whether to measure to a child leaving the distractor or looking at the target, whether to measure RT on a log or raw scale, and how long after the start of the stimulus to start counting the RTs. For both of these measures, there are also questions about whether and when to exclude either children or trials. 
 
-[scoping? -- maybe also in the weeds?] While the LWL task is used for a wide variety of purposes, including measurements of individual differences [e.g., @peter2019] as well as measurements of experimentally-induced condition differences [e.g., @swingley2000], here we focus only on what we refer to as "vanilla" word recognition items. These are items that test vocabulary directly with familiar targets, familiar distractors, and no informative carrier phrases or experimental manipulations. We focus on these items both because they are the most commonly used LWL items and because they are the case in which reliability and validity is most clearly defined. Vanilla trials are expected to reflect the construct of word knowledge and correlate with other measures of word knowledge, including vocabulary size.
 
-[here we ... preview results] The plan of the paper is as follows. We begin by overviewing the Peekbank data. We then make a set of targeted recommendations, providing evidence for each based on the impact of our recommendation on the average reliability and validity of the resulting measures. To foreshadow our results, we find that many common data analysis practices provide relatively reasonable levels of reliability and validity, but it may be possible to optimize reliability and validity through careful decision-making. 
+
+<!-- [scoping? -- maybe also in the weeds?]  -->
+While the LWL task is used for a wide variety of purposes, including measurements of individual differences [e.g., @peter2019] as well as measurements of experimentally-induced condition differences [e.g., @swingley2000], here we focus only on what we refer to as "vanilla" word recognition items. These are items that test vocabulary directly with familiar targets, familiar distractors, and no informative carrier phrases or experimental manipulations. We focus on these items both because they are the most commonly used LWL items and because they are the case in which reliability and validity is most clearly defined. Vanilla trials are expected to reflect the construct of word knowledge and correlate with other measures of word knowledge, including vocabulary size.
+
+<!-- [here we ... preview results]  -->
+The plan of the paper is as follows. We begin by overviewing the Peekbank data. We then make a set of targeted recommendations, providing evidence for each based on the impact of our recommendation on the average reliability and validity of the resulting measures. To foreshadow our results, we find that many common data analysis practices provide relatively reasonable levels of reliability and validity, but it may be possible to optimize reliability and validity through careful decision-making. 
 
 # Methods: Dataset and approach
 
-Peekbank is an aggregation of datasets from a number of LWL studies. This work is based on Peekbank version 2026.1 (released February 2026) which has 134,929 trials from 3915 kids from 44 datasets. 
+Peekbank is an aggregation of datasets from a number of LWL studies. This work is based on Peekbank version 2026.1 (released February 2026) which has 134,929 trials from 3915 children and 44 datasets. 
 <!-- seems annoying to make these numbers reproducible -->
 
 ## Inclusion criteria
+
 We focus our exploration of data processing choices on a set of items where we have the clearest expectations around what we are trying to measure. While LWL is also used to study a variety of experimental effects, such as the effects of noise, novel word learning, expectations of mutual exclusivity, inferences from selective verbs, blah blah, these items may index different constructs. 
 We limit our analyses to trials where both the target and distractor are real nouns, the carrier phrase is neutral with no experimental manipulation. 
 TODO list out full vanilla criteria
@@ -280,9 +309,10 @@ Additional details about how these were calculated are in Supplement XX.
 Looking while listening data takes a lot of processing to go from the experiment to the data that is analysed. Experiment design, and eye-tracking and eye-gaze coding considerations are covered elsewhere [citations], so we focus here on the process of going from a series of timepoints to the measures of accuracy and reaction time that are analysed. There are a number of decisions involved, including what windows and time cutoffs to use, and what exclusions to make around missing or low amounts of data. 
 
 
-## Recommendation 1: Measure accuracy for more than 2 seconds post disambiguation. 
+## Recommendation 1: Measure accuracy for more than 2 seconds post disambiguation
 
-[what is accuracy, who uses it, and what is the range of common practice] In LWL studies, accuracy is calculated as the fraction of time a child is looking at the target divided by the time they are looking at the target or the distractor, measured over some window of time. Typically windows start shortly after the point of disambiguation and continue until a couple seconds later, which is intended to capture the peak of children's stimulus-driven looks to the target. Studies vary in exactly what windows are used [examples of the range of practice]. 
+<!-- [what is accuracy, who uses it, and what is the range of common practice]  -->
+In LWL studies, accuracy is typically calculated as the fraction of time a child is looking at the target divided by the time they are looking at the target or the distractor. These fractions are computed over some window of time, but the selection of this window is complex. Typically windows start shortly after the point of disambiguation and continue until several seconds later; this window is  intended to capture the peak of children's stimulus-driven looks to the target. However, in practice studies vary in what windows are used, and often window selection is a locus for analytic flexibility (choosing windows post hoc to maximize a particular effect) [@peelle2021]. Some analysts recommend relatively short windows that start several hundred milliseconds after stimulus onset and end around 1500 milliseconds later [e.g., @fernald2008], however practices vary throughout the literature. In this analysis, we begin from first principles and ask what windows maximize reliability and validity on word recognition trials.  
 
 ```{r acc-heat-map, fig.cap="A heat map showing the average ICC across datasets for different start and end points for the accuracy window. A region with the highest ICC (best reliability) is outlined.", fig.width=5, fig.height=3}
 icc_noboot <- readRDS(here("cached_intermediates", "1_acc_icc_noboot.rds"))
@@ -305,12 +335,13 @@ ggplot(icc_noboot_summary, aes(x = t_start, y = t_end, fill = mean_icc)) +
   ylab("Window End Time (in ms)")
 ```
 
-As a starting point, we calculated the ICC reliability for accuracy across a range of different window onsets and offsets (Figure \ref{fig:acc-heat-map}). As expected, including time points from before the point of disambiguation decreases reliability. Our initial exploration found a region of high reliability with onsets in the 600-800 range and offsets in the 2800-4000 range, surrounded by a gradual decline in ICC reliability. 
+### Analytic approach
 
+We first calculated the ICC reliability for accuracy across datasets, computing average ICC across a range of different window onsets and offsets. Next, to further explore the impact of window size, we focused on the comparison between windows ending at 2000ms, 3000ms, and 4000ms as well as fine-grained options for window onset between 0 and 1000ms. ICC, CDI correlations, and test-retest reliability were all calculated and bootstrapped by dataset, and then weighted meta-analytically to get overall estimates and confidence intervals [refer to Supplement YY for details].
 
-To further explore the impact of window size, we focused on the comparison between windows ending at 2000ms, 3000ms, and 4000ms as well as fine-grained options for window onset between 0 and 1000ms. ICC, CDI correlations, and test-retest reliability were all calculated and bootstrapped by dataset, and then weighted meta-analytically to get overall estimates and confidence intervals [refer to Supplement YY for details]. [Note -- some of this paragraph and next could be moved to methods?]
+<!-- [Note -- some of this paragraph and next could be moved to methods?] -->
 
-The included datasets are heterogeneous on the number and types of items they use and the population and age of children tested. Thus, datasets vary substantially in their typical ranges of values for different correlations. As a result, even allowing for dataset-to-dataset variation, the meta-analytic confidence intervals are quite wide as the include both the "intercept" level uncertainty and uncertainty from the parameters of interest. 
+<!-- The included datasets are heterogeneous on the number and types of items they use and the population and age of children tested. Thus, datasets vary substantially in their typical ranges of values for different correlations. As a result, even allowing for dataset-to-dataset variation, the meta-analytic confidence intervals are quite wide as the include both the "intercept" level uncertainty and uncertainty from the parameters of interest.  -->
 
 ```{r acc-fig-2, fig.cap="Effects of accuracy windowing on reliability and validity measures.", fig.height=4, fig.width=6}
 acc_icc <- readRDS(here("cached_intermediates", "1_acc_icc_boot.rds")) |> do_meta(c("t_start", "t_end"))
@@ -340,6 +371,10 @@ acc_all |>
   )
 ```
 
+### Results
+
+Average ICCs across windows are shown in Figure \ref{fig:acc-heat-map}. As expected, including time points from before the point of disambiguation decreases reliability. Our initial exploration found a region of high reliability with onsets in the 600-800 range and offsets in the 2800-4000 range, surrounded by a gradual decline in ICC reliability. 
+ 
 Correlations for the four reliability and validity measures for different accuracy windows are shown in Figure \ref{fig:acc-fig-2}. For window end point, both ICC and test-test reliability are higher for the 3000 and 4000 ms end points compared to 2000. Shorter windows have slightly higher correlation with production and slightly higher correlation with comprehension for some window start points. Together, this suggests that children's looking behaving between 2 and 4 seconds post disambiguation is a stable child-level property, although we cannot say how related it to to child language per se. 
 
 While the looking signal between 2 and 4 seconds is weaker than between .5 and 2 seconds, there is still signal, especially just after the 2 second mark (even for older children, see Figure SNN). [TODO could try to comment on how this could be language related signal that isn't picked up by comprehension CDI]
@@ -347,6 +382,12 @@ While the looking signal between 2 and 4 seconds is weaker than between .5 and 2
 Exactly when the accuracy window starts is not important, although we recommend starting between 400ms and 600 milliseconds to balance between the best correlation with comprehension around 400 and other measures like ICC that peak later. 
 
 These patterns hold across age (see Figure SNN). 
+
+Continuing windows for longer is not common, but while the "peak" of the aggregated accuracy curve generally occurs before 2000 ms, there is still signal in the high-accuracy post-peak region (see supplement graphs). While we are used to looking at aggregated smoothed plots, this post-peak region both includes some kids who have already looked and are now looking away, but it also includes kids who looked late and are still looking -- something something, per trial or per child, some looking behavior is later peaking so we don't want to cut off too soon. 
+
+Strong effects are likely to show up in any reasonable window, but for eking the most reliability out of data, we recommend long windows continuing to (at least) 3000 ms post disambiguation. 
+
+
 
 ```{r acc-fig-age, fig.cap="Bootstrapped results of different accuracy parameter combinations, split out by age of participants.", fig.height=4, fig.width=6}
 acc_icc_age <- readRDS(here("cached_intermediates", "1_acc_icc_boot_byage.rds")) |> do_meta(c("t_start", "t_end", "age_bin"))
@@ -381,17 +422,12 @@ acc_all_age |>
     )
   )
 ```
-Continuing windows for longer is not common, but while the "peak" of the aggregated accuracy curve generally occurs before 2000 ms, there is still signal in the high-accuracy post-peak region (see supplement graphs). While we are used to looking at aggregated smoothed plots, this post-peak region both includes some kids who have already looked and are now looking away, but it also includes kids who looked late and are still looking -- something something, per trial or per child, some looking behavior is later peaking so we don't want to cut off too soon. 
 
-Strong effects are likely to show up in any reasonable window, but for eking the most reliability out of data, we recommend long windows continuing to (at least) 3000 ms post disambiguation. 
+## Recommendation 2: Do not use baseline-corrected accuracy 
 
+One commonly acknowledged issue in LWL studies is that looking behavior could be partly driven by preferences over the target images themselves [@fernald2008;@novack2025development]: Children may have a baseline preference to look at one image over another, even in the absence of auditory stimuli. Although thoughtful design choices can minimize these issues (see Recommendation 6), some researchers also attempt to deal with baseline differences in stimulus salience in their analysis. This practice is known as "baseline correction": at the data-processing stage, researchers use a difference measure between accuracy on a post-stimulus window and "accuracy" (looks to target versus looks to target or distractor) on a pre-stimulus window [@bergelson2012;@weaver2024].
 
-
-## Recommendation 2: Do not use baseline-corrected accuracy. 
-
-[approaches to salience imbalance] One commonly acknowledged issue in LWL studies is that looking behavior could be partly driven by preferences over the target images themselves [citations]. Children may have a baseline preference to look at one image over another in the absence of auditory stimuli. Researchers have come up with a number of approaches to address this at multiple stages, including design, data processing, and analysis. At the design stage, researchers may pair stimuli to decrease preferential looking discrepancies [citations, see also Rec 6]. At the analysis level, researchers may incorporate target and distractor identity as random effects in a regression model [ citations, could mention other options]. 
-
-[baseline-correction: rationale and common methods] At the data-processing stage, researchers sometimes use a difference measure between accuracy on a post-stimulus window and "accuracy" (looks to target versus looks to target or distractor) on a pre-stimulus window. This difference is referred to as baseline-corrected accuracy. Implementations vary in when the baseline is measured and for how long [citations]. 
+### Analytic approach
 
 We considered baseline-corrected accuracies with various starting and ending points for the baseline window, and used a 400ms-3000ms main window (although the results hold for different end point options). We restricted ourselves to datasets with at least some pre-0 data. We also included a "no baseline" version which was just accuracy on 400-3000ms with no correction. 
 
@@ -442,7 +478,11 @@ bc_acc_all |> ggplot(aes(x = b_start, col = b_end, y = estimate, ymin = ci.lb, g
   )
 ```
 
-While intuitively appealing, baseline-corrected accuracy led to worse reliability and validity than accuracy (Figure \ref{fig:fig-bc}). Even for datasets where there was looking data for a long pre-stimulus period (at least 3 seconds), baseline correction using a long pre-stimulus period was did not outperform regular accuracy (Figure SXX). These results held across different age bands (Figure SXX). 
+### Results 
+
+Baseline-corrected accuracy led to worse reliability and validity than accuracy (Figure \ref{fig:fig-bc}). Even for datasets where there was looking data for a long pre-stimulus period (at least 3 seconds), baseline correction using a long pre-stimulus period was did not outperform regular accuracy (Figure SXX). These results held across different age bands (Figure SXX). 
+
+Why would incorporating baseline information lead to worse metrics? There is a complex literature on the psychometrics of difference scores and when they result in lowered reliability [e.g., @lord1956measurement;@rogosa1983demonstrating; @tramifow2015defense]. The situation for looking while listening data is that children's looking behavior is noisy but the signal across baseline and critical portions of a trial is likely correlated (in part due to the very salience that the baseline correction is trying to remove). Unfortunately, it is under precisely these conditions -- low reliability and high correlation between components -- that difference scores exhibit the lowest reliability [@trafimow2015defense]. Thus, while baseline-correction may lead to less biased grand average accuracy scores (by removing item salience), it also leads to less individual-level measures.
 
 ```{r bc-age, fig.cap="Reliability and validity measures for baseline-corrected accuracy, split by age. The post-diambiguation window was 400 to 3000ms."}
 baseline_lengths <- readRDS(here("cached_intermediates", "2_baseline_lengths.rds"))
@@ -499,25 +539,21 @@ bc_age |>
   )
 ```
 
-Why would incorporating baseline information lead to worse metrics? Children's looking behavior is noisy, and subtracting one noisy measure from another one results in an even noisier measure. Thus, while baseline-correction may lead to more pleasing grand averages, it creates noisier (that is, less reliable) individual level measures. 
 
-Variation in item properties is a worthwhile concern, but can be better handled at other stages, such as in regression analysis [see Barr et al?] or in the design. 
+## Recommendation 3: Measure reaction times with a minimum reaction time of around 400 ms
 
-We strongly recommend against using baseline-corrected accuracy. 
+In addition to accuracy measures, LWL studies also provide the potential for computing children's reaction time [RT; @fernald2008]. RT is typically computed on trials when the child is initially looking at the distractor and shifts to the target after stimulus onset, as there is not a way to measure how quickly a child decides to keep looking at the target. RT computations include many choice points: 
 
+- **Launch vs. landing**: RTs can be computed based on when a child's eyes leave from the distractor or when a child's eyes land on the target. 
+- **Exclusion of short RTs**: Short RTs are often excluded because they are considered unlikely to be generated in response to the stimulus. 
+- **Linear vs. logarithmic analysis**: Reaction time data are often analyzed using a logarithmic transform (consistent with the idea that reaction times are log-normally distributed and that effects on them may be multiplicative rather than additive) [@csibra2016statistical;@frank2025continuous].
 
-## Recommendation 3: Measure reaction times with a minimum reaction time of around 400 ms.
+<!-- Launches could be a more precise index of the timing of intent to look at the target, but leaving from the distractor could also be done with intent to look elsewhere. Thus, launch based analyses sometimes exclude trials where it takes a child too long to go from distractor to target (shift-length cutoff). [ citations to what papers do what] -->
 
-[rationale, possibly including that looking times complement accuracy; common practice ]
-In addition to accuracy measures, LWL studies also provide a time course measure of reaction time. How quickly a child understands a word is indexed by how rapidly they shift to looking at the target. This measure of reaction time is only measured when the child is initially looking at the distractor, as there is not a way to measure how quickly a child decides to keep looking at the target. 
+<!-- In the literature, common cutoffs are ... based on what minimum times to initiate eye movements are. We explore a range of different potential cutoffs in at attempt to maximize reliability. This can be thought of as the point at what point RTs shift from mostly being random (not driven by the stimulus) to mostly being stimulus driven.  -->
 
-While for accuracy there are relatively few dimensions of variability, reaction time (RT) can be measured in a number of ways. One choice is whether to measure RT based on when a child's eyes launch from the distractor or when a child's eyes land on the target. Launches could be a more precise index of the timing of intent to look at the target, but leaving from the distractor could also be done with intent to look elsewhere. Thus, launch based analyses sometimes exclude trials where it takes a child too long to go from distractor to target (shift-length cutoff). [ citations to what papers do what]
+### Analytic approach
 
-Short RTs are often excluded because they were necessarily or likely to not be as a response to the stimulus. In the literature, common cutoffs are ... based on what minimum times to initiate eye movements are. We explore a range of different potential cutoffs in at attempt to maximize reliability. This can be thought of as the point at what point RTs shift from mostly being random (not driven by the stimulus) to mostly being stimulus driven. 
-
-RTs can be analysed either on a log scale or a raw RT scale.
-
-[methods & results]
 In our initial exploration, we considered a wide range of options for measuring RT, fulling crossing a) launch or land based, b) removing RTs with a shift-length greater than 600 ms (or not), c) using a log or raw scale, and d) minimum RTs between 200 and 900 ms. 
 
 ```{r rt-heat, fig.cap="Heat map of different parameter options for measuring RT. TODO note that RTs were not sampled evenly across this range, not sure what x-axis distribution should be here!", fig.width=7, fig.height=3}
@@ -583,10 +619,17 @@ rt_all |>
   )
 ```
 
+### Results
+
 The bootstrapped results for the 4 types of RT we consider in more detail (log v raw x launch-based v land-based) are shown in Figure \ref{fig:fig-rt}. 
 All 4 types of RT have similar correlations with CDI comprehension. Note that correlations between RT and CDI scores are expected to be negative as smaller (faster) RT is associated with better language skills and thus higher CDI scores. Log RT has a slightly stronger (more negative) correlation with CDI production than raw RT especially for minimum RT cutoffs in the 400-450ms range. Launch based RT had slightly stronger correlations with production around 400 ms. 
 
 The highest ICC reliabilities occur around 400 ms. ICC reliability is consistently slightly higher for land-based than launch-based although the scale of difference varies with minimum RT. Test-retest reliability is reasonable for all measures. These patterns generally hold for children of different ages (Figure SXX). 
+
+
+We recommend that researchers use minimum RT cutoffs around 400 ms as these increase reliability compared to shorter cutoffs like 200 ms. While the differences between different methods are small, we recommend using landing-based RT on the log scale to maximize overall reliability and validity. 
+
+Overall RT measures complement accuracy measures and capture substantial signal; the exact details don't matter that much.
 
 ```{r rt-fig-age, fig.cap="Measurement properties of RT, split by age bin. "}
 rt_icc_age <- readRDS(here("cached_intermediates", "3_rt_icc_boot_byage.rds")) |>
@@ -629,10 +672,7 @@ rt_all_age |>
     )
   )
 ```
-
-We recommend that researchers use minimum RT cutoffs around 400 ms as these increase reliability compared to shorter cutoffs like 200 ms. While the differences between different methods are small, we recommend using landing-based RT on the log scale to maximize overall reliability and validity. 
-
-Overall RT measures complement accuracy measures and capture substantial signal; the exact details don't matter that much. 
+ 
 
 ## Recommendation 4: Trial-level and child-level exclusions for low amounts of data are generally unnecessary.  
 
