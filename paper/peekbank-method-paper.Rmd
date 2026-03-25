@@ -1164,17 +1164,19 @@ Animacy is not the only factor affecting children's viewing behavior, but it is 
 
 # Discussion
 
-
 Measuring infant looking time is notoriously noisy, making decisions about measurement practices highly consequential for the conclusions we draw about infant language development.
 How can we maximize reliable, valid signal when measuring infant word recognition?
 In our analyses, we took a practical, data-driven approach to this question, using a large-scale dataset of infant looking-while-listening data to quantify the impact of different analysis choices on core measurement properties, leading to 6 recommendations for data processing and experimental design.
 
 For data processing, our strongest take-homes from these analyses concern window choice and baseline correction.
-In general, longer time windows (e.g., windows that end around 3000 ms post target word onset) maximize the reliability of accuracy measures (as measured by ICC), with no deleterious consequences for validity.
+First, longer time windows (e.g., windows that end around 3000 ms post target word onset) maximize the reliability of accuracy measures (as measured by ICC), with no deleterious consequences for validity.
 While average accuracy tends to peak earlier in the timecourse of a trial (typically 1000-2000 ms post target word onset), leading shorter windows to be preferred in the literature, these findings suggest that later looking windows still capture signal that boosts the consistency of word recognition measures.
 Short accuracy windows might therefore be leaving reliable signal on the table.
-Baseline correction, while an intuitive solution to imbalances in the saliency of images, causes large decrements in reliability; we therefore generally recommend avoiding this practice, especially when maximizing reliability is a high priority (e.g., when investigating individual differences).
+Second, baseline correction, while an intuitive solution to imbalances in the saliency of images, causes large decrements in reliability; we therefore generally recommend avoiding this practice, especially when maximizing reliability is a high priority (e.g., when investigating individual differences).
+Finally, we formulate recommendations for choosing reaction time cutoffs (around 400ms tends to maximize reliability) and find that implementing trial- and child-level exclusions based on the amount of data contributed tend to have minimal consequences.
+Overall, choices about windows of analysis, approaches to exclusions, and how scores are computed can all have meaningful impacts on measure reliability.
 
+[recommendations around design - hype the animacy finding]
 
 ## How much can this matter? 
 
@@ -1318,9 +1320,14 @@ There is no one choice of time window that we can definitively infer as the "bes
 While we sometimes articulate which choices lead to the highest reliability descriptively (e.g., time windows from 300-4000ms [check once finalized] leads to the highest reliability values for accuracy), this is not intended as the definitive window choice.
 We offer these windows as data-driven default choices (especially in cases where the decision would otherwise be ad-hoc), but from our perspective, the important takeaways concern the factors that tend to have a consistent and generalizable impact on reliability (e.g., amount of data per trial; difference scores vs. raw scores).
 
-We focused our explorations on the questions that are specific to LWL and where data-driven results based on a combined dataset can be most helpful. Other guidance both on LWL specific design considerations and options for coding LWL data are discussed elsewhere ([fernald book chapter, e.g.]). More general advice on experiment design and analysis, especially of developemental datasets, is discussed elsewhere as well  [TODO]
+We focused our explorations on the questions that are specific to LWL and where data-driven results based on a combined dataset can be most helpful. Other guidance both on LWL specific design considerations and options for coding LWL data are discussed elsewhere ([fernald book chapter, e.g.]). More general advice on experiment design and analysis, especially of developemental datasets, is discussed elsewhere as well  [TODO].
 
 ## Conclusions
+
+Experimental design and data processing decisions can have profound impacts on the properties of infant measures.
+Our findings show how compiling large-scale datasets such as Peekbank can help us estimate the impact of a wide variety of experimenter decisions, generalizable across a wide range of ages, stimuli, and experimental contexts.
+Our findings are summarized in a short list of recommendations that should help researchers aiming to maximize the reliability of infant word recognition measure: [summarize].
+Establishing consistent practices and principles for reliable and valid measurement of infant looking sets the stage for asking central questions about how language skill develops.
 
 \newpage
 
