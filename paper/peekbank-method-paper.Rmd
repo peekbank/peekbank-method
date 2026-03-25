@@ -1299,26 +1299,28 @@ acc_icc |>
 To quantify the potential cumulative consequences of different combinations of choices, we computed the difference in reliability when making all of the recommended choices with respect to data processing (in particular, X, Y, Z) to an instance in which researchers made all of the "worst-case" choices. 
 [results - should this actually be in the results section?]
 
-## Limitations & generalizability 
+## Limitations & Generalizability 
 
-The scope of our recommendations is fundamentally limited by the characterstics of the Peekbank dataset considered here.
+The scope of our recommendations is fundamentally limited by the characteristics of the Peekbank dataset.
 First, while the Peekbank database is by far the largest dataset of its kind, and one of the largest harmonized infant eyetracking datasets, it is not a comprehensive or representative set of looking-while-listening studies. 
 To highlight just a few of these limitations, (1) the data is predominantly English word recognition collected from infants living in the U.S., and (2) the dataset is a convenience sample from labs who made their data openly available or otherwise accessible on request from the Peekbank team.
-Looking-while-listening studies as a whole are likely more homogeneous than what is represented in Peekbank --- datasets often predominantly came from a small group of labs or networks of researchers with similar training in looking-while-listening data collection.
+Looking-while-listening studies as a whole are likely more heterogeneous than what is represented in Peekbank --- the datasets considered here come predominantly from a small group of labs or networks of researchers with similar training in looking-while-listening data collection.
 
-At the same time, there is also substantial heterogeneity in the studies included in Peekbank, due to different studies pursuing different research questions and therefore making a variety of design choices (e.g., surrounding target words, image properties, and characteristics of the auditory stimuli).
+At the same time, there is also substantial heterogeneity in the studies included in Peekbank, due to many studies pursuing different research questions and therefore making a variety of distinct design choices (e.g., surrounding target words, image properties, and characteristics of the auditory stimuli).
 To mitigate this concern, our analyses focused exclusively on what we term “vanilla” trials, i.e., trials that present familiar words with familiar images with limited or no targeted manipulations of the stimuli.
-The main benefit of focusing on vanilla trials is that it allows for a clear interpretation of reliability and validity --- trials are truly designed to measure word recognition, rather than some other property of .
+The main benefit of focusing on vanilla trials is that it allows for a clear interpretation of reliability and validity --- trials are truly designed to measure word recognition, rather than some other aspect of language processing.
 We view the remaining heterogeneity of study properties (e.g., specific words; differences in age) as a strength of our approach --- our findings generalize broadly across a wide range of items and ages.
-However, by focusing on vanilla trials only, we also somewhat limit where it’s clear what reliability and validity would mean; we don’t know how practices would generalize to experimental settings
-limited by datasets which are heterogenous by age/length/items
+However, by focusing on vanilla trials only, we also limit our conclusions to measuring familiar word recognition; our findings do not address how data processing and design practices would generalize to other estimation goals, e.g., estimating the magnitude of differences between two experimental conditions (though there is good reason to think that some of the more consequential choices, e.g. baseline correction, are likely have a similar impact).
 
+While we summarize the choices that typically maximize reliability, we note that we often see a range of choices with similar outcomes in our analyses. 
+For example, in determining the best time window for computing accuracy, a choice of ending a time window at 2800 vs. 3000 or 3000 ms vs. 3200 ms leads to very similar outcomes.
+There is no one choice of time window that we can definitively infer as the "best" for maximizing reliability --- instead, we see a pattern of graded improvements in reliability that follow a predictable pattern (longer time windows tend to increase reliability holding the onset of the accuracy window constant).
+While we sometimes articulate which choices lead to the highest reliability descriptively (e.g., time windows from 300-4000ms [check once finalized] leads to the highest reliability values for accuracy), this is not intended as the definitive window choice.
+We offer these windows as data-driven default choices (especially in cases where the decision would otherwise be ad-hoc), but from our perspective, the important takeaways concern the factors that tend to have a consistent and generalizable impact on reliability (e.g., amount of data per trial; difference scores vs. raw scores).
 
-often a smooth, wide range of options with similar metrics – we focus on “best” to inform future practice where one wants to know what is necessary or what (otherwise arbitrary) cutoff to choose, but robust findings will show up robustly over a range of data practices.
+We focused our explorations on the questions that are specific to LWL and where data-driven results based on a combined dataset can be most helpful. Other guidance both on LWL specific design considerations and options for coding LWL data are discussed elsewhere ([fernald book chapter, e.g.]). More general advice on experiment design and analysis, especially of developemental datasets, is discussed elsewhere as well  [TODO]
 
-
-
-We focused our explorations on the questions that are specific to LWL and where data-driven results based on a combined dataset can be most helpful. Other guidance both on LWL specific design considerations and options for coding LWL data are discussed elsewhere. More general advice on experiment design and analysis, especially of developemental datasets, is discussed elsewhere as well (TODO). 
+## Conclusions
 
 \newpage
 
