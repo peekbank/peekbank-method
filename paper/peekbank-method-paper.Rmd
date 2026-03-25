@@ -1166,7 +1166,7 @@ Animacy is not the only factor affecting children's viewing behavior, but it is 
 
 Measuring infant looking time is notoriously noisy, making decisions about measurement practices highly consequential for the conclusions we draw about infant language development.
 How can we maximize reliable, valid signal when measuring infant word recognition?
-In our analyses, we took a practical, data-driven approach to this question, using a large-scale dataset of infant looking-while-listening data to quantify the impact of different analysis choices on core measurement properties, leading to 6 recommendations for data processing and experimental design.
+In our analyses, we took a practical, data-driven approach to this question, using a large-scale dataset of infant looking-while-listening data to quantify the impact of different analysis choices on core measurement properties, leading to six core recommendations for data processing and experimental design.
 
 For data processing, our strongest take-homes from these analyses concern window choice and baseline correction.
 First, longer time windows (e.g., windows that end around 3000 ms post target word onset) maximize the reliability of accuracy measures (as measured by ICC), with no deleterious consequences for validity.
