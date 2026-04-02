@@ -16,7 +16,7 @@ knitr::opts_chunk$set(warning=F, message=F, echo=F)
 source(here::here("helper/common.R"))
 source(here::here("helper/notebook_helper.R"))
 
-
+library(here)
 d_aoi <- readRDS(here("cached_intermediates", "0_d_aoi.rds"))
 t_increment <- 200
 ```
@@ -45,6 +45,566 @@ how much data do we have?
 d_aoi |> filter(!is.na(correct)) |> group_by(dataset_name, t_norm)|> tally() |>  ggplot(aes(x=t_norm, y=n, fill=dataset_name, color=dataset_name))+geom_col()+facet_wrap(~dataset_name, scales="free_y")+theme(legend.position = "none")
 
 ```
+# A digression of understanding why we get some weird ICC values
+
+garrison bergelson (doesn't have bootstrapped CI??)
+* byers-heinlein 2017 (0)
+* kartushina (0)
+* moore bergelson (0)
+* swingley aslin 2002 (negative lower)
+* borovsky 2019 (negative lower)
+
+```{r}
+# from agreement package so we can understand the innards
+
+library(rlang)
+library(assertthat)
+prep_data_dim <- function(.data, object, rater, score, trial) {
+
+  d <- list()
+
+  df <- as_tibble(.data)
+  if (rlang::quo_is_null(rlang::enquo(trial))) {
+    df <- dplyr::mutate(df, Trial = "T1")
+    trial <- rlang::quo(Trial)
+  }
+  df <- dplyr::select(df, {{object}}, {{rater}}, {{trial}}, {{score}})
+  df <- tidyr::complete(df, {{object}}, {{rater}}, {{trial}})
+  df <- dplyr::arrange(df, {{trial}}, {{rater}}, {{object}})
+  d$objects <- unique(dplyr::pull(df, {{object}}))
+  d$raters <- unique(dplyr::pull(df, {{rater}}))
+  d$trials <- unique(dplyr::pull(df, {{trial}}))
+  d$n_objects <- length(d$objects)
+  d$n_raters <- length(d$raters)
+  d$n_trials <- length(d$trials)
+  scores <- dplyr::pull(df, {{score}})
+  scores[is.nan(scores)] <- NA
+  d$n_missing_scores <- sum(are_na(scores))
+  d$min_score <- min(scores, na.rm = TRUE)
+  d$max_score <- max(scores, na.rm = TRUE)
+  d$ratings <- array(
+    scores,
+    dim = c(d$n_objects, d$n_raters, d$n_trials),
+    dimnames = list(d$objects, d$raters, d$trials)
+  )
+
+  d
+}
+
+icc_counts <- function(ratings) {
+
+  n <- list()
+
+  # Count of objects
+  n$objects <- dim(ratings)[[1]]
+
+  # Count of raters
+  n$raters <- dim(ratings)[[2]]
+
+  # Count of trials per object-rater combination
+  n$trials_or <- apply(is.finite(ratings), MARGIN = 1:2, FUN = sum)
+
+  # Count of trials per object
+  n$trials_o <- rowSums(n$trials_or)
+
+  # Count of trials per rater
+  n$trials_r <- colSums(n$trials_or)
+
+  # Count of all trials
+  n$trials <- sum(n$trials_or)
+
+  n
+}
+
+icc_sums <- function(ratings, n = NULL) {
+
+  if (is_null(n)) {n <- icc_counts(ratings)}
+
+  s <- list()
+
+  # Sum all trials per object-rater combination
+  ysum_or <- apply(ratings, MARGIN = 1:2, FUN = sum, na.rm = TRUE)
+
+  # Sum of all ratings per object
+  ysum_o <- apply(ratings, MARGIN = 1, FUN = sum, na.rm = TRUE)
+
+  # Sum of all ratings per rater
+  ysum_r <- apply(ratings, MARGIN = 2, FUN = sum, na.rm = TRUE)
+
+  # Total sum of ratings
+  s$T_y <- sum(ysum_or, na.rm = TRUE)
+
+  # Total sum of squared ratings
+  s$T_ysq <- sum(ratings^2, na.rm = TRUE)
+
+  # Sum of all object's averaged squared ratings
+  s$T_objects <- sum(ysum_o^2 / n$trials_o, na.rm = TRUE)
+
+  # Sum of all raters' average squared ratings
+  s$T_raters <- sum(ysum_r^2 / n$trials_r, na.rm = TRUE)
+
+  # Sum of all object-rater combinations' average squared ratings
+  s$T_interaction <- sum(ysum_or^2 / n$trials_or, na.rm = TRUE)
+
+  # Sum of all average ratings
+  s$T_musq <- n$trials * mean(ratings, na.rm = TRUE)^2
+
+  # Number of object-rater combinations for which one or more trials exist
+  s$lambda_0 <- sum(n$trials_or > 0)
+
+  # Expected number of trials per object
+  s$k_r <- sum(n$trials_or^2 / n$trials_r)
+
+  # Expected number of trails per rater
+  s$k_o <- sum(n$trials_or^2 / n$trials_o)
+
+  # TODO: Write informative comment
+  s$kprime_o <- sum(n$trials_o^2) / n$trials
+  s$kprime_r <- sum(n$trials_r^2) / n$trials
+  s$kprime_or <- sum(n$trials_or^2) / n$trials
+  s$Tprimesq_ysq <- s$T_y^2 / n$trials
+
+  # TODO: Write informative comment
+  s$lambda_1 <- (n$trials - s$kprime_o) / (n$trials - s$k_r)
+  s$lambda_2 <- (n$trials - s$kprime_r) / (n$trials - s$k_o)
+
+  s
+}
+
+icc_model2A <- function(ratings, n = NULL, s = NULL) {
+
+  if (is_null(n)) {n <- icc_counts(ratings)}
+  if (is_null(s)) {s <- icc_sums(ratings, n)}
+
+  v <- list()
+
+  v$residual <- (s$lambda_2 * (s$T_ysq - s$T_objects) + s$lambda_1 * (s$T_ysq - s$T_raters) - (s$T_ysq - s$T_musq)) /
+    (s$lambda_2 * (n$trials - n$objects) + s$lambda_1 * (n$trials - n$raters) - (n$trials - 1))
+
+  v$object <- (s$T_ysq - s$T_raters - v$residual * (n$trials - n$raters)) / (n$trials - s$k_r)
+
+  v$rater <- (s$T_ysq - s$T_objects - v$residual * (n$trials - n$objects)) / (n$trials - s$k_o)
+
+  v
+}
+
+nonneg <- function(x) {
+  max(c(0, x))
+}
+
+# we only care about 2A consistency 
+calc_inter_icc <- function(v, k) {
+  inter_icc <- NA_real_
+  v2 <- lapply(v, nonneg)
+    inter_icc <- v2$object / (v2$object + v2$residual / k)
+  inter_icc
+}
+
+calc_icc_2A_C <- function(ratings, k = 1) {
+
+  n <- icc_counts(ratings)
+  s <- icc_sums(ratings, n)
+  v <- icc_model2A(ratings, n, s)
+  
+  View(v)
+  
+  v2 <- lapply(v, nonneg)
+
+  # Create and label output vector
+  out <- c(
+    Object = v$object,
+    Rater = NA_real_,
+    Interaction = NA_real_,
+    Residual = v$residual,
+    Intra_ICC = NA_real_,
+    Inter_ICC = calc_inter_icc(v, k)
+  )
+
+  out
+}
+
+
+```
+
+
+```{r}
+do_dim_icc <- function(.data,
+                    model = c("1A", "1B", "2", "2A", "3", "3A"),
+                    type = c("agreement", "consistency"),
+                    unit = c("single", "average", "custom"),
+                    object = Object,
+                    rater = Rater,
+                    score = Score,
+                    customk = NULL,
+                    trial = NULL,
+                    bootstrap = 2000,
+                    warnings = TRUE) {
+
+  # Validate inputs
+  assert_that(is.data.frame(.data) || is.matrix(.data))
+  model <- match.arg(model)
+  type <- match.arg(type)
+  unit <- match.arg(unit)
+  assert_that(bootstrap == 0 || is.count(bootstrap),
+    msg = "The 'bootstrap' argument must be a non-negative integer.")
+  assert_that(is.flag(warnings))
+  assert_that(is.null(customk) || is.count(customk),
+    msg = "The 'customk' argument must be NULL or a positive integer.")
+
+  # Prepare .data for analysis
+  d <- prep_data_dim(.data, {{object}}, {{rater}}, {{score}}, {{trial}})
+
+  #print(d)
+  
+  if (unit == "single") {
+    k <- 1
+  } else if (unit == "average") {
+    k <- d$n_raters
+  } else {
+    k <- customk
+  }
+  assert_that(is.null(k) == FALSE)
+
+  print(k)
+  
+  # Prepare empty output in case of errors
+  out <- new_icc(
+    Object = NA_real_,
+    Rater = NA_real_,
+    Interaction = NA_real_,
+    Residual = NA_real_,
+    Intra_ICC = NA_real_,
+    Inter_ICC = NA_real_,
+    boot_results = list(t = matrix(NA, nrow = 1, ncol = 6), t0 = rep(NA, 6)),
+    formulation = list(model = model, type = type, unit = unit, k = k),
+    details = d,
+    call = match.call()
+  )
+
+  # Warn about bootstrapping samples with less than 20 objects
+  if (d$n_objects < 20 && bootstrap > 0 && warnings == TRUE) {
+    warning("With a small number of objects, bootstrap confidence intervals may not be stable.")
+  }
+
+  # Error with impossible combinations of arguments
+  if (type == "consistency" && (model == "1A" || model == "1B")) {
+    stop("Consistency ICCs are not possible for models 1A and 1B.")
+  }
+
+  # Warn about there being fewer than 2 raters
+  if (d$n_raters < 2) {
+    if (warnings == TRUE) {
+      warning("Only a single rater was observed. Returning NA.")
+    }
+    return(out)
+  }
+  #TODO: Check on intra-rater reliability with one rater - is it possible?
+
+  if (d$n_objects < 2) {
+    if (warnings == TRUE) {
+      warning("Only a single object with scores was observed. Returning NA.")
+    }
+    return(out)
+  }
+
+  # Create function to perform bootstrapping
+  boot_function <- function(codes, index, fun, k) {
+    resample <- codes[index, , , drop = FALSE]
+    bsr <- fun(ratings = resample, k = k)
+    bsr
+  }
+
+  # Build function name for the requested ICC
+  fun <- eval(
+    parse(
+      text = paste0("calc_icc_", model, ifelse(type == "agreement", "_A", "_C"))
+    )
+  )
+
+  # Calculate the bootstrap results
+  boot_results <-
+    boot::boot(
+      data = d$ratings,
+      statistic = boot_function,
+      R = bootstrap,
+      fun = fun,
+      k = k
+    )
+
+  # Construct icc class output object
+  out <- new_icc(
+    Object = boot_results$t0[[1]],
+    Rater = boot_results$t0[[2]],
+    Interaction = boot_results$t0[[3]],
+    Residual = boot_results$t0[[4]],
+    Intra_ICC = boot_results$t0[[5]],
+    Inter_ICC = boot_results$t0[[6]],
+    boot_results = boot_results,
+    formulation = list(model = model, type = type, unit = unit, k = k),
+    details = d,
+    call = match.call()
+  )
+
+  out
+}
+
+# Functions to calculate ICC components -----------------------------------
+
+icc_counts <- function(ratings) {
+
+  n <- list()
+
+  # Count of objects
+  n$objects <- dim(ratings)[[1]]
+
+  # Count of raters
+  n$raters <- dim(ratings)[[2]]
+
+  # Count of trials per object-rater combination
+  n$trials_or <- apply(is.finite(ratings), MARGIN = 1:2, FUN = sum)
+
+  # Count of trials per object
+  n$trials_o <- rowSums(n$trials_or)
+
+  # Count of trials per rater
+  n$trials_r <- colSums(n$trials_or)
+
+  # Count of all trials
+  n$trials <- sum(n$trials_or)
+
+  n
+}
+
+icc_sums <- function(ratings, n = NULL) {
+
+  if (is_null(n)) {n <- icc_counts(ratings)}
+
+  s <- list()
+
+  # Sum all trials per object-rater combination
+  ysum_or <- apply(ratings, MARGIN = 1:2, FUN = sum, na.rm = TRUE)
+
+  # Sum of all ratings per object
+  ysum_o <- apply(ratings, MARGIN = 1, FUN = sum, na.rm = TRUE)
+
+  # Sum of all ratings per rater
+  ysum_r <- apply(ratings, MARGIN = 2, FUN = sum, na.rm = TRUE)
+
+  # Total sum of ratings
+  s$T_y <- sum(ysum_or, na.rm = TRUE)
+
+  # Total sum of squared ratings
+  s$T_ysq <- sum(ratings^2, na.rm = TRUE)
+
+  # Sum of all object's averaged squared ratings
+  s$T_objects <- sum(ysum_o^2 / n$trials_o, na.rm = TRUE)
+
+  # Sum of all raters' average squared ratings
+  s$T_raters <- sum(ysum_r^2 / n$trials_r, na.rm = TRUE)
+
+  # Sum of all object-rater combinations' average squared ratings
+  s$T_interaction <- sum(ysum_or^2 / n$trials_or, na.rm = TRUE)
+
+  # Sum of all average ratings
+  s$T_musq <- n$trials * mean(ratings, na.rm = TRUE)^2
+
+  # Number of object-rater combinations for which one or more trials exist
+  s$lambda_0 <- sum(n$trials_or > 0)
+
+  # Expected number of trials per object
+  s$k_r <- sum(n$trials_or^2 / n$trials_r)
+
+  # Expected number of trails per rater
+  s$k_o <- sum(n$trials_or^2 / n$trials_o)
+
+  # TODO: Write informative comment
+  s$kprime_o <- sum(n$trials_o^2) / n$trials
+  s$kprime_r <- sum(n$trials_r^2) / n$trials
+  s$kprime_or <- sum(n$trials_or^2) / n$trials
+  s$Tprimesq_ysq <- s$T_y^2 / n$trials
+
+  # TODO: Write informative comment
+  s$lambda_1 <- (n$trials - s$kprime_o) / (n$trials - s$k_r)
+  s$lambda_2 <- (n$trials - s$kprime_r) / (n$trials - s$k_o)
+
+  s
+}
+
+icc_model2A <- function(ratings, n = NULL, s = NULL) {
+
+  if (is_null(n)) {n <- icc_counts(ratings)}
+  if (is_null(s)) {s <- icc_sums(ratings, n)}
+
+  v <- list()
+
+  v$residual <- (s$lambda_2 * (s$T_ysq - s$T_objects) + s$lambda_1 * (s$T_ysq - s$T_raters) - (s$T_ysq - s$T_musq)) /
+    (s$lambda_2 * (n$trials - n$objects) + s$lambda_1 * (n$trials - n$raters) - (n$trials - 1))
+
+  v$object <- (s$T_ysq - s$T_raters - v$residual * (n$trials - n$raters)) / (n$trials - s$k_r)
+
+  v$rater <- (s$T_ysq - s$T_objects - v$residual * (n$trials - n$objects)) / (n$trials - s$k_o)
+
+  print(v)
+  v
+}
+
+
+# Function to calculate ICCs ----------------------------------------------
+
+calc_inter_icc <- function(v, k, model, type) {
+  inter_icc <- NA_real_
+  v2 <- lapply(v, nonneg)
+  if (model == "1A") {
+    inter_icc <- v2$object / (v2$object + v2$residual / k)
+  } else if (model == "2" && type == "agreement") {
+    inter_icc <- v2$object /
+      (v2$object + (v2$rater + v2$interaction + v2$residual) / k)
+  } else if (model == "2" && type == "consistency") {
+    inter_icc <- v2$object /
+      (v2$object + (v2$interaction + v2$residual) / k)
+  } else if (model == "2A" && type == "agreement") {
+    inter_icc <- v2$object / (v2$object + (v2$rater + v2$residual) / k)
+  } else if (model == "2A" && type == "consistency") {
+    inter_icc <- v2$object / (v2$object + v2$residual / k)
+  }
+  inter_icc
+}
+
+
+# Consistency ICC under Model 2A
+# Model 2A applies when both raters and objects are random, excludes interaction
+calc_icc_2A_C <- function(ratings, k = 1) {
+
+  n <- icc_counts(ratings)
+  s <- icc_sums(ratings, n)
+  v <- icc_model2A(ratings, n, s)
+
+  print(v)
+  v2 <- lapply(v, nonneg)
+
+  # Create and label output vector
+  out <- c(
+    Object = v$object,
+    Rater = NA_real_,
+    Interaction = NA_real_,
+    Residual = v$residual,
+    Intra_ICC = NA_real_,
+    Inter_ICC = calc_inter_icc(v, k, "2A", "consistency")
+  )
+
+  #print(out)
+  out
+}
+
+new_icc <- function(Object = double(),
+                    Rater = double(),
+                    Interaction = double(),
+                    Residual = double(),
+                    Intra_ICC = double(),
+                    Inter_ICC = double(),
+                    boot_results = list(),
+                    formulation = list(),
+                    details = list(),
+                    call = rlang::quo(),
+                    ...) {
+
+  new_s3_scalar(
+    Object = Object,
+    Rater = Rater,
+    Interaction = Interaction,
+    Residual = Residual,
+    Intra_ICC = Intra_ICC,
+    Inter_ICC = Inter_ICC,
+    boot_results = boot_results,
+    formulation = formulation,
+    details = details,
+    call = call,
+    ...,
+    class = "agreement_icc"
+  )
+
+}
+
+new_s3_lst <- function(x, ..., class) {
+  stopifnot(is.list(x))
+  stopifnot(is.character(class))
+  structure(x, ..., class = class)
+}
+
+# Create a new S3 class from a scalar
+new_s3_scalar <- function(..., class) {
+  new_s3_lst(list(...), class = class)
+}
+
+
+```
+
+
+```{r}
+df <- d_aoi |>
+    filter(t_norm > 200, t_norm < 2000) |>
+    group_by(dataset_name, dataset_id, administration_id, target_label, trial_id) |>
+    summarise(
+      accuracy = mean(correct, na.rm = TRUE),
+      prop_data = mean(!is.na(correct))
+    ) |>
+    filter(!is.na(accuracy)) |> 
+    group_by(dataset_name, dataset_id, administration_id, target_label) |>
+    mutate(repetition = row_number())
+```
+
+
+```{r}
+# compute ICCs
+ gb <-  df |> filter(dataset_name=="garrison_bergelson_2020") |> filter(!is.na(accuracy))|> prep_data_dim( administration_id, target_label, accuracy, repetition)
+
+#print(gb)
+
+calc_icc_2A_C(gb$ratings, gb$n_raters)
+ 
+ df |> filter(dataset_name=="garrison_bergelson_2020") |> filter(!is.na(accuracy)) |>  do_dim_icc(
+    model = "2A",
+    type = "consistency",
+    unit = "average",
+    object = administration_id,
+    rater = target_label,
+    trial = repetition,
+    score = accuracy,
+    bootstrap = 10
+  )
+```
+
+```{r}
+# compute ICCs
+ wz <-  df |> filter(dataset_name=="weaver_zettersten_2024") |> filter(!is.na(accuracy))|> prep_data_dim( administration_id, target_label, accuracy, repetition)
+
+calc_icc_2A_C(wz$ratings)
+
+
+ df |>filter(dataset_name=="weaver_zettersten_2024") |> 
+    group_by(dataset_name) |>
+    nest() |>
+    mutate(icc = unlist(map(data, ~ get_icc(., "accuracy")))) |>
+    select(-data) |>
+    unnest(cols = c())
+```
+
+```{r}
+# compute ICCs
+ gb <-  df |> filter(dataset_name=="garrison_bergelson_2020") |> filter(!is.na(accuracy))|> prep_data_dim( administration_id, target_label, accuracy, repetition)
+
+calc_icc_2A_C(gb$ratings)
+
+
+ df |>filter(dataset_name=="garrison_bergelson_2020") |> 
+    group_by(dataset_name) |>
+    nest() |>
+    mutate(icc = unlist(map(data, ~ get_icc(., "accuracy")))) |>
+    select(-data) |>
+    unnest(cols = c())
+
+```
+
 
 # Data prep
 
