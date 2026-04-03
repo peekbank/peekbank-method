@@ -12,7 +12,7 @@ One common measure from LWL times is accuracy which is measured as the proportio
 The data-processing decision is what that window should be -- when should it start and when should it end. (Other questions about whether to baseline-correct and whether to do exclusions based on amount of data covered in later notebooks). 
 
 ```{r, echo=F, include=F}
-knitr::opts_chunk$set(warning=F, message=F, echo=F)
+knitr::opts_chunk$set(warning = F, message = F, echo = F)
 source(here::here("helper/common.R"))
 source(here::here("helper/notebook_helper.R"))
 
@@ -23,7 +23,9 @@ t_increment <- 200
 
 
 ```{r}
-datasets <- d_aoi |> select(trial_id, dataset_name, administration_id, subject_id) |> distinct() 
+datasets <- d_aoi |>
+  select(trial_id, dataset_name, administration_id, subject_id) |>
+  distinct()
 
 datasets |> distinct(dataset_name)
 
@@ -32,7 +34,6 @@ datasets |> distinct(administration_id)
 datasets |> distinct(trial_id)
 
 cdi_data <- readRDS(here("cached_intermediates", "0_cdi_subjects.rds"))
-
 ```
 
 how much data do we have?
@@ -41,9 +42,15 @@ how much data do we have?
 
 
 ```{r}
-#looks like all datasets have lots of trials
-d_aoi |> filter(!is.na(correct)) |> group_by(dataset_name, t_norm)|> tally() |>  ggplot(aes(x=t_norm, y=n, fill=dataset_name, color=dataset_name))+geom_col()+facet_wrap(~dataset_name, scales="free_y")+theme(legend.position = "none")
-
+# looks like all datasets have lots of trials
+d_aoi |>
+  filter(!is.na(correct)) |>
+  group_by(dataset_name, t_norm) |>
+  tally() |>
+  ggplot(aes(x = t_norm, y = n, fill = dataset_name, color = dataset_name)) +
+  geom_col() +
+  facet_wrap(~dataset_name, scales = "free_y") +
+  theme(legend.position = "none")
 ```
 # A digression of understanding why we get some weird ICC values
 
@@ -54,208 +61,41 @@ garrison bergelson (doesn't have bootstrapped CI??)
 * swingley aslin 2002 (negative lower)
 * borovsky 2019 (negative lower)
 
-```{r}
-# from agreement package so we can understand the innards
 
+
+```{r}
 library(rlang)
 library(assertthat)
-prep_data_dim <- function(.data, object, rater, score, trial) {
-
-  d <- list()
-
-  df <- as_tibble(.data)
-  if (rlang::quo_is_null(rlang::enquo(trial))) {
-    df <- dplyr::mutate(df, Trial = "T1")
-    trial <- rlang::quo(Trial)
-  }
-  df <- dplyr::select(df, {{object}}, {{rater}}, {{trial}}, {{score}})
-  df <- tidyr::complete(df, {{object}}, {{rater}}, {{trial}})
-  df <- dplyr::arrange(df, {{trial}}, {{rater}}, {{object}})
-  d$objects <- unique(dplyr::pull(df, {{object}}))
-  d$raters <- unique(dplyr::pull(df, {{rater}}))
-  d$trials <- unique(dplyr::pull(df, {{trial}}))
-  d$n_objects <- length(d$objects)
-  d$n_raters <- length(d$raters)
-  d$n_trials <- length(d$trials)
-  scores <- dplyr::pull(df, {{score}})
-  scores[is.nan(scores)] <- NA
-  d$n_missing_scores <- sum(are_na(scores))
-  d$min_score <- min(scores, na.rm = TRUE)
-  d$max_score <- max(scores, na.rm = TRUE)
-  d$ratings <- array(
-    scores,
-    dim = c(d$n_objects, d$n_raters, d$n_trials),
-    dimnames = list(d$objects, d$raters, d$trials)
-  )
-
-  d
-}
-
-icc_counts <- function(ratings) {
-
-  n <- list()
-
-  # Count of objects
-  n$objects <- dim(ratings)[[1]]
-
-  # Count of raters
-  n$raters <- dim(ratings)[[2]]
-
-  # Count of trials per object-rater combination
-  n$trials_or <- apply(is.finite(ratings), MARGIN = 1:2, FUN = sum)
-
-  # Count of trials per object
-  n$trials_o <- rowSums(n$trials_or)
-
-  # Count of trials per rater
-  n$trials_r <- colSums(n$trials_or)
-
-  # Count of all trials
-  n$trials <- sum(n$trials_or)
-
-  n
-}
-
-icc_sums <- function(ratings, n = NULL) {
-
-  if (is_null(n)) {n <- icc_counts(ratings)}
-
-  s <- list()
-
-  # Sum all trials per object-rater combination
-  ysum_or <- apply(ratings, MARGIN = 1:2, FUN = sum, na.rm = TRUE)
-
-  # Sum of all ratings per object
-  ysum_o <- apply(ratings, MARGIN = 1, FUN = sum, na.rm = TRUE)
-
-  # Sum of all ratings per rater
-  ysum_r <- apply(ratings, MARGIN = 2, FUN = sum, na.rm = TRUE)
-
-  # Total sum of ratings
-  s$T_y <- sum(ysum_or, na.rm = TRUE)
-
-  # Total sum of squared ratings
-  s$T_ysq <- sum(ratings^2, na.rm = TRUE)
-
-  # Sum of all object's averaged squared ratings
-  s$T_objects <- sum(ysum_o^2 / n$trials_o, na.rm = TRUE)
-
-  # Sum of all raters' average squared ratings
-  s$T_raters <- sum(ysum_r^2 / n$trials_r, na.rm = TRUE)
-
-  # Sum of all object-rater combinations' average squared ratings
-  s$T_interaction <- sum(ysum_or^2 / n$trials_or, na.rm = TRUE)
-
-  # Sum of all average ratings
-  s$T_musq <- n$trials * mean(ratings, na.rm = TRUE)^2
-
-  # Number of object-rater combinations for which one or more trials exist
-  s$lambda_0 <- sum(n$trials_or > 0)
-
-  # Expected number of trials per object
-  s$k_r <- sum(n$trials_or^2 / n$trials_r)
-
-  # Expected number of trails per rater
-  s$k_o <- sum(n$trials_or^2 / n$trials_o)
-
-  # TODO: Write informative comment
-  s$kprime_o <- sum(n$trials_o^2) / n$trials
-  s$kprime_r <- sum(n$trials_r^2) / n$trials
-  s$kprime_or <- sum(n$trials_or^2) / n$trials
-  s$Tprimesq_ysq <- s$T_y^2 / n$trials
-
-  # TODO: Write informative comment
-  s$lambda_1 <- (n$trials - s$kprime_o) / (n$trials - s$k_r)
-  s$lambda_2 <- (n$trials - s$kprime_r) / (n$trials - s$k_o)
-
-  s
-}
-
-icc_model2A <- function(ratings, n = NULL, s = NULL) {
-
-  if (is_null(n)) {n <- icc_counts(ratings)}
-  if (is_null(s)) {s <- icc_sums(ratings, n)}
-
-  v <- list()
-
-  v$residual <- (s$lambda_2 * (s$T_ysq - s$T_objects) + s$lambda_1 * (s$T_ysq - s$T_raters) - (s$T_ysq - s$T_musq)) /
-    (s$lambda_2 * (n$trials - n$objects) + s$lambda_1 * (n$trials - n$raters) - (n$trials - 1))
-
-  v$object <- (s$T_ysq - s$T_raters - v$residual * (n$trials - n$raters)) / (n$trials - s$k_r)
-
-  v$rater <- (s$T_ysq - s$T_objects - v$residual * (n$trials - n$objects)) / (n$trials - s$k_o)
-
-  v
-}
-
-nonneg <- function(x) {
-  max(c(0, x))
-}
-
-# we only care about 2A consistency 
-calc_inter_icc <- function(v, k) {
-  inter_icc <- NA_real_
-  v2 <- lapply(v, nonneg)
-    inter_icc <- v2$object / (v2$object + v2$residual / k)
-  inter_icc
-}
-
-calc_icc_2A_C <- function(ratings, k = 1) {
-
-  n <- icc_counts(ratings)
-  s <- icc_sums(ratings, n)
-  v <- icc_model2A(ratings, n, s)
-  
-  View(v)
-  
-  v2 <- lapply(v, nonneg)
-
-  # Create and label output vector
-  out <- c(
-    Object = v$object,
-    Rater = NA_real_,
-    Interaction = NA_real_,
-    Residual = v$residual,
-    Intra_ICC = NA_real_,
-    Inter_ICC = calc_inter_icc(v, k)
-  )
-
-  out
-}
-
-
-```
-
-
-```{r}
 do_dim_icc <- function(.data,
-                    model = c("1A", "1B", "2", "2A", "3", "3A"),
-                    type = c("agreement", "consistency"),
-                    unit = c("single", "average", "custom"),
-                    object = Object,
-                    rater = Rater,
-                    score = Score,
-                    customk = NULL,
-                    trial = NULL,
-                    bootstrap = 2000,
-                    warnings = TRUE) {
-
+                       model = c("1A", "1B", "2", "2A", "3", "3A"),
+                       type = c("agreement", "consistency"),
+                       unit = c("single", "average", "custom"),
+                       object = Object,
+                       rater = Rater,
+                       score = Score,
+                       customk = NULL,
+                       trial = NULL,
+                       bootstrap = 2000,
+                       warnings = TRUE) {
   # Validate inputs
   assert_that(is.data.frame(.data) || is.matrix(.data))
   model <- match.arg(model)
   type <- match.arg(type)
   unit <- match.arg(unit)
   assert_that(bootstrap == 0 || is.count(bootstrap),
-    msg = "The 'bootstrap' argument must be a non-negative integer.")
+    msg = "The 'bootstrap' argument must be a non-negative integer."
+  )
   assert_that(is.flag(warnings))
   assert_that(is.null(customk) || is.count(customk),
-    msg = "The 'customk' argument must be NULL or a positive integer.")
+    msg = "The 'customk' argument must be NULL or a positive integer."
+  )
 
   # Prepare .data for analysis
-  d <- prep_data_dim(.data, {{object}}, {{rater}}, {{score}}, {{trial}})
+  d <- prep_data_dim(.data, {{ object }}, {{ rater }}, {{ score }}, {{ trial }})
 
-  #print(d)
-  
+  print(mean(is.na(d$ratings)))
+  # print(d)
+
   if (unit == "single") {
     k <- 1
   } else if (unit == "average") {
@@ -266,7 +106,7 @@ do_dim_icc <- function(.data,
   assert_that(is.null(k) == FALSE)
 
   print(k)
-  
+
   # Prepare empty output in case of errors
   out <- new_icc(
     Object = NA_real_,
@@ -298,7 +138,7 @@ do_dim_icc <- function(.data,
     }
     return(out)
   }
-  #TODO: Check on intra-rater reliability with one rater - is it possible?
+  # TODO: Check on intra-rater reliability with one rater - is it possible?
 
   if (d$n_objects < 2) {
     if (warnings == TRUE) {
@@ -310,6 +150,7 @@ do_dim_icc <- function(.data,
   # Create function to perform bootstrapping
   boot_function <- function(codes, index, fun, k) {
     resample <- codes[index, , , drop = FALSE]
+    print(mean(is.na(resample)))
     bsr <- fun(ratings = resample, k = k)
     bsr
   }
@@ -351,7 +192,6 @@ do_dim_icc <- function(.data,
 # Functions to calculate ICC components -----------------------------------
 
 icc_counts <- function(ratings) {
-
   n <- list()
 
   # Count of objects
@@ -376,8 +216,9 @@ icc_counts <- function(ratings) {
 }
 
 icc_sums <- function(ratings, n = NULL) {
-
-  if (is_null(n)) {n <- icc_counts(ratings)}
+  if (is_null(n)) {
+    n <- icc_counts(ratings)
+  }
 
   s <- list()
 
@@ -431,9 +272,12 @@ icc_sums <- function(ratings, n = NULL) {
 }
 
 icc_model2A <- function(ratings, n = NULL, s = NULL) {
-
-  if (is_null(n)) {n <- icc_counts(ratings)}
-  if (is_null(s)) {s <- icc_sums(ratings, n)}
+  if (is_null(n)) {
+    n <- icc_counts(ratings)
+  }
+  if (is_null(s)) {
+    s <- icc_sums(ratings, n)
+  }
 
   v <- list()
 
@@ -474,7 +318,6 @@ calc_inter_icc <- function(v, k, model, type) {
 # Consistency ICC under Model 2A
 # Model 2A applies when both raters and objects are random, excludes interaction
 calc_icc_2A_C <- function(ratings, k = 1) {
-
   n <- icc_counts(ratings)
   s <- icc_sums(ratings, n)
   v <- icc_model2A(ratings, n, s)
@@ -492,7 +335,7 @@ calc_icc_2A_C <- function(ratings, k = 1) {
     Inter_ICC = calc_inter_icc(v, k, "2A", "consistency")
   )
 
-  #print(out)
+  # print(out)
   out
 }
 
@@ -507,7 +350,6 @@ new_icc <- function(Object = double(),
                     details = list(),
                     call = rlang::quo(),
                     ...) {
-
   new_s3_scalar(
     Object = Object,
     Rater = Rater,
@@ -522,7 +364,6 @@ new_icc <- function(Object = double(),
     ...,
     class = "agreement_icc"
   )
-
 }
 
 new_s3_lst <- function(x, ..., class) {
@@ -536,33 +377,89 @@ new_s3_scalar <- function(..., class) {
   new_s3_lst(list(...), class = class)
 }
 
+prep_data_dim <- function(.data, object, rater, score, trial) {
+  d <- list()
 
+  df <- as_tibble(.data)
+  if (rlang::quo_is_null(rlang::enquo(trial))) {
+    df <- dplyr::mutate(df, Trial = "T1")
+    trial <- rlang::quo(Trial)
+  }
+  df <- dplyr::select(df, {{ object }}, {{ rater }}, {{ trial }}, {{ score }})
+  df <- tidyr::complete(df, {{ object }}, {{ rater }}, {{ trial }})
+  df <- dplyr::arrange(df, {{ trial }}, {{ rater }}, {{ object }})
+  d$objects <- unique(dplyr::pull(df, {{ object }}))
+  d$raters <- unique(dplyr::pull(df, {{ rater }}))
+  d$trials <- unique(dplyr::pull(df, {{ trial }}))
+  d$n_objects <- length(d$objects)
+  d$n_raters <- length(d$raters)
+  d$n_trials <- length(d$trials)
+  scores <- dplyr::pull(df, {{ score }})
+  scores[is.nan(scores)] <- NA
+  d$n_missing_scores <- sum(are_na(scores))
+  d$min_score <- min(scores, na.rm = TRUE)
+  d$max_score <- max(scores, na.rm = TRUE)
+  d$ratings <- array(
+    scores,
+    dim = c(d$n_objects, d$n_raters, d$n_trials),
+    dimnames = list(d$objects, d$raters, d$trials)
+  )
+
+  d
+}
+
+# Turn x into 0 if negative
+nonneg <- function(x) {
+  max(c(0, x))
+}
 ```
 
 
 ```{r}
 df <- d_aoi |>
-    filter(t_norm > 200, t_norm < 2000) |>
-    group_by(dataset_name, dataset_id, administration_id, target_label, trial_id) |>
-    summarise(
-      accuracy = mean(correct, na.rm = TRUE),
-      prop_data = mean(!is.na(correct))
-    ) |>
-    filter(!is.na(accuracy)) |> 
-    group_by(dataset_name, dataset_id, administration_id, target_label) |>
-    mutate(repetition = row_number())
+  filter(t_norm > 200, t_norm < 2000) |>
+  group_by(dataset_name, dataset_id, administration_id, target_label, trial_id) |>
+  summarise(
+    accuracy = mean(correct, na.rm = TRUE),
+    prop_data = mean(!is.na(correct))
+  ) |>
+  filter(!is.na(accuracy)) |>
+  group_by(dataset_name, dataset_id, administration_id, target_label) |>
+  mutate(repetition = row_number())
+```
+
+```{r}
+df |>
+  filter(dataset_name == "pomper_saffran_2016") |>
+  filter(!is.na(accuracy)) |>
+  do_dim_icc(
+    model = "2A",
+    type = "consistency",
+    unit = "average",
+    object = administration_id,
+    rater = target_label,
+    trial = repetition,
+    score = accuracy,
+    bootstrap = 10
+  )
 ```
 
 
 ```{r}
 # compute ICCs
- gb <-  df |> filter(dataset_name=="garrison_bergelson_2020") |> filter(!is.na(accuracy))|> prep_data_dim( administration_id, target_label, accuracy, repetition)
+gb <- df |>
+  filter(dataset_name == "garrison_bergelson_2020") |>
+  filter(!is.na(accuracy)) |>
+  prep_data_dim(administration_id, target_label, accuracy, repetition)
 
-#print(gb)
+# print(gb)
 
 calc_icc_2A_C(gb$ratings, gb$n_raters)
- 
- df |> filter(dataset_name=="garrison_bergelson_2020") |> filter(!is.na(accuracy)) |>  do_dim_icc(
+
+df |>
+  filter(dataset_name == "garrison_bergelson_2020") |>
+  filter(!is.na(accuracy)) |>
+  do_dim_icc(
     model = "2A",
     type = "consistency",
     unit = "average",
@@ -576,35 +473,304 @@ calc_icc_2A_C(gb$ratings, gb$n_raters)
 
 ```{r}
 # compute ICCs
- wz <-  df |> filter(dataset_name=="weaver_zettersten_2024") |> filter(!is.na(accuracy))|> prep_data_dim( administration_id, target_label, accuracy, repetition)
+wz <- df |>
+  filter(dataset_name == "weaver_zettersten_2024") |>
+  filter(!is.na(accuracy)) |>
+  prep_data_dim(administration_id, target_label, accuracy, repetition)
 
 calc_icc_2A_C(wz$ratings)
 
 
- df |>filter(dataset_name=="weaver_zettersten_2024") |> 
-    group_by(dataset_name) |>
-    nest() |>
-    mutate(icc = unlist(map(data, ~ get_icc(., "accuracy")))) |>
-    select(-data) |>
-    unnest(cols = c())
+df |>
+  filter(dataset_name == "weaver_zettersten_2024") |>
+  group_by(dataset_name) |>
+  nest() |>
+  mutate(icc = unlist(map(data, ~ get_icc(., "accuracy")))) |>
+  select(-data) |>
+  unnest(cols = c())
 ```
 
 ```{r}
 # compute ICCs
- gb <-  df |> filter(dataset_name=="garrison_bergelson_2020") |> filter(!is.na(accuracy))|> prep_data_dim( administration_id, target_label, accuracy, repetition)
+gb <- df |>
+  filter(dataset_name == "garrison_bergelson_2020") |>
+  filter(!is.na(accuracy)) |>
+  prep_data_dim(administration_id, target_label, accuracy, repetition)
 
 calc_icc_2A_C(gb$ratings)
 
 
- df |>filter(dataset_name=="garrison_bergelson_2020") |> 
-    group_by(dataset_name) |>
-    nest() |>
-    mutate(icc = unlist(map(data, ~ get_icc(., "accuracy")))) |>
-    select(-data) |>
-    unnest(cols = c())
-
+df |>
+  filter(dataset_name == "garrison_bergelson_2020") |>
+  group_by(dataset_name) |>
+  nest() |>
+  mutate(icc = unlist(map(data, ~ get_icc(., "accuracy")))) |>
+  select(-data) |>
+  unnest(cols = c())
 ```
 
+```{r}
+stuff <- d_aoi |>
+  group_by(dataset_name) |>
+  summarize(
+    n_admins = n_distinct(administration_id),
+    n_trials = n_distinct(trial_id),
+    n_raters = n_distinct(target_label)
+  ) |>
+  left_join(readRDS(here("cached_intermediates/1_acc_icc_boot.rds"))) |>
+  mutate(spread = upper - lower)
+
+ggplot(stuff, aes(x = est, y = spread)) +
+  geom_point()
+
+ggplot(stuff |> filter(t_start == 200, t_end == 2000), aes(x = est, y = spread)) +
+  geom_point()
+
+
+ggplot(stuff, aes(x = n_raters, y = spread)) +
+  geom_point()
+
+ggplot(stuff, aes(x = n_admins, y = spread)) +
+  geom_point()
+
+ggplot(stuff |> filter(t_start == 200, t_end == 2000) |> filter(!is.na(spread)), aes(x = n_admins, y = spread, color = n_raters)) +
+  geom_point() +
+  scale_color_viridis()
+
+df <- d_aoi |>
+  filter(t_norm > 200, t_norm < 2000) |>
+  group_by(
+    dataset_name, dataset_id, administration_id,
+    target_label, trial_id
+  ) |>
+  summarise(
+    accuracy = mean(correct, na.rm = TRUE),
+    prop_data = mean(!is.na(correct))
+  ) |>
+  filter(!is.na(accuracy)) |>
+  group_by(dataset_name, administration_id) |>
+  summarize(acc = mean(accuracy)) |>
+  summarize(
+    count = n(),
+    sdv = sd(acc)
+  )
+
+df |>
+  left_join(readRDS(here("cached_intermediates/1_acc_icc_boot.rds"))) |>
+  mutate(spread = upper - lower) |>
+  ggplot(aes(x = sdv, y = spread, color = count)) +
+  geom_point() +
+  coord_flip() +
+  scale_color_viridis()
+```
+
+```{r, fig.width=8, fig.height=6}
+filter_icc <- function(data, col_est, col_upper, col_lower) {
+  include <- data |>
+    group_by(dataset_name, across(any_of("age_bin"))) |>
+    summarize(
+      pct_0 = sum(.data[[col_est]] == 0) / n()
+    )
+
+  data |> semi_join(include |> filter(pct_0 < .5))
+}
+
+a <-  readRDS(here("cached_intermediates/1_acc_icc_boot.rds")) |> filter_icc("est", "lower", "upper") |> mutate(name="ICC reliability") |> 
+  mutate(combined=case_when(
+    t_start==400 & t_end==3000 ~ "400-3000",
+    t_start==200 & t_end==2000 ~ "200-2000",
+    T ~ NA
+  )) |> filter(!is.na(combined)) |> 
+  select(dataset_name, est, combined, name, upper, lower) |> 
+  rowwise() |> 
+  mutate(lower=max(0, lower), 
+         upper=min(1, upper)) |> 
+  ungroup() |> 
+  ggplot(aes(x=reorder(dataset_name, est), y=est))+geom_line() + geom_point(aes(color=combined))+coord_flip()+labs(x="dataset", y="Correlation")+scale_color_solarized(accent="red")+facet_wrap(~name, nrow=1)
+
+b <-  readRDS(here("cached_intermediates/1_acc_cdi_boot.rds")) |> filter(!is.na(comp_est)) |> rename(est=comp_est) |> mutate(name="Comp CDI") |> 
+  mutate(combined=case_when(
+    t_start==400 & t_end==3000 ~ "400-3000",
+    t_start==200 & t_end==2000 ~ "200-2000",
+    T ~ NA
+  )) |> filter(!is.na(combined)) |> 
+  select(dataset_name, est, combined, name) |> 
+  ungroup() |> 
+  ggplot(aes(x=reorder(dataset_name, est), y=est))+geom_line() + geom_point(aes(color=combined))+coord_flip()+labs(x="dataset", y="Correlation")+scale_color_solarized(accent="red")+facet_wrap(~name, nrow=1)
+
+
+c <-  readRDS(here("cached_intermediates/1_acc_cdi_boot.rds")) |> filter(!is.na(prod_est)) |> rename(est=prod_est) |> mutate(name="Prod CDI") |> 
+  mutate(combined=case_when(
+    t_start==400 & t_end==3000 ~ "400-3000",
+    t_start==200 & t_end==2000 ~ "200-2000",
+    T ~ NA
+  )) |> filter(!is.na(combined)) |> 
+  select(dataset_name, est, combined, name) |> 
+  ungroup() |> 
+  ggplot(aes(x=reorder(dataset_name, est), y=est))+geom_line() + geom_point(aes(color=combined))+coord_flip()+labs(x="dataset", y="Correlation")+scale_color_solarized(accent="red")+facet_wrap(~name, nrow=1)
+
+
+d <-  readRDS(here("cached_intermediates/1_acc_test_retest_boot.rds")) |> filter(!is.na(est)) |> mutate(name="Test retest") |> 
+  mutate(combined=case_when(
+    t_start==400 & t_end==3000 ~ "400-3000",
+    t_start==200 & t_end==2000 ~ "200-2000",
+    T ~ NA
+  )) |> filter(!is.na(combined)) |> 
+  select(dataset_name, est, combined, name) |> 
+  ungroup() |> 
+  ggplot(aes(x=reorder(dataset_name, est), y=est))+geom_line() + geom_point(aes(color=combined))+coord_flip()+labs(x="dataset", y="Correlation")+scale_color_solarized(accent="red")+facet_wrap(~name, nrow=1)
+
+
+
+library(cowplot)
+plot_grid(a,b,c,d)
+```
+
+```{r, fig.width=8, fig.height=6}
+library(lme4)
+library(broom.mixed)
+dataset_summ <- readRDS(here("cached_intermediates/paper_dataset_summary.rds"))
+
+icc_data <- readRDS(here("cached_intermediates/1_acc_icc_boot.rds")) |>
+  filter(!is.na(est)) |>
+  left_join(dataset_summ |> group_by(dataset_name) |>
+    summarize(n_admins = n_distinct(administration_id))) |>
+  mutate(
+    range = str_c(t_start, "_", t_end) |> as.factor(),
+    range = relevel(range, "400_3000")
+  )
+
+mod_icc <- lmer(est ~ range + (1 | dataset_name), data = icc_data, weights = n_admins)
+
+a <- tidy(mod_icc, conf.int = T) |>
+  filter(str_detect(term, "range")) |>
+  mutate(start = str_sub(term, 6, -6) |> as.numeric(), end = str_sub(term, -4, -1)) |>
+  ggplot(aes(x = start, y = estimate, ymin = conf.low, ymax = conf.high)) +
+  facet_wrap(~end) +
+  coord_flip() +
+  geom_pointrange() +
+  geom_hline(yintercept = 0)+labs(y="ICC")+  scale_y_continuous(breaks=c( -.1,  0, .1), limits=c(-.2, .2))
+
+
+
+comp_data <- readRDS(here("cached_intermediates/1_acc_cdi_boot.rds")) |>
+  filter(!is.na(comp_est)) |>
+  left_join(dataset_summ |> group_by(dataset_name) |> filter(!is.na(comp)) |>
+    summarize(n_admins = n_distinct(administration_id))) |>
+  mutate(
+    range = str_c(t_start, "_", t_end) |> as.factor(),
+    range = relevel(range, "400_3000")
+  )
+
+mod_comp <- lmer(comp_est ~ range + (1 | dataset_name), data = comp_data, weights = n_admins)
+
+b <- tidy(mod_comp, conf.int = T) |>
+  filter(str_detect(term, "range")) |>
+  mutate(start = str_sub(term, 6, -6) |> as.numeric(), end = str_sub(term, -4, -1)) |>
+  ggplot(aes(x = start, y = estimate, ymin = conf.low, ymax = conf.high)) +
+  facet_wrap(~end) +
+  coord_flip() +
+  geom_pointrange() +
+  geom_hline(yintercept = 0)+labs(y="CDI Comp")+  scale_y_continuous(breaks=c( -.1,  0, .1), limits=c(-.2, .2))
+
+
+prod_data <- readRDS(here("cached_intermediates/1_acc_cdi_boot.rds")) |>
+  filter(!is.na(prod_est)) |>
+  left_join(dataset_summ |> group_by(dataset_name) |> filter(!is.na(prod)) |>
+    summarize(n_admins = n_distinct(administration_id))) |>
+  mutate(
+    range = str_c(t_start, "_", t_end) |> as.factor(),
+    range = relevel(range, "400_3000")
+  )
+
+mod_prod <- lmer(prod_est ~ range + (1 | dataset_name), data = prod_data, weights = n_admins)
+
+c <- tidy(mod_prod, conf.int = T) |>
+  filter(str_detect(term, "range")) |>
+  mutate(start = str_sub(term, 6, -6) |> as.numeric(), end = str_sub(term, -4, -1)) |>
+  ggplot(aes(x = start, y = estimate, ymin = conf.low, ymax = conf.high)) +
+  facet_wrap(~end) +
+  coord_flip() +
+  geom_pointrange() +
+  geom_hline(yintercept = 0)+labs(y="CDI Prod")+  scale_y_continuous(breaks=c( -.1,  0, .1), limits=c(-.2, .2))
+
+
+
+trt_data <- readRDS(here("cached_intermediates/1_acc_test_retest_boot.rds")) |>
+  filter(!is.na(est)) |>
+  left_join(dataset_summ |> make_test_retest_pairs() |> group_by(dataset_name) |>
+    summarize(n_admins = n_distinct(pair_number))) |>
+  mutate(
+    range = str_c(t_start, "_", t_end) |> as.factor(),
+    range = relevel(range, "400_3000")
+  )
+
+mod_trt <- lmer(est ~ range + (1 | dataset_name), data = trt_data, weights = n_admins)
+
+d <- tidy(mod_trt, conf.int = T) |>
+  filter(str_detect(term, "range")) |>
+  mutate(start = str_sub(term, 6, -6) |> as.numeric(), end = str_sub(term, -4, -1)) |>
+  ggplot(aes(x = start, y = estimate, ymin = conf.low, ymax = conf.high)) +
+  facet_wrap(~end) +
+  coord_flip() +
+  geom_pointrange() +
+  geom_hline(yintercept = 0)+labs(y="Test retest")+
+  scale_y_continuous(breaks=c( -.1,  0, .1), limits=c(-.2, .2))
+
+library(cowplot)
+plot_grid(a,b,c,d)
+```
+
+
+```{r}
+filter_icc <- function(data, col_est, col_upper, col_lower) {
+  include <- data |>
+    group_by(dataset_name, across(any_of("age_bin"))) |>
+    summarize(
+      nas = sum(is.na(.data[[col_upper]]) | is.na(.data[[col_lower]])),
+      pct_0 = sum(.data[[col_est]] == 0) / n()
+    )
+
+  View(include)
+  data |> semi_join(include |> filter(nas == 0, pct_0 < .5))
+}
+
+do_meta_comparison <- function(d, col_est, col_upper, col_lower) {
+  d <- d |>
+    mutate(
+      stdev = (.data[[col_upper]] - .data[[col_lower]]) / (1.96 * 2),
+      var = stdev**2
+    )
+
+  rma(d[[col_est]], d$var, mods = ~ d$option, control = list(maxiter = 1000)) |>
+    robust(cluster = d$dataset_name) |>
+    summary() |>
+    coef() |>
+    select(estimate, ci.lb, ci.ub) |>
+    as_tibble(rownames = "coef")
+}
+
+baseline_range <- "400_3000"
+
+readRDS(here("cached_intermediates/1_acc_icc_boot.rds")) |>
+  filter_icc("est", "lower", "upper") |>
+  mutate(
+    range = str_c(t_start, "_", t_end) |> as.factor(),
+    range = relevel(range, baseline_range)
+  ) |>
+  rename(option = range) |>
+  do_meta_comparison("est", "lower", "upper") |>
+  filter(coef != "intrcpt") |>
+  mutate(coef = str_replace(coef, fixed("d[[predictor]]"), "")) |>
+  separate(coef, into = c("t_start", "t_end"), sep = "_") |>
+  mutate(t_start = as.numeric(t_start)) |>
+  ggplot(aes(x = t_start, y = estimate, ymin = ci.lb, ymax = ci.ub)) +
+  geom_pointrange() +
+  facet_wrap(~t_end) +
+  geom_hline(yintercept = 0) +
+  coord_flip() +
+  labs(y = "ICC")
+```
 
 # Data prep
 
@@ -620,7 +786,7 @@ icc_window_sim <- function(t_start = -500, t_end = 4000, object) {
       accuracy = mean(correct, na.rm = TRUE),
       prop_data = mean(!is.na(correct))
     ) |>
-    filter(!is.na(accuracy)) |> 
+    filter(!is.na(accuracy)) |>
     group_by(dataset_name, dataset_id, administration_id, target_label) |>
     mutate(repetition = row_number())
 
@@ -652,31 +818,48 @@ saveRDS(accs, here("cached_intermediates", "1_acc_icc_noboot.rds"))
 and by age
 
 ```{r, eval=F}
-#admins/dataset in each agebin
-d_aoi |> filter(!is.na(correct)) |> make_age_bins()|> ggplot(aes(x=age_bin, fill=dataset_name))+geom_histogram(stat="count")
+# admins/dataset in each agebin
+d_aoi |>
+  filter(!is.na(correct)) |>
+  make_age_bins() |>
+  ggplot(aes(x = age_bin, fill = dataset_name)) +
+  geom_histogram(stat = "count")
 
 
-d_aoi |> filter(!is.na(correct)) |> distinct(administration_id, age, dataset_name) |>    mutate(age_bin = case_when(
-  age< 18 ~ "<18",
-  age < 24~ "18-24",
-  age< 36~ "24-36",
-  age>=36~ ">=36")) |>
-group_by(dataset_name, age_bin) |> tally() |> arrange(n)
+d_aoi |>
+  filter(!is.na(correct)) |>
+  distinct(administration_id, age, dataset_name) |>
+  mutate(age_bin = case_when(
+    age < 18 ~ "<18",
+    age < 24 ~ "18-24",
+    age < 36 ~ "24-36",
+    age >= 36 ~ ">=36"
+  )) |>
+  group_by(dataset_name, age_bin) |>
+  tally() |>
+  arrange(n)
 
 # apply a cutoff of at least 5 kids going into an age-bin x paper
 
-age_bin_cutoff <-d_aoi |> filter(!is.na(correct)) |> distinct(administration_id, age, dataset_name) |>    mutate(age_bin = case_when(
-  age< 18 ~ "<18",
-  age < 24~ "18-24",
-  age< 36~ "24-36",
-  age>=36~ ">=36")) |>
-group_by(dataset_name, age_bin) |> mutate(count=n()) |> filter(count>=5) |> ungroup()
-
+age_bin_cutoff <- d_aoi |>
+  filter(!is.na(correct)) |>
+  distinct(administration_id, age, dataset_name) |>
+  mutate(age_bin = case_when(
+    age < 18 ~ "<18",
+    age < 24 ~ "18-24",
+    age < 36 ~ "24-36",
+    age >= 36 ~ ">=36"
+  )) |>
+  group_by(dataset_name, age_bin) |>
+  mutate(count = n()) |>
+  filter(count >= 5) |>
+  ungroup()
 ```
 
 ```{r, eval=F}
 icc_window_sim_age <- function(t_start = -1000, t_end = 4000, object) {
-  df <- d_aoi |> inner_join(age_bin_cutoff) |> 
+  df <- d_aoi |>
+    inner_join(age_bin_cutoff) |>
     filter(t_norm > t_start, t_norm < t_end) |>
     group_by(
       dataset_name, dataset_id, age_bin, administration_id,
@@ -685,8 +868,8 @@ icc_window_sim_age <- function(t_start = -1000, t_end = 4000, object) {
     summarise(
       accuracy = mean(correct, na.rm = TRUE),
       prop_data = mean(!is.na(correct))
-    ) |> 
-    filter(!is.na(accuracy)) |> 
+    ) |>
+    filter(!is.na(accuracy)) |>
     group_by(dataset_name, age_bin, dataset_id, administration_id, target_label) |>
     mutate(repetition = row_number())
 
@@ -713,7 +896,6 @@ accs_byage <- acc_params |>
   unnest(col = icc)
 
 saveRDS(accs_byage, here("cached_intermediates", "1_acc_icc_noboot_byage.rds"))
-
 ```
 
 ## Scripts
@@ -722,7 +904,6 @@ saveRDS(accs_byage, here("cached_intermediates", "1_acc_icc_noboot_byage.rds"))
 source(here("scripts/1_acc_icc_boot.R"))
 source(here("scripts/1_acc_cdi_boot.R"))
 source(here("scripts/1_acc_test_retest_boot.R"))
-
 ```
 
 # Visualizations
@@ -764,45 +945,55 @@ ggplot(
 
 For datasets with data up to at least 3800
 ```{r}
-long_datasets <- d_aoi |> group_by(dataset_name) |> summarize(min_t_norm=min(t_norm), max_t_norm=max(t_norm), count_0=sum(t_norm==0), count_2000=sum(t_norm==2000), count_3800=sum(t_norm==3800)) |> filter(min_t_norm<=0, max_t_norm>=2000) |> filter(count_0/count_2000>.8) |> filter(count_3800/count_2000>.8)
+long_datasets <- d_aoi |>
+  group_by(dataset_name) |>
+  summarize(min_t_norm = min(t_norm), max_t_norm = max(t_norm), count_0 = sum(t_norm == 0), count_2000 = sum(t_norm == 2000), count_3800 = sum(t_norm == 3800)) |>
+  filter(min_t_norm <= 0, max_t_norm >= 2000) |>
+  filter(count_0 / count_2000 > .8) |>
+  filter(count_3800 / count_2000 > .8)
 
 long_datasets
 ```
 
 
 ```{r}
-icc_noboot |> semi_join(long_datasets) |> group_by(t_start, t_end) |>
+icc_noboot |>
+  semi_join(long_datasets) |>
+  group_by(t_start, t_end) |>
   summarize(
     N = n(),
     mean_icc = mean(icc, na.rm = TRUE)
   ) |>
-  filter(t_start>=0) |> 
-  mutate(window_size = t_end - t_start) |> 
+  filter(t_start >= 0) |>
+  mutate(window_size = t_end - t_start) |>
   ggplot(aes(x = t_start, y = t_end, fill = mean_icc)) +
   geom_tile(color = "white") +
   scale_fill_viridis(name = "Mean ICC", option = "inferno") +
-  scale_x_continuous(breaks = c( 0, 500, 1000, 1500)) +
+  scale_x_continuous(breaks = c(0, 500, 1000, 1500)) +
   xlab("Window Start Time (in ms)") +
   ylab("Window End Time (in ms)")
 
-icc_noboot |> semi_join(long_datasets) |> group_by(t_start, t_end, dataset_name) |>
+icc_noboot |>
+  semi_join(long_datasets) |>
+  group_by(t_start, t_end, dataset_name) |>
   summarize(
     N = n(),
     mean_icc = mean(icc, na.rm = TRUE)
   ) |>
-  group_by(dataset_name) |> 
-  mutate(relative=mean_icc/max(mean_icc),
-         relative2=mean_icc-max(mean_icc)) |> 
-  filter(t_start>=0, t_start<800) |> 
-  mutate(window_size = t_end - t_start) |> 
+  group_by(dataset_name) |>
+  mutate(
+    relative = mean_icc / max(mean_icc),
+    relative2 = mean_icc - max(mean_icc)
+  ) |>
+  filter(t_start >= 0, t_start < 800) |>
+  mutate(window_size = t_end - t_start) |>
   ggplot(aes(x = t_start, y = t_end, fill = mean_icc)) +
   geom_tile(color = "white") +
   scale_fill_viridis(name = "Mean ICC", option = "inferno") +
-  scale_x_continuous(breaks = c( 0, 500, 1000, 1500)) +
-  facet_wrap(~dataset_name)+
+  scale_x_continuous(breaks = c(0, 500, 1000, 1500)) +
+  facet_wrap(~dataset_name) +
   xlab("Window Start Time (in ms)") +
   ylab("Window End Time (in ms)")
-
 ```
 
 
@@ -820,7 +1011,7 @@ icc_noboot_byage_summary <- icc_noboot_byage |>
 
 
 ggplot(icc_noboot_byage_summary, aes(x = t_start, y = t_end, fill = mean_icc)) +
-  facet_wrap(~age_bin)+
+  facet_wrap(~age_bin) +
   geom_tile(color = "white") +
   scale_fill_viridis(name = "Mean ICC", option = "inferno") +
   scale_x_continuous(breaks = c(-1000, -500, 0, 500, 1000, 1500)) +
@@ -831,7 +1022,7 @@ ggplot(
   icc_noboot_byage_summary,
   aes(color = mean_icc)
 ) +
-  facet_wrap(~age_bin)+
+  facet_wrap(~age_bin) +
   geom_vline(xintercept = 0, linetype = "dashed") +
   geom_segment(aes(x = t_start, xend = t_end, y = mean_icc, yend = mean_icc)) +
   geom_segment(aes(x = t_start, xend = t_start, y = mean_icc - 0.005, yend = mean_icc + 0.005)) +
@@ -850,7 +1041,9 @@ acc_boot <- readRDS(here("cached_intermediates/1_acc_icc_boot.rds"))
 
 acc_boot_summary <- acc_boot |> do_meta(c("t_start", "t_end"))
 
-acc_boot_summary_long <- acc_boot |> semi_join(long_datasets) |> do_meta(c("t_start", "t_end"))
+acc_boot_summary_long <- acc_boot |>
+  semi_join(long_datasets) |>
+  do_meta(c("t_start", "t_end"))
 ```
 
 Looking overall
@@ -872,8 +1065,9 @@ acc_boot_age_summary <- acc_boot_age |> do_meta(c("t_start", "t_end", "age_bin")
 
 ```{r}
 acc_boot_age_summary |> ggplot(aes(x = t_start, y = estimate, ymin = ci.lb, ymax = ci.ub, color = as.character(t_end))) +
-  geom_pointrange(position = position_dodge(width = 50))+facet_wrap(~age_bin, scales="free_y")+theme(legend.position = "bottom")
-
+  geom_pointrange(position = position_dodge(width = 50)) +
+  facet_wrap(~age_bin, scales = "free_y") +
+  theme(legend.position = "bottom")
 ```
 
 
@@ -888,7 +1082,9 @@ accs_cdi <- readRDS(here("cached_intermediates", "1_acc_cdi_boot.rds"))
 
 accs_cdi_summ <- accs_cdi |> do_cdi_meta(c("t_start", "t_end"))
 
-accs_cdi_summ_long <- accs_cdi |> semi_join(long_datasets) |> do_cdi_meta(c("t_start", "t_end"))
+accs_cdi_summ_long <- accs_cdi |>
+  semi_join(long_datasets) |>
+  do_cdi_meta(c("t_start", "t_end"))
 ```
 
 
@@ -897,19 +1093,25 @@ accs_cdi_summ_long <- accs_cdi |> semi_join(long_datasets) |> do_cdi_meta(c("t_s
 Correlation with production
 
 ```{r}
-accs_cdi_summ |> ggplot(aes(x = t_start, y = prod_estimate, ymin=prod_ci.lb, ymax=prod_ci.ub, color=as.character(t_end))) +geom_pointrange(position=position_dodge(width=50))+coord_flip()
+accs_cdi_summ |> ggplot(aes(x = t_start, y = prod_estimate, ymin = prod_ci.lb, ymax = prod_ci.ub, color = as.character(t_end))) +
+  geom_pointrange(position = position_dodge(width = 50)) +
+  coord_flip()
 
-accs_cdi_summ_long |> ggplot(aes(x = t_start, y = prod_estimate, ymin=prod_ci.lb, ymax=prod_ci.ub, color=as.character(t_end))) +geom_pointrange(position=position_dodge(width=50))+coord_flip()
-
+accs_cdi_summ_long |> ggplot(aes(x = t_start, y = prod_estimate, ymin = prod_ci.lb, ymax = prod_ci.ub, color = as.character(t_end))) +
+  geom_pointrange(position = position_dodge(width = 50)) +
+  coord_flip()
 ```
 All of these show the expected positive correlation between CDI production and accuracy. Kids who say more words are more accurate.
 Correlation with comprehension
 
 ```{r}
-accs_cdi_summ |> ggplot(aes(x = t_start, y = comp_estimate, ymin=comp_ci.lb, ymax=comp_ci.ub, color=as.character(t_end))) +geom_pointrange(position=position_dodge(width=50))+coord_flip()
+accs_cdi_summ |> ggplot(aes(x = t_start, y = comp_estimate, ymin = comp_ci.lb, ymax = comp_ci.ub, color = as.character(t_end))) +
+  geom_pointrange(position = position_dodge(width = 50)) +
+  coord_flip()
 
-accs_cdi_summ_long |> ggplot(aes(x = t_start, y = comp_estimate, ymin=comp_ci.lb, ymax=comp_ci.ub, color=as.character(t_end))) +geom_pointrange(position=position_dodge(width=50))+coord_flip()
-
+accs_cdi_summ_long |> ggplot(aes(x = t_start, y = comp_estimate, ymin = comp_ci.lb, ymax = comp_ci.ub, color = as.character(t_end))) +
+  geom_pointrange(position = position_dodge(width = 50)) +
+  coord_flip()
 ```
 Looking at comprehension, there aren't big differences, but we see higher correlations with shorter windows (peaking starting at 400ms). For long windows, peak seems to be for really long like 0-4000ms. 
 Again, correlation is positive, as expected!
@@ -920,10 +1122,13 @@ Correlation with age
 Correlating with age isn't a validity check per se, so much as a "if it doesn't correlate with age, we worry" check. 
 
 ```{r}
-accs_cdi_summ |> ggplot(aes(x = t_start, y = age_estimate, ymin=age_ci.lb, ymax=age_ci.ub, color=as.character(t_end))) +geom_pointrange(position=position_dodge(width=50))+coord_flip()
+accs_cdi_summ |> ggplot(aes(x = t_start, y = age_estimate, ymin = age_ci.lb, ymax = age_ci.ub, color = as.character(t_end))) +
+  geom_pointrange(position = position_dodge(width = 50)) +
+  coord_flip()
 
-accs_cdi_summ_long |> ggplot(aes(x = t_start, y = age_estimate, ymin=age_ci.lb, ymax=age_ci.ub, color=as.character(t_end))) +geom_pointrange(position=position_dodge(width=50))+coord_flip()
-
+accs_cdi_summ_long |> ggplot(aes(x = t_start, y = age_estimate, ymin = age_ci.lb, ymax = age_ci.ub, color = as.character(t_end))) +
+  geom_pointrange(position = position_dodge(width = 50)) +
+  coord_flip()
 ```
 Overall, there is a positive correlation with age that is not very effected by windowing choices. 
 
@@ -940,15 +1145,23 @@ accs_cdi_summ_age <- accs_cdi_byage |> do_cdi_meta(c("t_start", "t_end", "age_bi
 Correlation with production
 
 ```{r}
-accs_cdi_summ_age |> filter(!is.na(prod_estimate)) |>  ggplot(aes(x = t_start, y = prod_estimate, ymin=prod_ci.lb, ymax=prod_ci.ub, color=as.character(t_end))) +geom_pointrange(position=position_dodge(width=50))+coord_flip()+facet_wrap(~age_bin)
-
+accs_cdi_summ_age |>
+  filter(!is.na(prod_estimate)) |>
+  ggplot(aes(x = t_start, y = prod_estimate, ymin = prod_ci.lb, ymax = prod_ci.ub, color = as.character(t_end))) +
+  geom_pointrange(position = position_dodge(width = 50)) +
+  coord_flip() +
+  facet_wrap(~age_bin)
 ```
 All of these show the expected positive correlation between CDI production and accuracy. Kids who say more words are more accurate.
 Correlation with comprehension
 
 ```{r}
-accs_cdi_summ_age |> filter(!is.na(comp_estimate)) |>  ggplot(aes(x = t_start, y = comp_estimate, ymin=comp_ci.lb, ymax=comp_ci.ub, color=as.character(t_end))) +geom_pointrange(position=position_dodge(width=50))+coord_flip()+facet_wrap(~age_bin)
-
+accs_cdi_summ_age |>
+  filter(!is.na(comp_estimate)) |>
+  ggplot(aes(x = t_start, y = comp_estimate, ymin = comp_ci.lb, ymax = comp_ci.ub, color = as.character(t_end))) +
+  geom_pointrange(position = position_dodge(width = 50)) +
+  coord_flip() +
+  facet_wrap(~age_bin)
 ```
 Looking at comprehension, there aren't big differences, but we see higher correlations with shorter windows (peaking starting at 400ms). For long windows, peak seems to be for really long like 0-4000ms. 
 Again, correlation is positive, as expected!
@@ -959,17 +1172,37 @@ Correlation with age
 Correlating with age isn't a validity check per se, so much as a "if it doesn't correlate with age, we worry" check. 
 
 ```{r}
-accs_cdi_summ_age |> ggplot(aes(x = t_start, y = age_estimate, ymin=age_ci.lb, ymax=age_ci.ub, color=as.character(t_end))) +geom_pointrange(position=position_dodge(width=50))+coord_flip()+facet_wrap(~age_bin)
-
+accs_cdi_summ_age |> ggplot(aes(x = t_start, y = age_estimate, ymin = age_ci.lb, ymax = age_ci.ub, color = as.character(t_end))) +
+  geom_pointrange(position = position_dodge(width = 50)) +
+  coord_flip() +
+  facet_wrap(~age_bin)
 ```
 Overall, there is a positive correlation with age that is not very effected by windowing choices. 
 
 ```{r}
-accs_cdi_byage |> filter(age_bin=="<18") |>  filter(!is.na(age_est))|> ggplot(aes(x = t_start, y = age_est, ymin=age_lower, ymax=age_upper, color=as.character(t_end))) +geom_pointrange(position=position_dodge(width=50))+coord_flip()+facet_wrap(~dataset_name)
+accs_cdi_byage |>
+  filter(age_bin == "<18") |>
+  filter(!is.na(age_est)) |>
+  ggplot(aes(x = t_start, y = age_est, ymin = age_lower, ymax = age_upper, color = as.character(t_end))) +
+  geom_pointrange(position = position_dodge(width = 50)) +
+  coord_flip() +
+  facet_wrap(~dataset_name)
 
-accs_cdi_byage |> filter(age_bin=="<18") |>  filter(!is.na(prod_est))|> ggplot(aes(x = t_start, y = prod_est, ymin=prod_lower, ymax=prod_upper, color=as.character(t_end))) +geom_pointrange(position=position_dodge(width=50))+coord_flip()+facet_wrap(~dataset_name)
+accs_cdi_byage |>
+  filter(age_bin == "<18") |>
+  filter(!is.na(prod_est)) |>
+  ggplot(aes(x = t_start, y = prod_est, ymin = prod_lower, ymax = prod_upper, color = as.character(t_end))) +
+  geom_pointrange(position = position_dodge(width = 50)) +
+  coord_flip() +
+  facet_wrap(~dataset_name)
 
-accs_cdi_byage |> filter(age_bin=="<18") |>  filter(!is.na(comp_est))|> ggplot(aes(x = t_start, y = comp_est, ymin=comp_lower, ymax=comp_upper, color=as.character(t_end))) +geom_pointrange(position=position_dodge(width=50))+coord_flip()+facet_wrap(~dataset_name)
+accs_cdi_byage |>
+  filter(age_bin == "<18") |>
+  filter(!is.na(comp_est)) |>
+  ggplot(aes(x = t_start, y = comp_est, ymin = comp_lower, ymax = comp_upper, color = as.character(t_end))) +
+  geom_pointrange(position = position_dodge(width = 50)) +
+  coord_flip() +
+  facet_wrap(~dataset_name)
 ```
 
 
@@ -979,18 +1212,22 @@ accs_cdi_byage |> filter(age_bin=="<18") |>  filter(!is.na(comp_est))|> ggplot(a
 ```{r}
 accs_kid_test_retest <- readRDS(here("cached_intermediates", "1_acc_test_retest_boot.rds"))
 
-accs_kid_test_retest_summ <-  accs_kid_test_retest |> do_meta(c("t_start", "t_end"))
+accs_kid_test_retest_summ <- accs_kid_test_retest |> do_meta(c("t_start", "t_end"))
 ```
 
 
 ```{r}
-accs_kid_test_retest |> ggplot(aes(x=t_start, y=est, ymin=lower, ymax=upper, color=as.character(t_end)))+geom_pointrange(position = position_dodge(width=50))+facet_wrap(~dataset_name)+geom_hline(yintercept=0)
+accs_kid_test_retest |> ggplot(aes(x = t_start, y = est, ymin = lower, ymax = upper, color = as.character(t_end))) +
+  geom_pointrange(position = position_dodge(width = 50)) +
+  facet_wrap(~dataset_name) +
+  geom_hline(yintercept = 0)
 ```
 
 
 ```{r}
-accs_kid_test_retest_summ |> ggplot(aes(x=t_start, y=estimate, ymin=ci.lb, ymax=ci.ub, color=as.character(t_end)))+geom_pointrange(position = position_dodge(width=50))+geom_hline(yintercept=0)
-
+accs_kid_test_retest_summ |> ggplot(aes(x = t_start, y = estimate, ymin = ci.lb, ymax = ci.ub, color = as.character(t_end))) +
+  geom_pointrange(position = position_dodge(width = 50)) +
+  geom_hline(yintercept = 0)
 ```
 
 
@@ -999,93 +1236,173 @@ accs_kid_test_retest_summ |> ggplot(aes(x=t_start, y=estimate, ymin=ci.lb, ymax=
 # how much t/d looking on longer places (and in what datasets)
 
 ```{r}
-d_aoi |> group_by(dataset_name, t_norm) |> mutate(has_data=aoi %in% c("target", "distractor")) |> 
-  summarize(s=sum(has_data),
-            n=n()) |> 
-  ggplot(aes(x=t_norm, y=n))+geom_col(fill="blue")+facet_wrap(~dataset_name, scales="free_y") +
-  coord_cartesian(xlim=c(0,4050))+geom_vline(xintercept=3800)
+d_aoi |>
+  group_by(dataset_name, t_norm) |>
+  mutate(has_data = aoi %in% c("target", "distractor")) |>
+  summarize(
+    s = sum(has_data),
+    n = n()
+  ) |>
+  ggplot(aes(x = t_norm, y = n)) +
+  geom_col(fill = "blue") +
+  facet_wrap(~dataset_name, scales = "free_y") +
+  coord_cartesian(xlim = c(0, 4050)) +
+  geom_vline(xintercept = 3800)
 
-d_aoi |> group_by(dataset_name, t_norm) |> mutate(has_data=aoi %in% c("target", "distractor")) |> 
-  summarize(s=sum(has_data),
-            n=n()) |> 
-  group_by(dataset_name) |> 
-  mutate(max_n=max(n)) |> 
-  ggplot(aes(x=t_norm, y=s/n, color=dataset_name))+geom_line()+facet_wrap(~dataset_name)+
-  coord_cartesian(xlim=c(-4000,4050), ylim=c(0, 1))+theme(legend.position ="none")+
-  geom_vline(xintercept=0)+geom_vline(xintercept=2000)
+d_aoi |>
+  group_by(dataset_name, t_norm) |>
+  mutate(has_data = aoi %in% c("target", "distractor")) |>
+  summarize(
+    s = sum(has_data),
+    n = n()
+  ) |>
+  group_by(dataset_name) |>
+  mutate(max_n = max(n)) |>
+  ggplot(aes(x = t_norm, y = s / n, color = dataset_name)) +
+  geom_line() +
+  facet_wrap(~dataset_name) +
+  coord_cartesian(xlim = c(-4000, 4050), ylim = c(0, 1)) +
+  theme(legend.position = "none") +
+  geom_vline(xintercept = 0) +
+  geom_vline(xintercept = 2000)
 
-d_aoi |> group_by(dataset_name, t_norm) |> mutate(has_data=aoi %in% c("target", "distractor")) |> 
-  summarize(s=sum(has_data),
-            n=n()) |> 
-  group_by(dataset_name) |> 
-  mutate(max_n=max(n)) |> 
-  ggplot(aes(x=t_norm, y=s, color=dataset_name))+geom_line()+facet_wrap(~dataset_name, scales="free_y")+
-  coord_cartesian(xlim=c(-4000,4050))+theme(legend.position ="none")+
-  geom_vline(xintercept=0)+geom_vline(xintercept=2000)
+d_aoi |>
+  group_by(dataset_name, t_norm) |>
+  mutate(has_data = aoi %in% c("target", "distractor")) |>
+  summarize(
+    s = sum(has_data),
+    n = n()
+  ) |>
+  group_by(dataset_name) |>
+  mutate(max_n = max(n)) |>
+  ggplot(aes(x = t_norm, y = s, color = dataset_name)) +
+  geom_line() +
+  facet_wrap(~dataset_name, scales = "free_y") +
+  coord_cartesian(xlim = c(-4000, 4050)) +
+  theme(legend.position = "none") +
+  geom_vline(xintercept = 0) +
+  geom_vline(xintercept = 2000)
 
-d_aoi |> group_by(dataset_name, t_norm, aoi) |>
-  summarize(n=n()) |> 
-  group_by(dataset_name) |> 
-  ggplot(aes(x=t_norm, y=n, fill=aoi, color=aoi))+geom_col(position="stack")+facet_wrap(~dataset_name, scales="free_y")+
-  coord_cartesian(xlim=c(-4000,4050))+
-  geom_vline(xintercept=0)+geom_vline(xintercept=2000)+geom_vline(xintercept=3000)+geom_vline(xintercept=4000)+
-  scale_fill_manual(aesthetics=c("fill", "color"), values=c("target"="darkgreen", "distractor"="red", "missing"="grey", "other"="grey"))+theme(legend.position="bottom")
+d_aoi |>
+  group_by(dataset_name, t_norm, aoi) |>
+  summarize(n = n()) |>
+  group_by(dataset_name) |>
+  ggplot(aes(x = t_norm, y = n, fill = aoi, color = aoi)) +
+  geom_col(position = "stack") +
+  facet_wrap(~dataset_name, scales = "free_y") +
+  coord_cartesian(xlim = c(-4000, 4050)) +
+  geom_vline(xintercept = 0) +
+  geom_vline(xintercept = 2000) +
+  geom_vline(xintercept = 3000) +
+  geom_vline(xintercept = 4000) +
+  scale_fill_manual(aesthetics = c("fill", "color"), values = c("target" = "darkgreen", "distractor" = "red", "missing" = "grey", "other" = "grey")) +
+  theme(legend.position = "bottom")
 
 
-by_age <- d_aoi |> mutate(age_bin = case_when(
-  age<12 ~ "<12",
-  age< 18 ~ "12-18",
-  age < 24~ "18-24",
-  age< 36~ "24-36",
-  age<48~ "36-48",
-  age>=48~ ">=48")) |>
-   group_by(dataset_name, t_norm, aoi, age_bin) |>
-  summarize(n=n()) |> 
+by_age <- d_aoi |>
+  mutate(age_bin = case_when(
+    age < 12 ~ "<12",
+    age < 18 ~ "12-18",
+    age < 24 ~ "18-24",
+    age < 36 ~ "24-36",
+    age < 48 ~ "36-48",
+    age >= 48 ~ ">=48"
+  )) |>
+  group_by(dataset_name, t_norm, aoi, age_bin) |>
+  summarize(n = n()) |>
   group_by(dataset_name)
 ```
 
 
 ```{r}
-by_age |> filter(age_bin=="<12") |> 
-  ggplot(aes(x=t_norm, y=n, fill=aoi, color=aoi))+geom_col(position="stack")+facet_wrap(age_bin~dataset_name, scales="free_y")+
-  coord_cartesian(xlim=c(-4000,4050))+
-  geom_vline(xintercept=0)+geom_vline(xintercept=2000)+geom_vline(xintercept=3000)+geom_vline(xintercept=4000)+  scale_fill_manual(aesthetics=c("fill", "color"), values=c("target"="darkgreen", "distractor"="red", "missing"="grey", "other"="grey"))+theme(legend.position="bottom")
+by_age |>
+  filter(age_bin == "<12") |>
+  ggplot(aes(x = t_norm, y = n, fill = aoi, color = aoi)) +
+  geom_col(position = "stack") +
+  facet_wrap(age_bin ~ dataset_name, scales = "free_y") +
+  coord_cartesian(xlim = c(-4000, 4050)) +
+  geom_vline(xintercept = 0) +
+  geom_vline(xintercept = 2000) +
+  geom_vline(xintercept = 3000) +
+  geom_vline(xintercept = 4000) +
+  scale_fill_manual(aesthetics = c("fill", "color"), values = c("target" = "darkgreen", "distractor" = "red", "missing" = "grey", "other" = "grey")) +
+  theme(legend.position = "bottom")
 ```
 
 ```{r}
-by_age |> filter(age_bin=="12-18") |> 
-  ggplot(aes(x=t_norm, y=n, fill=aoi, color=aoi))+geom_col(position="stack")+facet_wrap(age_bin~dataset_name, scales="free_y")+
-  coord_cartesian(xlim=c(-4000,4050))+
-  geom_vline(xintercept=0)+geom_vline(xintercept=2000)+geom_vline(xintercept=3000)+geom_vline(xintercept=4000)+  scale_fill_manual(aesthetics=c("fill", "color"), values=c("target"="darkgreen", "distractor"="red", "missing"="grey", "other"="grey"))+theme(legend.position="bottom")
+by_age |>
+  filter(age_bin == "12-18") |>
+  ggplot(aes(x = t_norm, y = n, fill = aoi, color = aoi)) +
+  geom_col(position = "stack") +
+  facet_wrap(age_bin ~ dataset_name, scales = "free_y") +
+  coord_cartesian(xlim = c(-4000, 4050)) +
+  geom_vline(xintercept = 0) +
+  geom_vline(xintercept = 2000) +
+  geom_vline(xintercept = 3000) +
+  geom_vline(xintercept = 4000) +
+  scale_fill_manual(aesthetics = c("fill", "color"), values = c("target" = "darkgreen", "distractor" = "red", "missing" = "grey", "other" = "grey")) +
+  theme(legend.position = "bottom")
 ```
 ```{r}
-by_age |> filter(age_bin=="18-24") |> 
-  ggplot(aes(x=t_norm, y=n, fill=aoi, color=aoi))+geom_col(position="stack")+facet_wrap(age_bin~dataset_name, scales="free_y")+
-  coord_cartesian(xlim=c(-4000,4050))+
-  geom_vline(xintercept=0)+geom_vline(xintercept=2000)+geom_vline(xintercept=3000)+geom_vline(xintercept=4000)+  scale_fill_manual(aesthetics=c("fill", "color"), values=c("target"="darkgreen", "distractor"="red", "missing"="grey", "other"="grey"))+theme(legend.position="bottom")
+by_age |>
+  filter(age_bin == "18-24") |>
+  ggplot(aes(x = t_norm, y = n, fill = aoi, color = aoi)) +
+  geom_col(position = "stack") +
+  facet_wrap(age_bin ~ dataset_name, scales = "free_y") +
+  coord_cartesian(xlim = c(-4000, 4050)) +
+  geom_vline(xintercept = 0) +
+  geom_vline(xintercept = 2000) +
+  geom_vline(xintercept = 3000) +
+  geom_vline(xintercept = 4000) +
+  scale_fill_manual(aesthetics = c("fill", "color"), values = c("target" = "darkgreen", "distractor" = "red", "missing" = "grey", "other" = "grey")) +
+  theme(legend.position = "bottom")
 ```
 
 
 ```{r}
-by_age |> filter(age_bin=="24-36") |> 
-  ggplot(aes(x=t_norm, y=n, fill=aoi, color=aoi))+geom_col(position="stack")+facet_wrap(age_bin~dataset_name, scales="free_y")+
-  coord_cartesian(xlim=c(-4000,4050))+
-  geom_vline(xintercept=0)+geom_vline(xintercept=2000)+geom_vline(xintercept=3000)+geom_vline(xintercept=4000)+  scale_fill_manual(aesthetics=c("fill", "color"), values=c("target"="darkgreen", "distractor"="red", "missing"="grey", "other"="grey"))+theme(legend.position="bottom")
+by_age |>
+  filter(age_bin == "24-36") |>
+  ggplot(aes(x = t_norm, y = n, fill = aoi, color = aoi)) +
+  geom_col(position = "stack") +
+  facet_wrap(age_bin ~ dataset_name, scales = "free_y") +
+  coord_cartesian(xlim = c(-4000, 4050)) +
+  geom_vline(xintercept = 0) +
+  geom_vline(xintercept = 2000) +
+  geom_vline(xintercept = 3000) +
+  geom_vline(xintercept = 4000) +
+  scale_fill_manual(aesthetics = c("fill", "color"), values = c("target" = "darkgreen", "distractor" = "red", "missing" = "grey", "other" = "grey")) +
+  theme(legend.position = "bottom")
 ```
 
 
 ```{r}
-by_age |> filter(age_bin%in%c("36-48")) |> 
-  ggplot(aes(x=t_norm, y=n, fill=aoi, color=aoi))+geom_col(position="stack")+facet_wrap(age_bin~dataset_name, scales="free_y")+
-  coord_cartesian(xlim=c(-4000,4050))+
-  geom_vline(xintercept=0)+geom_vline(xintercept=2000)+geom_vline(xintercept=3000)+geom_vline(xintercept=4000)+  scale_fill_manual(aesthetics=c("fill", "color"), values=c("target"="darkgreen", "distractor"="red", "missing"="grey", "other"="grey"))+theme(legend.position="bottom")
+by_age |>
+  filter(age_bin %in% c("36-48")) |>
+  ggplot(aes(x = t_norm, y = n, fill = aoi, color = aoi)) +
+  geom_col(position = "stack") +
+  facet_wrap(age_bin ~ dataset_name, scales = "free_y") +
+  coord_cartesian(xlim = c(-4000, 4050)) +
+  geom_vline(xintercept = 0) +
+  geom_vline(xintercept = 2000) +
+  geom_vline(xintercept = 3000) +
+  geom_vline(xintercept = 4000) +
+  scale_fill_manual(aesthetics = c("fill", "color"), values = c("target" = "darkgreen", "distractor" = "red", "missing" = "grey", "other" = "grey")) +
+  theme(legend.position = "bottom")
 ```
 
 ```{r}
-by_age |> filter(age_bin%in%c(">=48")) |> 
-  ggplot(aes(x=t_norm, y=n, fill=aoi, color=aoi))+geom_col(position="stack")+facet_wrap(age_bin~dataset_name, scales="free_y")+
-  coord_cartesian(xlim=c(-4000,4050))+
-  geom_vline(xintercept=0)+geom_vline(xintercept=2000)+geom_vline(xintercept=3000)+geom_vline(xintercept=4000)+  scale_fill_manual(aesthetics=c("fill", "color"), values=c("target"="darkgreen", "distractor"="red", "missing"="grey", "other"="grey"))+theme(legend.position="bottom")
+by_age |>
+  filter(age_bin %in% c(">=48")) |>
+  ggplot(aes(x = t_norm, y = n, fill = aoi, color = aoi)) +
+  geom_col(position = "stack") +
+  facet_wrap(age_bin ~ dataset_name, scales = "free_y") +
+  coord_cartesian(xlim = c(-4000, 4050)) +
+  geom_vline(xintercept = 0) +
+  geom_vline(xintercept = 2000) +
+  geom_vline(xintercept = 3000) +
+  geom_vline(xintercept = 4000) +
+  scale_fill_manual(aesthetics = c("fill", "color"), values = c("target" = "darkgreen", "distractor" = "red", "missing" = "grey", "other" = "grey")) +
+  theme(legend.position = "bottom")
 ```
 
 # Summary

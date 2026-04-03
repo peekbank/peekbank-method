@@ -91,7 +91,9 @@ regroup_rt <- function(df) {
         T ~ "untrimmed"
       )
     ) |>
-    filter(trimming != "trim_last")
+    filter(trimming != "trim_last") |>
+    ungroup() |>
+    select(-time_0, -time_end, -during, -frac)
 }
 
 name_rt <- function(df) {

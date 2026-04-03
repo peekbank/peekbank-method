@@ -15,7 +15,7 @@ set.seed(42)
 
 get_age_bin_cutoff <- function(d_aoi, min_per_bin = 5) {
   d_aoi |>
-    filter(!is.na(correct)) |>
+    # filter(!is.na(correct)) |>
     distinct(administration_id, age, dataset_name) |>
     mutate(age_bin = case_when(
       age < 18 ~ "<18",
