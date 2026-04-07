@@ -6,7 +6,7 @@ library(viridis)
 library(metafor)
 library(ggh4x)
 knitr::opts_chunk$set(
-  cache.extra = knitr::rand_seed, cache = TRUE,
+  cache.extra = knitr::rand_seed, cache = FALSE,
   message = FALSE, warning = FALSE, error = FALSE, echo = F,
   fig.height = 4, fig.width = 6
 )

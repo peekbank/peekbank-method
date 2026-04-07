@@ -71,6 +71,39 @@ header-includes:
 <!-- Data-driven guidance for processing LWL data to maximize reliability and validity -->
 <!-- Data-driven guidance for extracting the most reliability and validity from LWL data  -->
 
+# Decisions to make
+
+* what information goes in the paper 
+  * and what is in figures versus in text
+  * and what the figures look like 
+
+* what info just goes in supplement
+  * robustness 
+  * how to present the figures
+  
+* what baselines to use (for models)
+  * and what conditions to use for later analyses
+
+* what to weight by -- admins or trials 
+
+* for RT we expect negative correlations with CDI measures (shorter RT = better = more words) -- should we flip these in visuals so there's a consistent "stronger correlation in expected direction" 
+
+* should we weight the lollipop plots somehow? 
+
+* for ICC, I excluded datasets that had ICC of 0 for the majority of the parameter combos (for ex. accuracy) as a "there isn't signal here to optimize". There are a couple datasets where the correlation with CDI is (all or some of the time) in the unexpected direction (these are in some cases datasets that were dropped from ICC). We could come up with a similar criteria, but it's sketchier because there's not a "failure condition" the way there is with ICC. 
+
+  * moore bergelson (excluded for low ICC, but correlation with CDI is in reversed direction for accuracy)
+  * kartushina similar for production (but not comp?)
+  * egger is also weird ()
+
+* for exclusions -- how to show gains versus amount of data left...
+
+* for exclusions -- does anyone actually require kids to look at both options in the *pre* window? 
+
+* work more on simulation viz
+
+* for by-age may want to check on why we aren't getting error bars all the time -- is it an NA problem or what?  -- in some cases may be that if error bars don't fit in plot limits they get cut off 
+
 
 
 # Introduction
@@ -87,7 +120,7 @@ source(here("helper/rt_helper.R"))
 ```{r analysis-preferences}
 # Seed for random number generation
 set.seed(42)
-knitr::opts_chunk$set(cache.extra = knitr::rand_seed, cache=F)
+knitr::opts_chunk$set(cache.extra = knitr::rand_seed)
 ```
 
 
@@ -236,85 +269,120 @@ filter_icc <- function(data, col_est) {
   data |> semi_join(include |> filter(pct_0 < .5))
 }
 
-do_lollipop_plot <- function(df, name, include_condition){
-  df |> mutate(name=name) |> 
-    {{include_condition}}() |> 
-    filter(!is.na(combined)) |> 
-  ggplot(aes(x=reorder(dataset_name, est), y=est))+geom_line() + geom_point(aes(color=combined))+coord_flip()+labs(x="dataset", y="Correlation")+scale_color_solarized(accent="red")+facet_wrap(~name, nrow=1)+theme(legend.position="none")
+do_lollipop_plot <- function(df, name, include_condition) {
+  df |>
+    mutate(name = name) |>
+    {{ include_condition }}() |>
+    filter(!is.na(combined)) |>
+    left_join(clean_names) |>
+    ggplot(aes(x = reorder(`Dataset Name`, est), y = est)) +
+    geom_line() +
+    geom_point(aes(color = combined)) +
+    coord_flip() +
+    labs(y = "Correlation") +
+    scale_color_solarized(accent = "red") +
+    facet_wrap(~name, nrow = 1) +
+    geom_hline(yintercept=0)+
+    theme(legend.position = "none", axis.title.y =element_blank())
 }
 
 
 
-set_of_lollis <- function(icc, cdi, trt, include_func){
-  a <- do_lollipop_plot(icc |> filter_icc("est"), "ICC reliability", {{include_func}})
-  b <- do_lollipop_plot( cdi |> filter(!is.na(comp_est)) |> rename(est=comp_est), "CDI Comp", {{include_func}})
-  c <- do_lollipop_plot( cdi |> filter(!is.na(prod_est)) |> rename(est=prod_est), "CDI Prod", {{include_func}})
-  d <- do_lollipop_plot( trt |> filter(!is.na(est)), "Test retest", {{include_func}})
-  
-g <- ggplotGrob(a + theme(legend.position = "bottom"))
-leg <- g$grobs[[which(g$layout$name == "guide-box-bottom")]]
+set_of_lollis <- function(icc, cdi, trt, include_func) {
+  a <- do_lollipop_plot(icc |> filter_icc("est"), "ICC reliability", {{ include_func }})
+  b <- do_lollipop_plot(cdi |> filter(!is.na(comp_est)) |> rename(est = comp_est), "CDI Comp", {{ include_func }})
+  c <- do_lollipop_plot(cdi |> filter(!is.na(prod_est)) |> rename(est = prod_est), "CDI Prod", {{ include_func }})
+  d <- do_lollipop_plot(trt |> filter(!is.na(est)), "Test retest", {{ include_func }})
 
-plot_grid(plot_grid(a,d), plot_grid(b,c), leg, nrow=3, rel_heights=c(1,1,.1)) 
+  g <- ggplotGrob(a + theme(legend.position = "bottom"))
+  leg <- g$grobs[[which(g$layout$name == "guide-box-bottom")]]
+
+  plot_grid(plot_grid(a, d), plot_grid(b, c), leg, nrow = 3, rel_heights = c(1, 1, .1))
 }
 ```
 
 
 ```{r}
-do_model <- function(df, make_baseline, weight_df, form){
-  data <- df |> filter(!is.na(est)) |> 
-    left_join(weight_df) |> 
-    mutate(across(!est & !n_admins, as.factor)) |> 
-    {{make_baseline}}()
-  
-  mod <- lmer(str_c("est ~", form, "+ (1 | dataset_name)"), data=data, weights=n_admins)
-  emm <- emmeans(mod, as.formula(str_c("~", form)))
-  contrast(emm, method = "trt.vs.ctrl", ref = 1) |> tidy(conf.int=T) 
+do_model <- function(df, make_baseline, weight_df, form) {
+  data <- df |>
+    filter(!is.na(est)) |>
+    left_join(weight_df) |>
+    mutate(across(!est & !n_admins, as.factor)) |>
+    {{ make_baseline }}()
 
+  mod <- lmer(str_c("est ~", form, "+ (1 | dataset_name)"), data = data, weights = n_admins)
+  emm <- emmeans(mod, as.formula(str_c("~", form)))
+  contrast(emm, method = "trt.vs.ctrl", ref = 1) |> tidy(conf.int = T)
 }
 
 
 
-make_model_plot <- function(df, x, col=NULL, facet=NULL, fix_function, lab, breaks=c( -.1,  0, .1), limits=c(-.2, .2)){
+make_model_plot <- function(df, x, col = NULL, facet = NULL, fix_function, lab, breaks = c(-.1, 0, .1), limits = c(-.2, .2), dodge=0) {
   facet_quo <- rlang::enquo(facet)
-  p <-  df |> {{fix_function}}() |> ggplot(aes(x={{x}}, col={{col}}, y=estimate, ymin=conf.low, ymax=conf.high))+geom_pointrange()+coord_flip()+labs(y=lab)+scale_y_continuous(breaks=breaks, limits=limits)+geom_hline(yintercept=0)
-  
+  p <- df |>
+    {{ fix_function }}() |>
+    ggplot(aes(x = {{ x }}, col = {{ col }}, y = estimate, ymin = conf.low, ymax = conf.high)) +
+    geom_pointrange(position=position_dodge2(width = dodge)) +
+    coord_flip() +
+    labs(y = lab) +
+    scale_y_continuous(breaks = breaks, limits = limits) +
+    geom_hline(yintercept = 0) +
+    theme(legend.position = "none",)
+
   if (!rlang::quo_is_null(facet_quo)) {
     p <- p + facet_wrap(vars(!!facet_quo))
   }
-  
-  p
 
+  p
 }
 
-make_model_grid_plot <- function(icc, cdi, trt, make_baseline, form, x, col=NULL, facet=NULL, fix_function, breaks=c( -.1,  0, .1), limits=c(-.2, .2)){
-  icc_plot<- do_model(icc |> filter_icc("est"), {{make_baseline}}, 
-                          dataset_summ |> group_by(dataset_name) |> summarize(n_admins=n_distinct(administration_id)), 
-                          form) |> make_model_plot({{x}}, col={{col}}, facet={{facet}}, fix_function={{fix_function}},
-                                                   lab="ICC reliability", breaks, limits)
-    comp_plot<- do_model(cdi |> filter(!is.na(comp_est)) |> rename(est=comp_est), {{make_baseline}}, 
-                          dataset_summ |> group_by(dataset_name) |> filter(!is.na(comp)) |> summarize(n_admins=n_distinct(administration_id)), 
-                          form) |> make_model_plot({{x}}, col={{col}}, facet={{facet}}, fix_function={{fix_function}},
-                                                   lab="CDI Comp", breaks, limits)
-        prod_plot<- do_model(cdi |> filter(!is.na(prod_est)) |> rename(est=prod_est), {{make_baseline}}, 
-                          dataset_summ |> group_by(dataset_name) |> filter(!is.na(prod))|> summarize(n_admins=n_distinct(administration_id)), 
-                          form) |> make_model_plot({{x}}, col={{col}}, facet={{facet}}, fix_function={{fix_function}},
-                                                   lab="CDI Prod", breaks=breaks, limits=limits)
-            trt_plot<- do_model(trt |> filter(!is.na(est)), {{make_baseline}}, 
-                          dataset_summ |> make_test_retest_pairs() |> group_by(dataset_name) |>
-    summarize(n_admins = n_distinct(pair_number)), 
-                          form) |> make_model_plot({{x}}, col={{col}}, facet={{facet}}, fix_function={{fix_function}},
-                                                   lab="TRT", breaks=breaks, limits=limits)
-            plot_grid(plot_grid(icc_plot,trt_plot), plot_grid(comp_plot,prod_plot), nrow=2,rel_heights=c(1,1)) 
-            
+make_model_grid_plot <- function(icc, cdi, trt, make_baseline, form, x, col = NULL, facet = NULL, fix_function, breaks = c(-.1, 0, .1), limits = c(-.2, .2), dodge=0) {
+  icc_plot <- do_model(
+    icc |> filter_icc("est"), {{ make_baseline }},
+    dataset_summ |> group_by(dataset_name) |> summarize(n_admins = n_distinct(administration_id)),
+    form
+  ) |> make_model_plot({{ x }},
+    col = {{ col }}, facet = {{ facet }}, fix_function = {{ fix_function }},
+    lab = "ICC reliability", breaks=breaks, limits=limits, dodge=dodge
+  )
+  comp_plot <- do_model(
+    cdi |> filter(!is.na(comp_est)) |> rename(est = comp_est), {{ make_baseline }},
+    dataset_summ |> group_by(dataset_name) |> filter(!is.na(comp)) |> summarize(n_admins = n_distinct(administration_id)),
+    form
+  ) |> make_model_plot({{ x }},
+    col = {{ col }}, facet = {{ facet }}, fix_function = {{ fix_function }},
+    lab = "CDI Comp", breaks=breaks, limits=limits, dodge=dodge
+  )
+  prod_plot <- do_model(
+    cdi |> filter(!is.na(prod_est)) |> rename(est = prod_est), {{ make_baseline }},
+    dataset_summ |> group_by(dataset_name) |> filter(!is.na(prod)) |> summarize(n_admins = n_distinct(administration_id)),
+    form
+  ) |> make_model_plot({{ x }},
+    col = {{ col }}, facet = {{ facet }}, fix_function = {{ fix_function }},
+    lab = "CDI Prod", breaks = breaks, limits = limits, dodge=dodge
+  )
+  trt_plot <- do_model(
+    trt |> filter(!is.na(est)), {{ make_baseline }},
+    dataset_summ |> make_test_retest_pairs() |> group_by(dataset_name) |>
+      summarize(n_admins = n_distinct(pair_number)),
+    form
+  ) |> make_model_plot({{ x }},
+    col = {{ col }}, facet = {{ facet }}, fix_function = {{ fix_function }},
+    lab = "TRT", breaks = breaks, limits = limits, dodge=dodge
+  )
+
+  g <- ggplotGrob(icc_plot + theme(legend.position = "bottom"))
+  leg <- g$grobs[[which(g$layout$name == "guide-box-bottom")]]
+
+  plot_grid(plot_grid(icc_plot, trt_plot), plot_grid(comp_plot, prod_plot), leg, nrow = 3, rel_heights = c(1, 1, .1))
 }
 ```
 
 
 ```{r}
-
 bin_ages <- function(d_aoi, min_per_bin = 5) {
   d_aoi |>
-    distinct(administration_id, age, dataset_name, across(any_of(c("prod", "comp", "pair_number")))) |>
+    distinct(administration_id, age, dataset_name, across(any_of(c("prod", "comp", "pair_number", "est")))) |>
     mutate(age_bin = case_when(
       age < 18 ~ "<18",
       age < 24 ~ "18-24",
@@ -326,74 +394,115 @@ bin_ages <- function(d_aoi, min_per_bin = 5) {
     filter(count >= min_per_bin) |>
     ungroup()
 }
-do_model_age<- function(df, make_baseline, weight_df, form){
-  weight_df
-  
-  data <- df |> filter(!is.na(est)) |> 
-    left_join(weight_df) |> 
-    mutate(across(!est & !n_admins, as.factor)) |> 
-    {{make_baseline}}()
-  
-  data |> group_by(age_bin) |> nest() |> 
-    mutate(result=map(data,
-      possibly(
-  function(d) {
-mod <- lmer(str_c("est ~", form, "+ (1 | dataset_name)"), data=d, weights=n_admins)
-  emm <- emmeans(mod, as.formula(str_c("~", form)))
-  contrast(emm, method = "trt.vs.ctrl", ref = 1) |> tidy(conf.int=T)   },
-  otherwise = NULL
-))) |> 
-    select(-data) |>
-      filter(!map_lgl(result, is.null)) |>
-unnest(result) |> View()
 
+safe_model_age <- function(d, form) {
+  tryCatch(
+    {
+      mod <- lmer(str_c("est ~", form, "+ (1 | dataset_name)"), data = d, weights = n_admins)
+      emm <- emmeans(mod, as.formula(str_c("~", form)))
+      contrast(emm, method = "trt.vs.ctrl", ref = 1) |> tidy(conf.int = TRUE)
+    },
+    error = function(e) {
+      message(
+        "Failed for age_bin with ", nrow(d), " rows, ",
+        n_distinct(d$dataset_name), " datasets: ", e$message
+      )
+      NULL
+    }
+  )
+}
+do_model_age <- function(df, make_baseline, weight_df, form) {
+  weight_df
+
+  data <- df |>
+    filter(!is.na(est)) |>
+    left_join(weight_df) |>
+    mutate(across(!est & !n_admins, as.factor)) |>
+    {{ make_baseline }}()
+
+  data |>
+    group_by(age_bin) |>
+    nest() |>
+    mutate(result = map(data, \(d){
+      safe_model_age(d, form)
+    })) |>
+    select(-data) |>
+    filter(!map_lgl(result, is.null)) |>
+    unnest(result)
 }
 
 
 
-make_model_plot_age <- function(df, x, col=NULL, facet=NULL, fix_function, lab, breaks=c( -.1,  0, .1), limits=c(-.2, .2)){
+make_model_plot_age <- function(df, x, col = NULL, facet = NULL, fix_function, lab, breaks = c(-.1, 0, .1), limits = c(-.2, .2), dodge = .5) {
   facet_quo <- rlang::enquo(facet)
-  View(df)
-  p <-  df |> {{fix_function}}() |> ggplot(aes(x={{x}}, col=age_bin, y=estimate, ymin=conf.low, ymax=conf.high))+geom_pointrange()+coord_flip()+labs(y=lab)+scale_y_continuous(breaks=breaks, limits=limits)+geom_hline(yintercept=0)
-  
+  p <- df |>
+    {{ fix_function }}() |>
+    mutate(age_bin = factor(age_bin, levels = c("<18", "18-24", "24-36", ">=36"))) |>
+    ggplot(aes(x = {{ x }}, col = age_bin, y = estimate, ymin = conf.low, ymax = conf.high)) +
+    geom_pointrange(position = position_dodge2(width = dodge)) +
+    coord_flip() +
+    labs(y = lab) +
+    scale_y_continuous(breaks = breaks, limits = limits) +
+    geom_hline(yintercept = 0) +
+    theme(legend.position = "none") +
+    scale_color_manual(values = c("<18" = "#FDE725", "18-24" = "#35B779", "24-36" = "#31688E", ">=36" = "#440154"))
+
   if (!rlang::quo_is_null(facet_quo)) {
     p <- p + facet_wrap(vars(!!facet_quo))
   }
-  
-  p
 
+  p
 }
 
-make_model_grid_plot_age <- function(icc, cdi, trt, make_baseline, form, x, facet=NULL, fix_function, breaks=c( -.1,  0, .1), limits=c(-.2, .2)){
-  icc_plot<- do_model_age(icc |> filter_icc("est"), {{make_baseline}}, 
-                          dataset_summ |> bin_ages() |> group_by(dataset_name, age_bin) |> summarize(n_admins=n_distinct(administration_id)), 
-                          form) |> make_model_plot_age({{x}},  facet={{facet}}, fix_function={{fix_function}},
-                                                   lab="ICC reliability", breaks, limits)
-    comp_plot<- do_model_age(cdi |> filter(!is.na(comp_est)) |> rename(est=comp_est), {{make_baseline}}, 
-                          dataset_summ |> bin_ages() |> group_by(dataset_name, age_bin) |> filter(!is.na(comp)) |> summarize(n_admins=n_distinct(administration_id)), 
-                          form) |> make_model_plot_age({{x}},  facet={{facet}}, fix_function={{fix_function}},
-                                                   lab="CDI Comp", breaks, limits)
-        prod_plot<- do_model_age(cdi |> filter(!is.na(prod_est)) |> rename(est=prod_est), {{make_baseline}}, 
-                          dataset_summ |> bin_ages() |> group_by(dataset_name, age_bin) |> filter(!is.na(prod))|> summarize(n_admins=n_distinct(administration_id)), 
-                          form) |> make_model_plot_age({{x}}, facet={{facet}}, fix_function={{fix_function}},
-                                                   lab="CDI Prod", breaks=breaks, limits=limits)
-            trt_plot<- do_model_age(trt |> filter(!is.na(est)), {{make_baseline}}, 
-                          dataset_summ |>  make_test_retest_pairs() |> mutate(age=mean_age)|>bin_ages()|> group_by(dataset_name, age_bin) |>
-    summarize(n_admins = n_distinct(pair_number)), 
-                          form) |> make_model_plot_age({{x}}, facet={{facet}}, fix_function={{fix_function}},
-                                                   lab="TRT", breaks=breaks, limits=limits)
-            plot_grid(plot_grid(icc_plot,trt_plot), plot_grid(comp_plot,prod_plot), nrow=2,rel_heights=c(1,1)) 
-            
+make_model_grid_plot_age <- function(icc, cdi, make_baseline, form, x, facet = NULL, fix_function, dodge = .5, breaks = c(-.1, 0, .1), limits = c(-.2, .2) ) {
+  icc_plot <- do_model_age(
+    icc |> filter_icc("est"), {{ make_baseline }},
+    dataset_summ |> bin_ages() |> group_by(dataset_name, age_bin) |> summarize(n_admins = n_distinct(administration_id)),
+    form
+  ) |> make_model_plot_age({{ x }},
+    facet = {{ facet }}, fix_function = {{ fix_function }},
+    lab = "ICC reliability", breaks=breaks, limits=limits, dodge=dodge
+  )
+  comp_plot <- do_model_age(
+    cdi |> filter(!is.na(comp_est)) |> rename(est = comp_est), {{ make_baseline }},
+    dataset_summ |> bin_ages() |> group_by(dataset_name, age_bin) |> filter(!is.na(comp)) |> summarize(n_admins = n_distinct(administration_id)),
+    form
+  ) |> make_model_plot_age({{ x }},
+    facet = {{ facet }}, fix_function = {{ fix_function }},
+    lab = "CDI Comp", breaks=breaks, limits=limits, dodge=dodge
+  )
+  prod_plot <- do_model_age(
+    cdi |> filter(!is.na(prod_est)) |> rename(est = prod_est), {{ make_baseline }},
+    dataset_summ |> bin_ages() |> group_by(dataset_name, age_bin) |> filter(!is.na(prod)) |> summarize(n_admins = n_distinct(administration_id)),
+    form
+  ) |> make_model_plot_age({{ x }},
+    facet = {{ facet }}, fix_function = {{ fix_function }},
+    lab = "CDI Prod", breaks = breaks, limits = limits, dodge=dodge
+  )
+
+  g <- ggplotGrob(icc_plot + theme(legend.position = "right"))
+  leg <- g$grobs[[which(g$layout$name == "guide-box-right")]]
+
+  plot_grid(plot_grid(icc_plot, leg), plot_grid(comp_plot, prod_plot), nrow = 2, rel_heights = c(1, 1))
 }
 ```
-# accuracy 
+
+\pagebreak
+\FloatBarrier
+
+# Accuracy 
+
+
 ```{r acc-heat-map, fig.cap="A heat map showing the average ICC across datasets for different start and end points for the accuracy window. A region with the highest ICC (best reliability) is outlined.", fig.width=5, fig.height=3}
-icc_noboot <- readRDS(here("cached_intermediates", "1_acc_icc_noboot.rds")) 
+icc_noboot <- readRDS(here("cached_intermediates", "1_acc_icc_noboot.rds"))
 
-include <- icc_noboot |> group_by(dataset_name) |> 
-    summarize(pct_0=sum(icc==0)/n()) |> filter(pct_0<.5)
+include <- icc_noboot |>
+  group_by(dataset_name) |>
+  summarize(pct_0 = sum(icc == 0) / n()) |>
+  filter(pct_0 < .5)
 
-icc_noboot_summary <- icc_noboot |>semi_join(include) |> 
+icc_noboot_summary <- icc_noboot |>
+  semi_join(include) |>
   group_by(t_start, t_end) |>
   summarize(
     N = n(),
@@ -411,90 +520,125 @@ ggplot(icc_noboot_summary, aes(x = t_start, y = t_end, fill = mean_icc)) +
   ylab("Window End Time (in ms)")
 ```
 
+heat map goes in main paper 
 
-```{r, fig.height=7, fig.width=6}
+\pagebreak
 
-acc_include <- function(df){
-  df |> mutate(combined=case_when(
-    t_start==400 & t_end==3000 ~ "400-3000",
-    t_start==200 & t_end==2000 ~ "200-2000",
+\FloatBarrier
+
+
+```{r, fig.height=7, fig.width=6, fig.pos="t", fig.cap="accuracy lollipop plot comparing 200-2000 versus 600-4000" }
+acc_include <- function(df) {
+  df |> mutate(combined = case_when(
+    t_start == 600 & t_end == 4000 ~ "600-4000",
+    t_start == 200 & t_end == 2000 ~ "200-2000",
     T ~ NA
   ))
 }
 
-set_of_lollis( readRDS(here("cached_intermediates/1_acc_icc_boot.rds")),  readRDS(here("cached_intermediates/1_acc_cdi_boot.rds")),   readRDS(here("cached_intermediates/1_acc_test_retest_boot.rds")), acc_include)
+set_of_lollis(readRDS(here("cached_intermediates/1_acc_icc_boot.rds")), readRDS(here("cached_intermediates/1_acc_cdi_boot.rds")), readRDS(here("cached_intermediates/1_acc_test_retest_boot.rds")), acc_include)
 ```
 
-```{r, fig.height=7, fig.width=8}
+decisions: what we use as the comparison points -- here is 200-2000 and 600-4000
 
-baseline_acc <- function(df){
-  df |>  mutate(
-    t_start = relevel(t_start, "400"),
-    t_end= relevel(t_end, "3000")
+should we weight lollipop plots?
+
+questions about some outliers on comp and prod that go negative 
+
+\pagebreak
+
+\FloatBarrier
+
+
+
+```{r, fig.height=7, fig.width=8, fig.cap="accuracy, model comparisons with 600-4000 as baseline condition "}
+baseline_acc <- function(df) {
+  df |> mutate(
+    t_start = relevel(t_start, "600"),
+    t_end = relevel(t_end, "4000")
   )
 }
 
-fix_acc_interact <- function(df){
-  df |> separate(contrast, sep=" ", c("start", "end", NA, NA, NA)) |> 
-  mutate(t_start=str_replace(start, "t_start", "") |> as.numeric(),
-         t_end=str_replace(end, "t_end", "") |> as.numeric()) 
-  
+fix_acc_interact <- function(df) {
+  df |>
+    separate(contrast, sep = " ", c("start", "end", NA, NA, NA)) |>
+    mutate(
+      t_start = str_replace(start, "t_start", "") |> as.numeric(),
+      t_end = str_replace(end, "t_end", "") |> as.numeric()
+    )
 }
-make_model_grid_plot(readRDS(here("cached_intermediates/1_acc_icc_boot.rds")),  readRDS(here("cached_intermediates/1_acc_cdi_boot.rds")),   readRDS(here("cached_intermediates/1_acc_test_retest_boot.rds")), baseline_acc, "t_start * t_end", x=t_start, facet=t_end, fix_function=fix_acc_interact)
-                                                                                                                                                    
+make_model_grid_plot(readRDS(here("cached_intermediates/1_acc_icc_boot.rds")), readRDS(here("cached_intermediates/1_acc_cdi_boot.rds")), readRDS(here("cached_intermediates/1_acc_test_retest_boot.rds")), baseline_acc, "t_start * t_end", x = t_start, facet = t_end, fix_function = fix_acc_interact)
 ```
 
+should we go something like 600-4000 instead as the baseline? 
 
-```{r, fig.height=7, fig.width=8}
+this could be text instead? 
+\pagebreak
 
-baseline_acc <- function(df){
-  df |>  mutate(
-    t_start = relevel(t_start, "400"),
-    t_end= relevel(t_end, "3000")
+\FloatBarrier
+
+
+```{r, fig.height=7, fig.width=8, fig.cap = "age split models of accuracy, 600-4000 as baseline"}
+baseline_acc <- function(df) {
+  df |> mutate(
+    t_start = relevel(t_start, "600"),
+    t_end = relevel(t_end, "4000")
   )
 }
 
-fix_acc_interact <- function(df){
-  View(df)
-  df |> separate(contrast, sep=" ", c("start", "end", NA, NA, NA)) |> 
-  mutate(t_start=str_replace(start, "t_start", "") |> as.numeric(),
-         t_end=str_replace(end, "t_end", "") |> as.numeric()) 
-  
+fix_acc_interact <- function(df) {
+  df |>
+    separate(contrast, sep = " ", c("start", "end", NA, NA, NA)) |>
+    mutate(
+      t_start = str_replace(start, "t_start", "") |> as.numeric(),
+      t_end = str_replace(end, "t_end", "") |> as.numeric()
+    )
 }
-make_model_grid_plot_age(readRDS(here("cached_intermediates/1_acc_icc_boot_byage.rds")),  readRDS(here("cached_intermediates/1_acc_cdi_boot_byage.rds")),   readRDS(here("cached_intermediates/1_acc_test_retest_boot_byage_split.rds")), baseline_acc, "t_start * t_end", x=t_start, facet=t_end, fix_function=fix_acc_interact)
-                                                                                                                                                    
+
+
+make_model_grid_plot_age(readRDS(here("cached_intermediates/1_acc_icc_boot_byage.rds")), readRDS(here("cached_intermediates/1_acc_cdi_boot_byage.rds")), baseline_acc, "t_start * t_end", x = t_start, facet = t_end, fix_function = fix_acc_interact, dodge=50)
 ```
 
-# bc 
-```{r, fig.height=7, fig.width=6}
 
+\pagebreak
+
+\FloatBarrier
+# baseline corrected accuracy 
+
+```{r, fig.height=7, fig.width=6, fig.cap="baseline correction lollipop, no-baseline versus a baseline of -1000 - 0 " }
 baseline_lengths <- readRDS(here("cached_intermediates", "2_baseline_lengths.rds"))
 bc_icc <- readRDS(here("cached_intermediates", "2_bc_icc_boot.rds")) |>
   bind_rows(readRDS(here("cached_intermediates", "1_acc_icc_boot.rds")) |> filter(t_start == 400)) |>
   filter(t_end == 3000) |>
   semi_join(baseline_lengths) |>
-    mutate(b_start = ifelse(is.na(b_start), "none", as.character(b_start)),
-         b_end=ifelse(is.na(b_end), "none", as.character(b_end)))
+  mutate(
+    b_start = ifelse(is.na(b_start), "none", as.character(b_start)),
+    b_end = ifelse(is.na(b_end), "none", as.character(b_end))
+  )
 
 bc_cdi <- readRDS(here("cached_intermediates", "2_bc_cdi_boot.rds")) |>
   bind_rows(readRDS(here("cached_intermediates", "1_acc_cdi_boot.rds")) |> filter(t_start == 400)) |>
   filter(t_end == 3000) |>
   semi_join(baseline_lengths) |>
-   mutate(b_start = ifelse(is.na(b_start), "none", as.character(b_start)),
-         b_end=ifelse(is.na(b_end), "none", as.character(b_end))) 
+  mutate(
+    b_start = ifelse(is.na(b_start), "none", as.character(b_start)),
+    b_end = ifelse(is.na(b_end), "none", as.character(b_end))
+  )
 
 bc_test_retest <- readRDS(here("cached_intermediates", "2_bc_test_retest_boot.rds")) |>
   bind_rows(readRDS(here("cached_intermediates", "1_acc_test_retest_boot.rds")) |> filter(t_start == 400)) |>
   filter(t_end == 3000) |>
   semi_join(baseline_lengths) |>
-  mutate(b_start = ifelse(is.na(b_start), "none", as.character(b_start)),
-         b_end=ifelse(is.na(b_end), "none", as.character(b_end)))
+  mutate(
+    b_start = ifelse(is.na(b_start), "none", as.character(b_start)),
+    b_end = ifelse(is.na(b_end), "none", as.character(b_end))
+  )
 
 
-bc_include <- function(df){
-  df |> mutate(combined=case_when(
-    b_start=="none" & b_end=="none" ~ "no_baseline",
-    b_start==-1000 & b_end==0 ~ "baseline of -1000 - 0",
+bc_include <- function(df) {
+  df |> mutate(combined = case_when(
+    b_start == "none" & b_end == "none" ~ "no_baseline",
+    b_start == -1000 & b_end == 0 ~ "baseline of -1000 - 0",
     T ~ NA
   ))
 }
@@ -502,29 +646,72 @@ bc_include <- function(df){
 set_of_lollis(bc_icc, bc_cdi, bc_test_retest, bc_include)
 ```
 
-```{r, fig.height=7, fig.width=8}
+recommendations from previous should probably dictate what the baseline correction main window is
+could look at other options in supplement for robustness!
 
-baseline_bc <- function(df){
-  df |>  mutate(
-    b_all=str_c(b_start, " -- " ,b_end) |> as.factor(),
-    b_all=relevel(b_all, "none -- none")
+\pagebreak
+
+\FloatBarrier
+```{r, fig.height=7, fig.width=8, fig.cap="model of baseline correction, compared to no correction" }
+baseline_bc <- function(df) {
+  df |> mutate(
+    b_all = str_c(b_start, " -- ", b_end) |> as.factor(),
+    b_all = relevel(b_all, "none -- none")
   )
 }
 
 
-fix_bc_interact <- function(df){
-  df |> mutate(contrast=str_replace_all(contrast, "\\)", "") |> str_replace_all("\\(", "")) |> separate(contrast, sep=" ", c("start", NA, "end", NA, NA, NA)) |> 
-  mutate(b_start=str_replace(start, "b_start", ""),
-         b_end=str_replace(end, "b_end", "")) 
-  
+fix_bc_interact <- function(df) {
+  df |>
+    mutate(contrast = str_replace_all(contrast, "\\)", "") |> str_replace_all("\\(", "")) |>
+    separate(contrast, sep = " ", c("start", NA, "end", NA, NA, NA)) |>
+    mutate(
+      b_start = str_replace(start, "b_start", ""),
+      b_end = str_replace(end, "b_end", "")
+    )
 }
-make_model_grid_plot(bc_icc, bc_cdi, bc_test_retest, baseline_bc, "b_all", x=b_start, col=b_end, fix_function=fix_bc_interact, breaks=c(-.2, 0), limits=c(-.4,.1))
-        
+make_model_grid_plot(bc_icc, bc_cdi, bc_test_retest, baseline_bc, "b_all", x = b_start, col = b_end, fix_function = fix_bc_interact, breaks = c(-.2, 0), limits = c(-.4, .1), dodge=.5)
 ```
 
+this is compelling, but we can probably just say it is text? 
+
+\pagebreak
+
+\FloatBarrier
+```{r, fig.height=7, fig.width=8, fig.cap="age split baseline correction"}
+baseline_lengths <- readRDS(here("cached_intermediates", "2_baseline_lengths.rds"))
+bc_icc_age <- readRDS(here("cached_intermediates", "2_bc_icc_boot_byage.rds")) |>
+  bind_rows(readRDS(here("cached_intermediates", "1_acc_icc_boot_byage.rds")) |> filter(t_start == 400)) |>
+  filter(t_end == 3000) |>
+  semi_join(baseline_lengths) |>
+  mutate(
+    b_start = ifelse(is.na(b_start), "none", as.character(b_start)),
+    b_end = ifelse(is.na(b_end), "none", as.character(b_end))
+  )
+
+bc_cdi_age <- readRDS(here("cached_intermediates", "2_bc_cdi_boot_byage.rds")) |>
+  bind_rows(readRDS(here("cached_intermediates", "1_acc_cdi_boot_byage.rds")) |> filter(t_start == 400)) |>
+  filter(t_end == 3000) |>
+  semi_join(baseline_lengths) |>
+  mutate(
+    b_start = ifelse(is.na(b_start), "none", as.character(b_start)),
+    b_end = ifelse(is.na(b_end), "none", as.character(b_end))
+  )
+
+make_model_grid_plot_age(bc_icc_age, bc_cdi_age, baseline_bc, "b_all", x = b_start, facet = b_end, fix_function = fix_bc_interact, breaks = c(-.2, 0), limits = c(-.4, .1))
+```
+
+can go in supplement
+
+\pagebreak
+
+\FloatBarrier
 # RT
 
 TODO FIX heat plot maybe? 
+
+now that we aren't bootstrapping, we can just sample evenly
+
 
 ```{r rt-heat, fig.cap="Heat map of different parameter options for measuring RT. TODO note that RTs were not sampled evenly across this range, not sure what x-axis distribution should be here!", fig.width=7, fig.height=3}
 rt_icc <- readRDS(here("cached_intermediates/3_rt_icc_boot.rds"))
@@ -545,57 +732,98 @@ rt_icc_meta |>
   labs(y = "RT measure", x = "Minimum RT", color = "ICC reliability")
 ```
 
-unclear what the "bad" version should be 
 
-Note that CDI comp and CDI prod is reverse goodness here!! (possibly should do something in graphs to make it easier??)
-```{r, fig.height=7, fig.width=6}
-rt_icc <- readRDS(here("cached_intermediates/3_rt_icc_boot.rds")) |> 
+
+\pagebreak
+
+\FloatBarrier
+
+
+```{r, fig.height=7, fig.width=6, fig.cap="RT"}
+rt_icc <- readRDS(here("cached_intermediates/3_rt_icc_boot.rds")) |>
   regroup_rt() |>
-  name_rt() |> filter(window<=600)
+  name_rt() |>
+  filter(window <= 600)
 
 rt_cdi <- readRDS(here("cached_intermediates/3_rt_cdi_boot.rds")) |>
   regroup_rt() |>
-  name_rt() |> filter(window<=600)
+  name_rt() |>
+  filter(window <= 600) |> 
+  mutate(prod_est=-prod_est, comp_est=-comp_est)
 
 rt_trt <- readRDS(here("cached_intermediates/3_rt_test_retest_boot.rds")) |>
-  regroup_rt() |> name_rt() |> filter(window<=600)
+  regroup_rt() |>
+  name_rt() |>
+  filter(window <= 600)
 
 
-rt_include <- function(df){
-  df |> mutate(combined=case_when(
-    window==400 & trimming=="untrimmed"& logged=="log"&type=="land" ~ "400 untrimmed land, log",
-    window==200 & trimming=="trim_first"& logged=="raw"&type=="first_launch" ~ "200 trimmed launch, raw",
-
+rt_include <- function(df) {
+  df |> mutate(combined = case_when(
+    window == 400 & trimming == "untrimmed" & logged == "log" & type == "land" ~ "400 untrimmed land, log",
+    window == 200 & trimming == "trim_first" & logged == "raw" & type == "first_launch" ~ "200 trimmed launch, raw",
     T ~ NA
   ))
 }
 
 set_of_lollis(rt_icc, rt_cdi, rt_trt, rt_include)
 ```
-Note that CDI comp and CDI prod is reverse goodness here!! 
 
-```{r, fig.height=7, fig.width=8}
+unclear what the "bad" version should be 
 
-baseline_rt <- function(df){
-  df  |>  mutate(
-    window=relevel(window, "400"),
-    trimming=relevel(trimming, "untrimmed"),
-    logged=relevel(logged, "log"),
-    type=relevel(type, "land")
+I manually flipped signs for comp and prod so that positive better would be consistent -- we can discuss
+
+
+\pagebreak
+
+\FloatBarrier
+```{r, fig.height=7, fig.width=8, fig.cap="RT, baseline is untrimmed log land with 400 minimum RT"}
+baseline_rt <- function(df) {
+  df |> mutate(
+    window = relevel(window, "400"),
+    trimming = relevel(trimming, "untrimmed"),
+    logged = relevel(logged, "log"),
+    type = relevel(type, "land")
   )
 }
 
 
-fix_rt_interact <- function(df){
-
-  df |> mutate(contrast=str_replace_all(contrast, "\\)", "") |> str_replace_all("\\(", "")) |> separate(contrast, sep=" ", c("trimming", "type", "window", "logged", NA, NA, NA, NA)) |> 
-  mutate(window=str_replace(window, "window", "") |> as.numeric(),
-        ) 
-  
+fix_rt_interact <- function(df) {
+  df |>
+    mutate(contrast = str_replace_all(contrast, "\\)", "") |> str_replace_all("\\(", "")) |>
+    separate(contrast, sep = " ", c("trimming", "type", "window", "logged", NA, NA, NA, NA)) |>
+    mutate(window = str_replace(window, "window", "") |> as.numeric(), )
 }
-make_model_grid_plot(rt_icc, rt_cdi, rt_trt, baseline_rt, "window * trimming * logged * type", x=window, col=str_c(trimming, " ", type), facet=logged, fix_function=fix_rt_interact)
-        
+make_model_grid_plot(rt_icc, rt_cdi, rt_trt, baseline_rt, "window * trimming * logged * type", x = window, col = str_c(trimming, " ", type), facet = logged, fix_function = fix_rt_interact, dodge=50)
 ```
+
+this figure needs clean up and maybe less dense sampling for parseability! could also have start down to 0 just to show that
+
+\pagebreak
+
+\FloatBarrier
+
+this is chaos! check on models for why we don't always get error bars! 
+
+```{r, fig.height=7, fig.width=8, fig.cap="RT age split, baseline is untrimmed log land with 400 minimum RT"}
+rt_icc_age <- readRDS(here("cached_intermediates/3_rt_icc_boot_byage.rds")) |>
+  regroup_rt() |>
+  name_rt() |>
+  filter(window <= 600)
+
+rt_cdi_age <- readRDS(here("cached_intermediates/3_rt_cdi_boot_byage.rds")) |>
+  regroup_rt() |>
+  name_rt() |>
+  filter(window <= 600) |>
+  mutate(prod_est=-prod_est, comp_est=-comp_est)
+
+
+
+make_model_grid_plot_age(rt_icc_age, rt_cdi_age, baseline_rt, "window * trimming * logged * type", x = window, facet = str_c(trimming, " ", type, " ", logged), fix_function = fix_rt_interact, dodge=50, limits=c(-1, 1))
+```
+
+\pagebreak
+
+\FloatBarrier
 
 # acc trial
 
@@ -603,45 +831,85 @@ todo later -- can do robustness on other start/end combos!
 
 
 also probably want some sort of how much data got tossed out? 
-```{r, fig.height=7, fig.width=6}
-trial_icc <- readRDS(here("cached_intermediates/4_acc_trial_icc_boot.rds")) |> filter(t_start==400, t_end==3000) |> select(-num_trials)
-trial_cdi <- readRDS(here("cached_intermediates/4_acc_trial_cdi_boot.rds")) |> filter(t_start==400, t_end==3000)
 
-trial_trt <- readRDS(here("cached_intermediates/4_acc_trial_test_retest_boot.rds")) |> filter(t_start==400, t_end==3000)
 
-  trial_acc_include <- function(df){
-  df |> mutate(combined=case_when(
-    exclude_less_than==0 & look_both=="no_need"~ "no trial exclude",
-     exclude_less_than==.5 & look_both=="ever"~ "look both at least 50%",
 
+
+```{r, fig.height=7, fig.width=6, "acc trial exclusions"}
+trial_icc <- readRDS(here("cached_intermediates/4_acc_trial_icc_boot.rds")) |>
+  filter(t_start == 400, t_end == 3000) |>
+  select(-num_trials)
+
+
+num_trials <- readRDS(here("cached_intermediates/4_acc_trial_icc_boot.rds")) |> unnest(num_trials) |> 
+  filter(t_start == 400, t_end == 3000) |>
+  group_by(t_start, t_end, exclude_less_than, look_both) |>
+  summarize(num_trials = sum(num_trials, na.rm = T), .groups = "drop") |>
+  group_by(t_end, t_start) |>
+  mutate(pct = num_trials / max(num_trials)) 
+
+trial_cdi <- readRDS(here("cached_intermediates/4_acc_trial_cdi_boot.rds")) |> filter(t_start == 400, t_end == 3000)
+
+trial_trt <- readRDS(here("cached_intermediates/4_acc_trial_test_retest_boot.rds")) |> filter(t_start == 400, t_end == 3000)
+
+trial_acc_include <- function(df) {
+  df |> mutate(combined = case_when(
+    exclude_less_than == 0 & look_both == "no_need" ~ "no trial exclude",
+    exclude_less_than == .5 & look_both == "ever" ~ "look both at least 50%",
     T ~ NA
   ))
 }
 
-set_of_lollis(trial_icc, trial_cdi, trial_trt, trial_acc_include) 
+set_of_lollis(trial_icc, trial_cdi, trial_trt, trial_acc_include)
 ```
 
-```{r, fig.height=7, fig.width=8}
+maybe we don't need graphs here? 
 
-baseline_trial_acc <- function(df){
-  df  |>  mutate(
-    exclude_less_than=relevel(exclude_less_than, "0"),
-    look_both=relevel(look_both, "no_need")
+how to show data loss? 
+
+\pagebreak
+
+\FloatBarrier
+```{r, fig.height=7, fig.width=8, fig.cap="acc trial exclusions"}
+baseline_trial_acc <- function(df) {
+  df |> mutate(
+    exclude_less_than = relevel(exclude_less_than, "0"),
+    look_both = relevel(look_both, "no_need")
   )
 }
 
 
-fix_trial_acc_interact <- function(df){
-
-  df |> mutate(contrast=str_replace_all(contrast, "\\)", "") |> str_replace_all("\\(", "")) |> separate(contrast, sep=" ", c("exclude_less_than", "look_both", NA, NA)) |> 
-  mutate(exclude_less_than=str_replace(exclude_less_than, "exclude_less_than", "") |> as.numeric(),
-        ) 
-  
+fix_trial_acc_interact <- function(df) {
+  df |>
+    mutate(contrast = str_replace_all(contrast, "\\)", "") |> str_replace_all("\\(", "")) |>
+    separate(contrast, sep = " ", c("exclude_less_than", "look_both", NA, NA)) |>
+    mutate(exclude_less_than = str_replace(exclude_less_than, "exclude_less_than", "") |> as.numeric(), ) |> left_join(num_trials)
 }
-make_model_grid_plot(trial_icc, trial_cdi, trial_trt, baseline_trial_acc, "exclude_less_than * look_both", x=exclude_less_than, facet=look_both, fix_function=fix_trial_acc_interact, limits=c(-.4, .1))
-        
+make_model_grid_plot(trial_icc, trial_cdi, trial_trt, baseline_trial_acc, "exclude_less_than * look_both", x = exclude_less_than, facet = look_both, col=pct, fix_function = fix_trial_acc_interact, limits = c(-.4, .1))
 ```
 
+
+```{r, fig.height=7, fig.width=8, fig.cap="acc trial exclusions"}
+make_model_grid_plot(trial_icc, trial_cdi, trial_trt, baseline_trial_acc, "exclude_less_than * look_both", x = pct, col=exclude_less_than, facet=look_both, fix_function = fix_trial_acc_interact, limits = c(-.4, .1))
+```
+
+
+\pagebreak
+
+\FloatBarrier
+```{r, fig.height=7, fig.width=8, fig.cap="acc trial exclusions"}
+trial_icc_age <- readRDS(here("cached_intermediates/4_acc_trial_icc_boot_byage.rds")) |>
+  filter(t_start == 400, t_end == 3000) |>
+  select(-num_trials)
+trial_cdi_age <- readRDS(here("cached_intermediates/4_acc_trial_cdi_boot_byage.rds")) |> filter(t_start == 400, t_end == 3000)
+
+make_model_grid_plot_age(trial_icc_age, trial_cdi_age, baseline_trial_acc, "exclude_less_than * look_both", x = exclude_less_than, facet = look_both, fix_function = fix_trial_acc_interact, limits = c(-.4, .1))
+```
+
+
+\pagebreak
+
+\FloatBarrier
 # acc kid
 
 again could try with other param combos!
@@ -649,97 +917,241 @@ again could try with other param combos!
 again want something about how much data is getting jettisoned 
 could also consider comboing with previous
 
-```{r, fig.height=7, fig.width=6}
+mostly this is very boring because there tend to be lots of accuracy trials
 
+```{r, fig.height=7, fig.width=6, fig.cap="admin level accuracy exclusions"}
+kid_icc <- readRDS(here("cached_intermediates/4_acc_kid_icc_boot.rds")) |>
+  filter(t_start == 400, t_end == 3000, exclude_less_than == 0, look_both == "no_need") |>
+  select(-num_trials)
+kid_cdi <- readRDS(here("cached_intermediates/4_acc_kid_cdi_boot.rds")) |> filter(t_start == 400, t_end == 3000, exclude_less_than == 0, look_both == "no_need")
 
+kid_trt <- readRDS(here("cached_intermediates/4_acc_kid_test_retest_boot.rds")) |> filter(t_start == 400, t_end == 3000, exclude_less_than == 0, look_both == "no_need")
 
-kid_icc <- readRDS(here("cached_intermediates/4_acc_kid_icc_boot.rds")) |> filter(t_start==400, t_end==3000, exclude_less_than==0, look_both=="no_need") |> select(-num_trials)
-kid_cdi <- readRDS(here("cached_intermediates/4_acc_kid_cdi_boot.rds")) |>  filter(t_start==400, t_end==3000, exclude_less_than==0, look_both=="no_need") 
-
-kid_trt <- readRDS(here("cached_intermediates/4_acc_kid_test_retest_boot.rds")) |>  filter(t_start==400, t_end==3000, exclude_less_than==0, look_both=="no_need") 
-
-kid_acc_include <- function(df){
-  df |> mutate(combined=case_when(
-    min_trial==1 ~ "any",
-     min_trial==5~ "5 trials",
+kid_acc_include <- function(df) {
+  df |> mutate(combined = case_when(
+    min_trial == 1 ~ "any",
+    min_trial == 5 ~ "5 trials",
     T ~ NA
   ))
 }
 
-set_of_lollis(kid_icc, kid_cdi, kid_trt, kid_acc_include) 
+set_of_lollis(kid_icc, kid_cdi, kid_trt, kid_acc_include)
 ```
 
-```{r, fig.height=7, fig.width=8}
 
-baseline_kid_acc <- function(df){
-  df  |>  mutate(
-    min_trial=relevel(min_trial, "1")
+\pagebreak
+
+\FloatBarrier
+```{r, fig.height=7, fig.width=8, fig.cap="admin level accuracy exclusions"}
+baseline_kid_acc <- function(df) {
+  df |> mutate(
+    min_trial = relevel(min_trial, "1")
   )
 }
 
 
-fix_kid_acc_interact <- function(df){
-
-  df |> mutate(contrast=str_replace_all(contrast, "\\)", "") |> str_replace_all("\\(", "")) |> separate(contrast, sep=" ", c("min_trial", NA)) |> 
-  mutate(min_trial=str_replace(min_trial, "min_trial", "") |> as.numeric(),
-        ) 
-  
+fix_kid_acc_interact <- function(df) {
+  df |>
+    mutate(contrast = str_replace_all(contrast, "\\)", "") |> str_replace_all("\\(", "")) |>
+    separate(contrast, sep = " ", c("min_trial", NA)) |>
+    mutate(min_trial = str_replace(min_trial, "min_trial", "") |> as.numeric(), )
 }
-make_model_grid_plot(kid_icc, kid_cdi, kid_trt, baseline_kid_acc, "min_trial", x=min_trial,  fix_function=fix_kid_acc_interact)
-        
+make_model_grid_plot(kid_icc, kid_cdi, kid_trt, baseline_kid_acc, "min_trial", x = min_trial, fix_function = fix_kid_acc_interact)
 ```
+
+\pagebreak
+
+
+\FloatBarrier
+```{r, fig.height=7, fig.width=8, fig.cap="accuracy kid level exclusions"}
+kid_icc_age <- readRDS(here("cached_intermediates/4_acc_kid_icc_boot_byage.rds")) |>
+  filter(t_start == 400, t_end == 3000, exclude_less_than == 0, look_both == "no_need") |>
+  select(-num_trials)
+kid_cdi_age <- readRDS(here("cached_intermediates/4_acc_kid_cdi_boot_byage.rds")) |> filter(t_start == 400, t_end == 3000, exclude_less_than == 0, look_both == "no_need")
+
+
+make_model_grid_plot_age(kid_icc_age, kid_cdi_age, baseline_kid_acc, "min_trial", x = min_trial, fix_function = fix_kid_acc_interact)
+```
+
+\pagebreak
+
+\FloatBarrier
 
 
 # kid rt
 
 could look at other variations later 
 
+comp and prod have again been hand reversed for consistency 
 
-it's RT so comp and prod are reverse -- lower is better!
-```{r, fig.height=7, fig.width=6}
-
-kid_rt_icc <- readRDS(here("cached_intermediates/4_rt_icc_boot.rds"))  |>
+```{r, fig.height=7, fig.width=6, fig.cap="rt, kid level exclusions"}
+kid_rt_icc <- readRDS(here("cached_intermediates/4_rt_icc_boot.rds")) |>
   regroup_rt() |>
-  name_rt() |> 
-  filter(window==400, trimming=="untrimmed", logged=="log", type=="land")
+  name_rt() |>
+  filter(window == 400, trimming == "untrimmed", logged == "log", type == "land")
 
 kid_rt_cdi <- readRDS(here("cached_intermediates/4_rt_cdi_boot.rds")) |>
   regroup_rt() |>
-  name_rt() |>   filter(window==400, trimming=="untrimmed", logged=="log", type=="land")
+  name_rt() |>
+  filter(window == 400, trimming == "untrimmed", logged == "log", type == "land") |> 
+  mutate(comp_est=-comp_est, prod_est=-prod_est)
 
 
 kid_rt_trt <- readRDS(here("cached_intermediates/4_rt_test_retest_boot.rds")) |>
   filter(dataset_name != "potter_remix") |>
   regroup_rt() |>
-  name_rt() |>   filter(window==400, trimming=="untrimmed", logged=="log", type=="land")
+  name_rt() |>
+  filter(window == 400, trimming == "untrimmed", logged == "log", type == "land")
 
 
-kid_rt_include <- function(df){
-  df |> mutate(combined=case_when(
-    min_trial==1 ~ "any",
-     min_trial==5~ "5 trials",
+kid_rt_include <- function(df) {
+  df |> mutate(combined = case_when(
+    min_trial == 1 ~ "any",
+    min_trial == 5 ~ "5 trials",
     T ~ NA
   ))
 }
 
-set_of_lollis(kid_rt_icc, kid_rt_cdi, kid_rt_trt, kid_rt_include) 
+set_of_lollis(kid_rt_icc, kid_rt_cdi, kid_rt_trt, kid_rt_include)
 ```
-```{r, fig.height=7, fig.width=8}
 
-baseline_kid_rt <- function(df){
-  df  |>  mutate(
-    min_trial=relevel(min_trial, "1")
+
+\pagebreak
+
+\FloatBarrier
+
+```{r, fig.height=7, fig.width=8, fig.cap="rt kid level exclusions"}
+baseline_kid_rt <- function(df) {
+  df |> mutate(
+    min_trial = relevel(min_trial, "1")
   )
 }
 
 
-fix_kid_rt_interact <- function(df){
-
-  df |> mutate(contrast=str_replace_all(contrast, "\\)", "") |> str_replace_all("\\(", "")) |> separate(contrast, sep=" ", c("min_trial", NA)) |> 
-  mutate(min_trial=str_replace(min_trial, "min_trial", "") |> as.numeric(),
-        ) 
-  
+fix_kid_rt_interact <- function(df) {
+  df |>
+    mutate(contrast = str_replace_all(contrast, "\\)", "") |> str_replace_all("\\(", "")) |>
+    separate(contrast, sep = " ", c("min_trial", NA)) |>
+    mutate(min_trial = str_replace(min_trial, "min_trial", "") |> as.numeric(), )
 }
-make_model_grid_plot(kid_rt_icc, kid_rt_cdi, kid_rt_trt, baseline_kid_rt, "min_trial", x=min_trial,  fix_function=fix_kid_rt_interact)
-        
+make_model_grid_plot(kid_rt_icc, kid_rt_cdi, kid_rt_trt, baseline_kid_rt, "min_trial", x = min_trial, fix_function = fix_kid_rt_interact)
 ```
+
+\pagebreak
+
+\FloatBarrier
+```{r, fig.height=7, fig.width=8, fig.cap="rt kid level exclusions"}
+kid_rt_icc_age <- readRDS(here("cached_intermediates/4_rt_icc_boot_byage.rds")) |>
+  regroup_rt() |>
+  name_rt() |>
+  filter(window == 400, trimming == "untrimmed", logged == "log", type == "land")
+
+kid_rt_cdi_age <- readRDS(here("cached_intermediates/4_rt_cdi_boot.rds")) |>
+  regroup_rt() |>
+  name_rt() |>
+  filter(window == 400, trimming == "untrimmed", logged == "log", type == "land")|> 
+  mutate(comp_est=-comp_est, prod_est=-prod_est)
+
+make_model_grid_plot_age(kid_rt_icc_age, kid_rt_cdi_age, baseline_kid_rt, "min_trial", x = min_trial, fix_function = fix_kid_rt_interact)
+```
+
+\pagebreak
+
+\FloatBarrier
+# simulated number of trials
+
+todo we should count how many admins are relevant for each of these so we can weight by that and maybe not worry about error bars as much? 
+
+```{r downsample-acc, fig.cap="Simulations of measurement properties for different trial counts, created by downsampling trials for all children with different trial minimums. Shown for accuracy window of 400 to 3000ms with no trial- or kid- level exclusions.", fig.height=3}
+# note some were pre-filtered and only run on t_end, others were run on other options
+
+downsample_icc_acc <- readRDS(here("cached_intermediates/5_acc_icc_boot.rds")) |> do_meta(c("sample_down", "start_point"))
+
+downsample_cdi_acc <- readRDS(here("cached_intermediates/5_acc_cdi_boot.rds")) |>
+  filter(t_end == 3000) |>
+  do_cdi_meta(c("sample_down", "start_point"))
+
+downsample_trt_acc <- readRDS(here("cached_intermediates/5_acc_downsample_test_retest_boot.rds")) |>
+  filter(t_end == 3000) |>
+  do_meta(c("sample_down", "start_point"))
+
+
+downsample_acc <- combined_metrics(downsample_icc_acc, downsample_cdi_acc, downsample_trt_acc)
+downsample_acc |> ggplot(aes(x = sample_down, col = as.factor(start_point), y = estimate, ymin = ci.lb, ymax = ci.ub)) +
+  geom_pointrange(position = position_dodge2(width = .5)) +
+  coord_flip() +
+  facet_wrap(~Type, scales = "free_x", nrow = 1) +
+  theme(legend.position = "bottom", ) +
+  geom_line() +
+  labs(y = "Correlation", x = "Simulated Trial count", color = "Real Trials") +
+  scale_color_viridis(discrete = T, direction = -1) +
+  facetted_pos_scales(
+    y = list(
+      Type == "ICC reliability" ~ scale_y_continuous(limits = c(0, .6)),
+      Type == "Corr. with CDI Prod." ~ scale_y_continuous(limits = c(0, .6)),
+      Type == "Test-retest reliability" ~ scale_y_continuous(limits = c(0, .6)),
+      Type == "Corr. with CDI Comp." ~ scale_y_continuous(limits = c(0, .6))
+    )
+  )
+```
+
+```{r downsample-rt, fig.cap="Simulations of measurement properties for different trial counts, created by downsampling trials for all children with different trial minimums. Shown for log landing RT with a minimum RT of 400ms.", fig.height=3}
+# all were pre-filtered to just log land rt at 400
+downsample_icc_rt <- readRDS(here("cached_intermediates/5_rt_icc_boot.rds")) |> do_meta(c("sample_down", "start_point"))
+
+downsample_cdi_rt <- readRDS(here("cached_intermediates/5_rt_cdi_boot.rds")) |> do_cdi_meta(c("sample_down", "start_point"))
+
+downsample_trt_rt <- readRDS(here("cached_intermediates/5_rt_test_retest_boot.rds")) |> do_meta(c("sample_down", "start_point"))
+
+
+downsample_rt <- combined_metrics(downsample_icc_rt, downsample_cdi_rt, downsample_trt_rt) |> filter(start_point < 11)
+
+
+downsample_rt |> ggplot(aes(x = sample_down, col = as.factor(start_point), y = estimate, ymin = ci.lb, ymax = ci.ub)) +
+  geom_pointrange(position = position_dodge2(width = .5)) +
+  coord_flip() +
+  facet_wrap(~Type, scales = "free_x", nrow = 1) +
+  theme(legend.position = "bottom", ) +
+  geom_line() +
+  labs(y = "Correlation", x = "Simulated Trial count", color = "Real Trials") +
+  scale_color_viridis(discrete = T, direction = -1) +
+  facetted_pos_scales(
+    y = list(
+      Type == "ICC reliability" ~ scale_y_continuous(limits = c(0.3, .9)),
+      Type == "Corr. with CDI Prod." ~ scale_y_continuous(limits = c(-.6, 0)),
+      Type == "Test-retest reliability" ~ scale_y_continuous(limits = c(0, .6)),
+      Type == "Corr. with CDI Comp." ~ scale_y_continuous(limits = c(-.6, 0))
+    )
+  )
+```
+
+\pagebreak
+\FloatBarrier
+
+# animacy 
+
+```{r animacy, fig.cap="Looking time profiles for different combinations of target and distractor animacy.", fig.height=3}
+readRDS(here("cached_intermediates/6_animacy.rds")) |>
+  filter(t_norm >= -500, t_norm <= 3500) |>
+  mutate(type = case_when(
+    animate_target == "yes" & animate_distractor == "yes" ~ "both animate",
+    animate_target == "yes" ~ "animate target, inanimate distractor",
+    animate_target == "no" & animate_distractor == "no" ~ "both inanimate",
+    T ~ "inanimate target, animate distractor"
+  )) |>
+  ggplot(aes(x = t_norm, y = y, ymin = ymin, ymax = ymax)) +
+  geom_ribbon(aes(fill = type), alpha = .2) +
+  geom_line(aes(color=type)) +
+  geom_hline(yintercept = .5) +
+  geom_vline(xintercept = 0) +
+  geom_vline(xintercept = 400, lty = "dashed") +
+  geom_vline(xintercept = 3000, lty = "dashed") +
+  scale_fill_brewer(aesthetics=c("color", "fill"), palette = "Set1") +
+  labs(x = "Time", y = "Looking to target", fill = "Target/Distractor animacy", color= "Target/Distractor animacy")
+```
+
+# how much can this matter?
+
+TODO
+
+
