@@ -26,14 +26,12 @@ summarize_accuracy <- function(d, t_start, t_end) {
     ungroup()
 }
 
-# Bootstrap ICCs on pre-computed trial-level summaries.
-run_icc_bootstrap <- function(d) {
+run_icc <- function(d) {
   d |>
     group_by(dataset_name, across(any_of("age_bin"))) |>
     nest() |>
-    mutate(icc = map(data, \(x) bootstrap_icc(x, "accuracy", 2000))) |>
-    select(-data) |>
-    unnest(icc)
+    mutate(est = map_dbl(data, \(x) get_icc(x, "accuracy"))) |>
+    select(-data)
 }
 
 acc_params <- expand_grid(
@@ -41,34 +39,22 @@ acc_params <- expand_grid(
   t_end = c(2000, 3000, 4000),
 )
 
-# Pre-compute trial-level summaries on main process
 accs_summarized <- acc_params |>
   mutate(summary_data = pmap(list(t_start, t_end), \(t_s, t_e) summarize_accuracy(d_aoi, t_s, t_e)))
 
 accs_summarized_age <- acc_params |>
   mutate(summary_data = pmap(list(t_start, t_end), \(t_s, t_e) summarize_accuracy(d_aoi_age, t_s, t_e)))
 
-
-
-cluster <- setup_cluster(
-  libs = c("dplyr", "tidyr", "purrr", "agreement"),
-  copy_names = c("bootstrap_icc", "run_icc_bootstrap")
-)
-
-accs_boot <- accs_summarized |>
-  partition(cluster) |>
-  mutate(icc = map(summary_data, run_icc_bootstrap)) |>
-  collect() |>
+accs_icc <- accs_summarized |>
+  mutate(icc = map(summary_data, run_icc)) |>
   select(-summary_data) |>
   unnest(col = icc)
 
-saveRDS(accs_boot, "../cached_intermediates/1_acc_icc_boot.rds")
+saveRDS(accs_icc, "../cached_intermediates/1_acc_icc.rds")
 
-accs_boot_age <- accs_summarized_age |>
-  partition(cluster) |>
-  mutate(icc = map(summary_data, run_icc_bootstrap)) |>
-  collect() |>
+accs_icc_age <- accs_summarized_age |>
+  mutate(icc = map(summary_data, run_icc)) |>
   select(-summary_data) |>
   unnest(col = icc)
 
-saveRDS(accs_boot_age, "../cached_intermediates/1_acc_icc_boot_byage.rds")
+saveRDS(accs_icc_age, "../cached_intermediates/1_acc_icc_byage.rds")

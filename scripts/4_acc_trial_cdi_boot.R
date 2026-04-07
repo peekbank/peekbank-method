@@ -53,18 +53,16 @@ acc_trial_cdi_summarize <- function(d, flags, t_start, t_end, exclude_less_than,
 }
 
 acc_params <- expand_grid(
-  t_start = c(400),
+  t_start = c(200, 400, 600),
   t_end = c(2000, 3000, 4000),
   exclude_less_than = c(0, .1, .2, .3, .4, .5, .6, .7, .8, .9, 1),
   look_both = c("before", "ever", "no_need"),
   min_trial = c(1) # no restrictions
-  # side_bias =c(1.5, 1, .95, .9), #1.5 is equal to none
-  # min_trials=c(1,2,3,4,5,8,10, 15)
 )
 
 
 acc_params_kid <- expand_grid(
-  t_start = c(400),
+  t_start = c(400, 600, 200),
   t_end = c(2000, 3000, 4000),
   exclude_less_than = c(0, .2, .5),
   look_both = c("no_need"),
@@ -98,44 +96,31 @@ kid_accs_cdi_summarized_age <- acc_params_kid |>
 rm(d_aoi, d_aoi_age, trial_flags)
 gc()
 
-cluster <- setup_cluster(
-  libs = c("dplyr", "stringr", "purrr", "tidyr", "stats", "tibble", "boot"),
-  copy_names = c("safe_boot_ci", "safe_cor", "do_cdi", "boot_cdi")
-)
-
-accs_boot_cdi <- accs_cdi_summarized |>
-  partition(cluster) |>
-  mutate(cdi = map(summary_data, boot_cdi)) |>
-  collect() |>
+accs_cdi <- accs_cdi_summarized |>
+  mutate(cdi = map(summary_data, calc_cdi)) |>
   select(-summary_data) |>
   unnest(cdi)
 
-saveRDS(accs_boot_cdi, "../cached_intermediates/4_acc_trial_cdi_boot.rds")
+saveRDS(accs_cdi, "../cached_intermediates/4_acc_trial_cdi.rds")
 
-accs_boot_cdi_byage <- accs_cdi_summarized_age |>
-  partition(cluster) |>
-  mutate(cdi = map(summary_data, \(d) boot_cdi(d, by_age = TRUE))) |>
-  collect() |>
+accs_cdi_byage <- accs_cdi_summarized_age |>
+  mutate(cdi = map(summary_data, \(d) calc_cdi(d, by_age = TRUE))) |>
   select(-summary_data) |>
   unnest(cdi)
 
-saveRDS(accs_boot_cdi_byage, "../cached_intermediates/4_acc_trial_cdi_boot_byage.rds")
+saveRDS(accs_cdi_byage, "../cached_intermediates/4_acc_trial_cdi_byage.rds")
 
 
-kid_accs_boot_cdi <- kid_accs_cdi_summarized |>
-  partition(cluster) |>
-  mutate(cdi = map(summary_data, boot_cdi)) |>
-  collect() |>
+kid_accs_cdi <- kid_accs_cdi_summarized |>
+  mutate(cdi = map(summary_data, calc_cdi)) |>
   select(-summary_data) |>
   unnest(cdi)
 
-saveRDS(kid_accs_boot_cdi, "../cached_intermediates/4_acc_kid_cdi_boot.rds")
+saveRDS(kid_accs_cdi, "../cached_intermediates/4_acc_kid_cdi.rds")
 
-kid_accs_boot_cdi_byage <- kid_accs_cdi_summarized_age |>
-  partition(cluster) |>
-  mutate(cdi = map(summary_data, \(d) boot_cdi(d, by_age = TRUE))) |>
-  collect() |>
+kid_accs_cdi_byage <- kid_accs_cdi_summarized_age |>
+  mutate(cdi = map(summary_data, \(d) calc_cdi(d, by_age = TRUE))) |>
   select(-summary_data) |>
   unnest(cdi)
 
-saveRDS(kid_accs_boot_cdi_byage, "../cached_intermediates/4_acc_kid_cdi_boot_byage.rds")
+saveRDS(kid_accs_cdi_byage, "../cached_intermediates/4_acc_kid_cdi_byage.rds")

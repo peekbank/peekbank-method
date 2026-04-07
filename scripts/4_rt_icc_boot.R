@@ -16,12 +16,6 @@ d_rt_dt_byage <- preprocess_rt_dt(rts) |>
   group_by(dataset_name, time_0, window, time_end, during, frac, administration_id, target_label, age_bin, measure) |>
   mutate(repetition = row_number())
 
-cluster <- setup_cluster(
-  libs = c("dplyr", "stringr", "purrr", "tidyr", "agreement"),
-  copy_names = c("bootstrap_icc")
-)
-
-
 params <- expand_grid(min_trial = c(1, 2, 3, 4, 5, 6))
 
 rt_iccs <- d_rt_dt |>
@@ -32,15 +26,10 @@ rt_iccs <- d_rt_dt |>
   select(-count) |>
   group_by(dataset_name, time_0, window, time_end, during, frac, measure, min_trial) |>
   nest() |>
-  partition(cluster) |>
-  mutate(icc_admin = map(data, \(d) {
-    bootstrap_icc(d, column = "rt", bootstrap = 2000)
-  })) |>
-  collect() |>
-  select(-data) |>
-  unnest(icc_admin)
+  mutate(est = map_dbl(data, \(d) get_icc(d, column = "rt"))) |>
+  select(-data)
 
-saveRDS(rt_iccs, "../cached_intermediates/4_rt_icc_boot.rds")
+saveRDS(rt_iccs, "../cached_intermediates/4_rt_icc.rds")
 
 rt_iccs_age <- d_rt_dt_byage |>
   group_by(dataset_name, time_0, window, time_end, during, frac, administration_id, age_bin, measure) |>
@@ -50,11 +39,7 @@ rt_iccs_age <- d_rt_dt_byage |>
   select(-count) |>
   group_by(dataset_name, time_0, window, time_end, during, frac, age_bin, measure, min_trial) |>
   nest() |>
-  partition(cluster) |>
-  mutate(icc_admin = map(data, \(d) {
-    bootstrap_icc(d, column = "rt", bootstrap = 2000)
-  })) |>
-  collect() |>
-  select(-data) |>
-  unnest(icc_admin)
-saveRDS(rt_iccs_age, "../cached_intermediates/4_rt_icc_boot_byage.rds")
+  mutate(est = map_dbl(data, \(d) get_icc(d, column = "rt"))) |>
+  select(-data)
+
+saveRDS(rt_iccs_age, "../cached_intermediates/4_rt_icc_byage.rds")

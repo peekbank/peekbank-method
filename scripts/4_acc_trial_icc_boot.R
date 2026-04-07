@@ -51,21 +51,19 @@ summarize_trial_exclusion <- function(d, flags, t_start, t_end, exclude_less_tha
     ungroup()
 }
 
-# Bootstrap ICCs on pre-computed trial-level summaries.
-run_trial_icc_bootstrap <- function(d) {
+run_trial_icc <- function(d) {
   d |>
     group_by(dataset_name, across(any_of("age_bin"))) |>
     nest() |>
     mutate(
-      icc = map(data, \(x) bootstrap_icc(x, "accuracy", 2000)),
+      est = map_dbl(data, \(x) get_icc(x, "accuracy")),
       num_trials = map(data, \(x) nrow(x))
     ) |>
-    select(-data) |>
-    unnest(icc)
+    select(-data)
 }
 
 acc_params <- expand_grid(
-  t_start = c(400),
+  t_start = c(400, 200, 600),
   t_end = c(2000, 3000, 4000),
   exclude_less_than = c(0, .1, .2, .3, .4, .5, .6, .7, .8, .9, 1),
   look_both = c("before", "ever", "no_need"),
@@ -87,31 +85,22 @@ accs_summarized_age <- acc_params |>
 
 gc()
 
-cluster <- setup_cluster(
-  libs = c("dplyr", "tidyr", "purrr", "agreement"),
-  copy_names = c("bootstrap_icc", "run_trial_icc_bootstrap")
-)
+accs_icc <- accs_summarized |>
+  mutate(icc = map(summary_data, run_trial_icc)) |>
+  select(-summary_data) |>
+  unnest(col = icc)
 
-# accs_boot <- accs_summarized |>
-#   partition(cluster) |>
-#   mutate(icc = map(summary_data, run_trial_icc_bootstrap)) |>
-#   collect() |>
-#   select(-summary_data) |>
-#   unnest(col = icc)
-#
-# saveRDS(accs_boot, "../cached_intermediates/4_acc_trial_icc_boot.rds")
-#
-# accs_boot_age <- accs_summarized_age |>
-#   partition(cluster) |>
-#   mutate(icc = map(summary_data, run_trial_icc_bootstrap)) |>
-#   collect() |>
-#   select(-summary_data) |>
-#   unnest(col = icc)
-#
-# saveRDS(accs_boot_age, "../cached_intermediates/4_acc_trial_icc_boot_byage.rds")
+saveRDS(accs_icc, "../cached_intermediates/4_acc_trial_icc.rds")
+
+accs_icc_age <- accs_summarized_age |>
+  mutate(icc = map(summary_data, run_trial_icc)) |>
+  select(-summary_data) |>
+  unnest(col = icc)
+
+saveRDS(accs_icc_age, "../cached_intermediates/4_acc_trial_icc_byage.rds")
 
 acc_params_kid <- expand_grid(
-  t_start = c(400),
+  t_start = c(400, 200, 600),
   t_end = c(2000, 3000, 4000),
   exclude_less_than = c(0, .2, .5),
   look_both = c("no_need"),
@@ -131,20 +120,16 @@ kid_accs_summarized_age <- acc_params_kid |>
   ))
 
 
-kid_accs_boot <- kid_accs_summarized |>
-  partition(cluster) |>
-  mutate(icc = map(summary_data, run_trial_icc_bootstrap)) |>
-  collect() |>
+kid_accs_icc <- kid_accs_summarized |>
+  mutate(icc = map(summary_data, run_trial_icc)) |>
   select(-summary_data) |>
   unnest(col = icc)
 
-saveRDS(kid_accs_boot, "../cached_intermediates/4_acc_kid_icc_boot.rds")
+saveRDS(kid_accs_icc, "../cached_intermediates/4_acc_kid_icc.rds")
 
-kid_accs_boot_age <- kid_accs_summarized_age |>
-  partition(cluster) |>
-  mutate(icc = map(summary_data, run_trial_icc_bootstrap)) |>
-  collect() |>
+kid_accs_icc_age <- kid_accs_summarized_age |>
+  mutate(icc = map(summary_data, run_trial_icc)) |>
   select(-summary_data) |>
   unnest(col = icc)
 
-saveRDS(kid_accs_boot_age, "../cached_intermediates/4_acc_kid_icc_boot_byage.rds")
+saveRDS(kid_accs_icc_age, "../cached_intermediates/4_acc_kid_icc_byage.rds")

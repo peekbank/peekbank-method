@@ -28,18 +28,16 @@ summarize_bc_accuracy <- function(d, b_start, b_end, t_start, t_end) {
     ungroup()
 }
 
-# Bootstrap ICCs on pre-computed trial-level summaries.
-run_bc_icc_bootstrap <- function(d) {
+run_bc_icc <- function(d) {
   d |>
     group_by(dataset_name, across(any_of("age_bin"))) |>
     nest() |>
-    mutate(icc = map(data, \(x) bootstrap_icc(x, "bc_accuracy", 2000))) |>
-    select(-data) |>
-    unnest(icc)
+    mutate(est = map_dbl(data, \(x) get_icc(x, "bc_accuracy"))) |>
+    select(-data)
 }
 
 bc_acc_params <- expand_grid(
-  t_start = 400,
+  t_start = c(200, 400, 600),
   t_end = c(2000, 3000, 4000),
   b_start = seq(-4000, -1000, 1000),
   b_end = c(-500, 0),
@@ -47,35 +45,30 @@ bc_acc_params <- expand_grid(
 
 # Pre-compute trial-level summaries on main process
 bc_summarized <- bc_acc_params |>
-  mutate(summary_data = pmap(list(b_start, b_end, t_start, t_end),
-    \(b_s, b_e, t_s, t_e) summarize_bc_accuracy(d_aoi_bc, b_s, b_e, t_s, t_e)))
+  mutate(summary_data = pmap(
+    list(b_start, b_end, t_start, t_end),
+    \(b_s, b_e, t_s, t_e) summarize_bc_accuracy(d_aoi_bc, b_s, b_e, t_s, t_e)
+  ))
 
 bc_summarized_age <- bc_acc_params |>
-  mutate(summary_data = pmap(list(b_start, b_end, t_start, t_end),
-    \(b_s, b_e, t_s, t_e) summarize_bc_accuracy(d_aoi_bc_age, b_s, b_e, t_s, t_e)))
+  mutate(summary_data = pmap(
+    list(b_start, b_end, t_start, t_end),
+    \(b_s, b_e, t_s, t_e) summarize_bc_accuracy(d_aoi_bc_age, b_s, b_e, t_s, t_e)
+  ))
 
 rm(d_aoi, d_aoi_age, d_aoi_bc, d_aoi_bc_age)
 gc()
 
-cluster <- setup_cluster(
-  libs = c("dplyr", "tidyr", "purrr", "agreement"),
-  copy_names = c("bootstrap_icc", "run_bc_icc_bootstrap")
-)
-
 bc_accs <- bc_summarized |>
-  partition(cluster) |>
-  mutate(icc = map(summary_data, run_bc_icc_bootstrap)) |>
-  collect() |>
+  mutate(icc = map(summary_data, run_bc_icc)) |>
   select(-summary_data) |>
   unnest(col = icc)
 
-saveRDS(bc_accs, "../cached_intermediates/2_bc_icc_boot.rds")
+saveRDS(bc_accs, "../cached_intermediates/2_bc_icc.rds")
 
 bc_accs_age <- bc_summarized_age |>
-  partition(cluster) |>
-  mutate(icc = map(summary_data, run_bc_icc_bootstrap)) |>
-  collect() |>
+  mutate(icc = map(summary_data, run_bc_icc)) |>
   select(-summary_data) |>
   unnest(col = icc)
 
-saveRDS(bc_accs_age, "../cached_intermediates/2_bc_icc_boot_byage.rds")
+saveRDS(bc_accs_age, "../cached_intermediates/2_bc_icc_byage.rds")

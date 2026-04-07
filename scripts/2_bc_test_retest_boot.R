@@ -7,19 +7,6 @@ pairs_long <- make_test_retest_pairs(d_aoi)
 d_aoi_bc <- make_baseline_corrected(d_aoi)
 pairs_aoi_data_bc <- pairs_long |> left_join(d_aoi_bc)
 
-pairs_aoi_data_bc_age <- pairs_long |>
-  mutate(age_bin = case_when(
-    mean_age < 18 ~ "<18",
-    mean_age < 24 ~ "18-24",
-    mean_age < 36 ~ "24-36",
-    mean_age >= 36 ~ ">=36"
-  )) |>
-  group_by(dataset_name, age_bin) |>
-  mutate(count = n()) |>
-  filter(count >= 5) |>
-  ungroup() |>
-  filter(age_bin %in% c("18-24", "24-36")) |>
-  left_join(d_aoi_bc)
 
 bc_test_retest <- function(b_start, b_end, t_start = -500, t_end = 4000) {
   pairs_aoi_data_bc |>
@@ -35,36 +22,10 @@ bc_test_retest <- function(b_start, b_end, t_start = -500, t_end = 4000) {
     ) |>
     group_by(administration_id, dataset_name, subject_id, pair_number, session_num) |>
     summarize(mean_var = mean(bc_accuracy, na.rm = T), .groups = "drop") |>
-    boot_test_retest()
+    calc_test_retest()
 }
 
 
-bc_test_retest_age <- function(b_start, b_end, t_start = -500, t_end = 4000) {
-  pairs_aoi_data_bc_age |>
-    group_by(dataset_name, dataset_id, administration_id, subject_id, pair_number, session_num, trial_id, age_bin) |>
-    summarise(
-      window_accuracy = mean(correct[t_norm >= t_start & t_norm <= t_end],
-        na.rm = TRUE
-      ),
-      baseline_accuracy = mean(correct[t_norm >= b_start & t_norm <= b_end],
-        na.rm = TRUE
-      ),
-      bc_accuracy = window_accuracy - baseline_accuracy
-    ) |>
-    group_by(administration_id, dataset_name, subject_id, pair_number, session_num, age_bin) |>
-    summarize(mean_var = mean(bc_accuracy, na.rm = T), .groups = "drop") |>
-    mutate(dataset_name = str_c(age_bin, dataset_name)) |> # hack
-    boot_test_retest()
-}
-
-cluster <- setup_cluster(
-  libs = c("dplyr", "stringr", "purrr", "tidyr", "stats", "tibble", "boot"),
-  copy_names = c(
-    "safe_boot_ci", "safe_cor", "test_retest_corr", "boot_test_retest",
-    "pairs_aoi_data_bc", "bc_test_retest",
-    "pairs_aoi_data_bc_age", "bc_test_retest_age"
-  )
-)
 
 
 bc_acc_params <- expand_grid(
@@ -74,18 +35,8 @@ bc_acc_params <- expand_grid(
   b_end = c(-500, 0),
 )
 
-# bc_boot_test_retest <- bc_acc_params |>
-#   partition(cluster) |>
-#   mutate(corr = pmap(list(b_start, b_end, t_start, t_end), \(b_s, b_e, t_s, t_e) bc_test_retest(b_s, b_e, t_s, t_e))) |>
-#   collect() |>
-#   unnest(corr)
-#
-# saveRDS(bc_boot_test_retest, "../cached_intermediates/2_bc_test_retest_boot.rds")
-
-bc_boot_test_retest_age <- bc_acc_params |>
-  partition(cluster) |>
-  mutate(corr = pmap(list(b_start, b_end, t_start, t_end), \(b_s, b_e, t_s, t_e) bc_test_retest_age(b_s, b_e, t_s, t_e))) |>
-  collect() |>
+bc_test_retest_result <- bc_acc_params |>
+  mutate(corr = pmap(list(b_start, b_end, t_start, t_end), \(b_s, b_e, t_s, t_e) bc_test_retest(b_s, b_e, t_s, t_e))) |>
   unnest(corr)
 
-saveRDS(bc_boot_test_retest_age, "../cached_intermediates/2_bc_test_retest_boot_age.rds")
+saveRDS(bc_test_retest_result, "../cached_intermediates/2_bc_test_retest.rds")

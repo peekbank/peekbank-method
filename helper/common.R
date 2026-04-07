@@ -6,9 +6,6 @@ library(purrr)
 library(tibble)
 library(stringr)
 library(agreement)
-library(multidplyr)
-library(boot)
-# because we don't have full on tidyverse on the cluster, we specify the parts we actually need
 
 # Seed for random number generation
 set.seed(42)
@@ -99,55 +96,6 @@ get_icc <- function(x, column = "accuracy") {
 
   return(iccs$Inter_ICC)
 }
-bootstrap_icc <- function(x, column = "accuracy", bootstrap = 2000) {
-  x <- x |> filter(!is.na(.data[[column]]))
-  iccs <- dim_icc(x,
-    model = "2A",
-    type = "consistency",
-    unit = "average",
-    object = administration_id,
-    rater = target_label,
-    trial = repetition,
-    score = {{ column }},
-    bootstrap = bootstrap
-  )
-  # View(iccs$boot_results[["t"]])
-  t <- iccs$boot_results[["t"]][, 6]
-  t_no_na <- t[!is.na(t)]
-  # print(t_no_na)
-  # View(iccs$boot_results[["t0"]])
-  t0 <- iccs$boot_results[["t0"]][6][1]
-  # print(t0)
-  if (is.na(t0)) {
-    return(tibble(est = NA, lower = NA, upper = NA))
-  }
-  if (length(t_no_na) == 0) {
-    return(tibble(est = iccs$Inter_ICC, lower = NA, upper = NA))
-  }
-  iccs$boot_results$R <- length(t_no_na)
-  ci <- boot::boot.ci(boot.out = iccs$boot_results, t = t_no_na, t0 = t0, type = "basic")
-  return(tibble(est = iccs$Inter_ICC, lower = ci$basic[4], upper = ci$basic[5]))
-}
-
-safe_boot_ci <- function(b, index) {
-  t0 <- b$t0[index]
-  if (is.na(t0)) {
-    return(list(lower = NA_real_, upper = NA_real_))
-  }
-  t_vals <- b$t[, index]
-  t_no_na <- t_vals[!is.na(t_vals)]
-  if (length(t_no_na) == 0) {
-    return(list(lower = NA_real_, upper = NA_real_))
-  }
-  b$R <- length(t_no_na)
-  ci <- boot::boot.ci(boot.out = b, t = t_no_na, t0 = t0, type = "basic")
-  if (!is.null(ci$basic) && length(ci$basic) >= 5) {
-    list(lower = ci$basic[4], upper = ci$basic[5])
-  } else {
-    list(lower = NA_real_, upper = NA_real_)
-  }
-}
-
 safe_cor <- function(x, y) {
   complete <- !is.na(x) & !is.na(y)
   if (sum(complete) > 2) {
@@ -157,59 +105,20 @@ safe_cor <- function(x, y) {
   }
 }
 
-do_cdi <- function(data, indices) {
-  d <- data |>
-    slice(indices) |>
-    ungroup()
-
-  cors <- c(
-    cor_comp = safe_cor(d$mean_var, d$comp),
-    cor_prod = safe_cor(d$mean_var, d$prod),
-    cor_age = safe_cor(d$mean_var, d$age)
-  )
-  return(cors)
-}
-
-boot_cdi <- function(data, by_age = FALSE) {
-  na_cdi_row <- tibble(
-    comp_est = NA_real_, comp_lower = NA_real_, comp_upper = NA_real_,
-    prod_est = NA_real_, prod_lower = NA_real_, prod_upper = NA_real_,
-    age_est = NA_real_, age_lower = NA_real_, age_upper = NA_real_
-  )
+calc_cdi <- function(data, by_age = FALSE) {
   grp <- if (by_age) c("dataset_name", "age_bin") else "dataset_name"
   data |>
     group_by(across(all_of(grp))) |>
-    nest() |>
-    mutate(corr = map(data, \(d) {
-      suppressWarnings(tryCatch(
-        {
-          b <- boot::boot(d, do_cdi, 2000)
-          ci_comp <- safe_boot_ci(b, 1)
-          ci_prod <- safe_boot_ci(b, 2)
-          ci_age <- safe_boot_ci(b, 3)
-          tibble(
-            comp_est = b$t0[1], comp_lower = ci_comp$lower, comp_upper = ci_comp$upper,
-            prod_est = b$t0[2], prod_lower = ci_prod$lower, prod_upper = ci_prod$upper,
-            age_est = b$t0[3], age_lower = ci_age$lower, age_upper = ci_age$upper,
-          )
-        },
-        error = function(e) {
-          warning("boot_cdi failed for a group: ", conditionMessage(e))
-          na_cdi_row
-        }
-      ))
-    })) |>
-    select(-data) |>
-    unnest(corr)
+    summarize(
+      comp_est = safe_cor(mean_var, comp),
+      prod_est = safe_cor(mean_var, prod),
+      age_est = safe_cor(mean_var, age),
+      .groups = "drop"
+    )
 }
 
-test_retest_corr <- function(data, indices) {
-  d <- data |> slice(indices)
-  return(safe_cor(d$first_admin, d$second_admin))
-}
-
-boot_test_retest <- function(data) {
-  na_tr_row <- tibble(dataset_name = NA_character_, est = NA_real_, lower = NA_real_, upper = NA_real_)
+calc_test_retest <- function(data) {
+  na_tr_row <- tibble(dataset_name = NA_character_, est = NA_real_)
   tryCatch(
     {
       wide_data <- data |>
@@ -227,61 +136,13 @@ boot_test_retest <- function(data) {
       wide_data |>
         pivot_wider(names_from = session_num, values_from = mean_var) |>
         group_by(dataset_name) |>
-        nest() |>
-        mutate(corr = map(data, \(d) {
-          suppressWarnings(tryCatch(
-            {
-              b <- boot::boot(d, test_retest_corr, 2000)
-              ci <- safe_boot_ci(b, 1)
-              print(ci)
-              tibble(est = b$t0, lower = ci$lower, upper = ci$upper)
-            },
-            error = function(e) {
-              tibble(est = NA_real_, lower = NA_real_, upper = NA_real_)
-            }
-          ))
-        })) |>
-        select(-data) |>
-        unnest(corr)
+        summarize(est = safe_cor(first_admin, second_admin), .groups = "drop")
     },
     error = function(e) {
-      warning("boot_test_retest failed entirely: ", conditionMessage(e))
+      warning("calc_test_retest failed: ", conditionMessage(e))
       na_tr_row
     }
   )
 }
 
-setup_cluster <- function(libs, copy_names = character(), envir = parent.frame(), n_workers = 16) {
-  cluster <- new_cluster(n_workers)
-  for (lib in libs) cluster_library(cluster, lib)
-  for (name in copy_names) cluster_copy(cluster, name, env = envir)
-  cluster
-}
-
 options(dplyr.summarise.inform = FALSE)
-
-empirical_ci <- function(d) {
-  d |>
-    group_by(dataset_name) |>
-    summarize(
-      est = mean(corr, na.rm = T),
-      lower = quantile(corr, probs = c(.025), na.rm = T),
-      upper = quantile(corr, probs = c(.975), na.rm = T)
-    )
-}
-
-empirical_ci_cdi <- function(d) {
-  d |>
-    group_by(dataset_name) |>
-    summarize(
-      comp_est = mean(cor_comp, na.rm = T),
-      comp_lower = quantile(cor_comp, probs = c(.025), na.rm = T),
-      comp_upper = quantile(cor_comp, probs = c(.975), na.rm = T),
-      prod_est = mean(cor_prod, na.rm = T),
-      prod_lower = quantile(cor_prod, probs = c(.025), na.rm = T),
-      prod_upper = quantile(cor_prod, probs = c(.975), na.rm = T),
-      age_est = mean(cor_age, na.rm = T),
-      age_lower = quantile(cor_age, probs = c(.025), na.rm = T),
-      age_upper = quantile(cor_age, probs = c(.975), na.rm = T)
-    )
-}

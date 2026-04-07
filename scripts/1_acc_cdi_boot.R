@@ -42,33 +42,23 @@ acc_cdi_age <- function(t_start = -500, t_end = 4000) {
 }
 
 
-cluster <- setup_cluster(
-  libs = c("dplyr", "stringr", "purrr", "tidyr", "stats", "tibble", "boot"),
-  copy_names = c("safe_boot_ci", "safe_cor", "do_cdi", "boot_cdi")
-)
-
-
 acc_params <- expand_grid(
   t_start = c(0, 100, 200, 300, 400, 500, 600, 700, 800, 900, 1000),
   t_end = c(2000, 3000, 4000),
 )
 
-accs_boot_cdi <- acc_params |>
+accs_cdi <- acc_params |>
   mutate(summary_data = pmap(list(t_start, t_end), \(t_s, t_e) acc_cdi(t_s, t_e))) |>
-  partition(cluster) |>
-  mutate(cdi = map(summary_data, boot_cdi)) |>
-  collect() |>
+  mutate(cdi = map(summary_data, calc_cdi)) |>
   select(-summary_data) |>
   unnest(cdi)
 
-saveRDS(accs_boot_cdi, "../cached_intermediates/1_acc_cdi_boot.rds")
+saveRDS(accs_cdi, "../cached_intermediates/1_acc_cdi.rds")
 
-accs_boot_cdi_byage <- acc_params |>
+accs_cdi_byage <- acc_params |>
   mutate(summary_data = pmap(list(t_start, t_end), \(t_s, t_e) acc_cdi_age(t_s, t_e))) |>
-  partition(cluster) |>
-  mutate(cdi = map(summary_data, \(d) boot_cdi(d, by_age = TRUE))) |>
-  collect() |>
+  mutate(cdi = map(summary_data, \(d) calc_cdi(d, by_age = TRUE))) |>
   select(-summary_data) |>
   unnest(cdi)
 
-saveRDS(accs_boot_cdi_byage, "../cached_intermediates/1_acc_cdi_boot_byage.rds")
+saveRDS(accs_cdi_byage, "../cached_intermediates/1_acc_cdi_byage.rds")
