@@ -106,6 +106,7 @@ safe_cor <- function(x, y) {
 }
 
 calc_cdi <- function(data, by_age = FALSE) {
+  data <- ungroup(data) |> mutate(dataset_name = as.character(dataset_name))
   if (nrow(data) == 0) {
     cols <- tibble(dataset_name = character(), comp_est = numeric(), prod_est = numeric(), age_est = numeric())
     if (by_age) cols <- mutate(cols, age_bin = character())
