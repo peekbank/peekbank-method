@@ -23,11 +23,6 @@ downsample_rt_cdi <- function(start_point, sample_down, iters) {
     left_join(cdi_data, by = c("administration_id", "dataset_name"))
 }
 
-cluster <- setup_cluster(
-  libs = c("dplyr", "stringr", "purrr", "tidyr", "stats", "tibble", "boot"),
-  copy_names = c("safe_cor", "do_cdi", "empirical_ci_cdi", "d_rt_dt")
-)
-
 params <- expand_grid(
   start_point = c(3, 5, 7, 10, 15),
   sample_down = c(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15)
@@ -36,20 +31,21 @@ params <- expand_grid(
 
 rt_boot_cdi <- params |>
   mutate(iters = 1000) |>
-  mutate(summary_data = pmap(list(start_point, sample_down, iters), \(s_p, s_d, iters) downsample_rt_cdi(s_p, s_d, iters))) |>
-  partition(cluster) |>
-  mutate(cdi = map(summary_data, \(d) {
-    suppressWarnings(d |>
-      group_by(dataset_name, iteration) |>
-      nest() |>
-      mutate(corr = map(data, \(d) do_cdi(d, 1:nrow(d)))) |>
-      select(-data) |>
-      unnest_wider(corr) |>
-      ungroup() |>
-      empirical_ci_cdi())
-  })) |>
-  collect() |>
-  select(-summary_data) |>
+  mutate(
+    cdi = pmap(
+      list(start_point, sample_down, iters),
+      \(s_p, s_d, iters) {
+        suppressWarnings(downsample_rt_cdi(s_p, s_d, iters)) |>
+          group_by(dataset_name, iteration) |>
+          nest() |>
+          mutate(corr = map(data, calc_cdi)) |>
+          select(-data) |>
+          unnest_wider(corr) |>
+          ungroup() |>
+          empirical_ci_cdi()
+      }
+    )
+  ) |>
   unnest(cdi)
 
 saveRDS(rt_boot_cdi, "../cached_intermediates/5_rt_cdi_boot.rds")

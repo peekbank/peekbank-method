@@ -37,21 +37,10 @@ acc_downsample_test_retest <- function(t_start, t_end, start_point, sample_down,
     pivot_wider(names_from = session_num, values_from = mean_var) |>
     group_by(dataset_name, iteration) |>
     nest() |>
-    mutate(corr = map(data, \(d) test_retest_corr(d, 1:nrow(d)))) |>
+    mutate(corr = map_dbl(data, cor_test_retest_wide)) |>
     select(-data) |>
-    unnest(corr) |>
     empirical_ci()
 }
-
-
-cluster <- setup_cluster(
-  libs = c("dplyr", "stringr", "purrr", "tidyr", "stats", "tibble", "boot"),
-  copy_names = c(
-    "safe_boot_ci", "safe_cor", "test_retest_corr", "boot_test_retest",
-    "pairs_aoi_data", "acc_downsample_test_retest", "empirical_ci"
-  )
-)
-
 
 params <- expand_grid(
   t_start = c(400),
@@ -62,9 +51,7 @@ params <- expand_grid(
 
 acc_downsample <- params |>
   mutate(iters = 1000) |>
-  partition(cluster) |>
   mutate(corr = pmap(list(t_start, t_end, start_point, sample_down, iters), \(t_s, t_e, s_p, s_d, iters) acc_downsample_test_retest(t_s, t_e, s_p, s_d, iters))) |>
-  collect() |>
   unnest(corr)
 
 saveRDS(acc_downsample, "../cached_intermediates/5_acc_downsample_test_retest_boot.rds")

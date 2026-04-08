@@ -9,6 +9,7 @@ library(agreement)
 
 # Seed for random number generation
 set.seed(42)
+options(dplyr.summarise.inform = FALSE)
 
 get_age_bin_cutoff <- function(d_aoi, min_per_bin = 5) {
   d_aoi |>
@@ -154,4 +155,59 @@ calc_test_retest <- function(data) {
   )
 }
 
-options(dplyr.summarise.inform = FALSE)
+# Pearson r between two test sessions (wide rows: first_admin, second_admin).
+cor_test_retest_wide <- function(d) {
+  safe_cor(d$first_admin, d$second_admin)
+}
+
+# Median and empirical quantile band of a scalar statistic across subsampling iterations.
+empirical_ci <- function(d, value_col = "corr", probs = c(0.025, 0.975)) {
+  if (!value_col %in% names(d)) {
+    stop("empirical_ci: column ", value_col, " not found", call. = FALSE)
+  }
+  d |>
+    group_by(dataset_name) |>
+    summarize(
+      est = median(.data[[value_col]], na.rm = TRUE),
+      lower = suppressWarnings(as.numeric(stats::quantile(.data[[value_col]], probs[1], na.rm = TRUE, names = FALSE, type = 7))),
+      upper = suppressWarnings(as.numeric(stats::quantile(.data[[value_col]], probs[2], na.rm = TRUE, names = FALSE, type = 7))),
+      .groups = "drop"
+    )
+}
+
+# Same as empirical_ci for CDI correlations (comp / prod / age), across iterations.
+empirical_ci_cdi <- function(d, probs = c(0.025, 0.975)) {
+  qband <- function(x) {
+    list(
+      median(x, na.rm = TRUE),
+      suppressWarnings(as.numeric(stats::quantile(x, probs[1], na.rm = TRUE, names = FALSE, type = 7))),
+      suppressWarnings(as.numeric(stats::quantile(x, probs[2], na.rm = TRUE, names = FALSE, type = 7)))
+    )
+  }
+  d |>
+    group_by(dataset_name) |>
+    summarize(
+      comp_est = qband(comp_est)[[1]],
+      comp_lower = qband(comp_est)[[2]],
+      comp_upper = qband(comp_est)[[3]],
+      prod_est = qband(prod_est)[[1]],
+      prod_lower = qband(prod_est)[[2]],
+      prod_upper = qband(prod_est)[[3]],
+      age_est = qband(age_est)[[1]],
+      age_lower = qband(age_est)[[2]],
+      age_upper = qband(age_est)[[3]],
+      .groups = "drop"
+    )
+}
+
+# ICC per (dataset, iteration), then empirical bands over iterations (trial subsamples).
+summarize_icc_resamples <- function(d, column = "accuracy") {
+  d |>
+    group_by(dataset_name, iteration) |>
+    nest() |>
+    mutate(corr = map(data, \(x) get_icc(x, column))) |>
+    select(-data) |>
+    unnest(corr) |>
+    ungroup() |>
+    empirical_ci()
+}

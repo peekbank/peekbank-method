@@ -206,46 +206,6 @@ dataset_table <- dataset_summ |>
   ) |>
   select(dataset_name, trials, admins, subjects, age, CDI, `Test-retest`, pct_trial)
 
-clean_names <- tribble(
-  ~dataset_name, ~`Dataset Name`, ~`Language`,
-  "reflook_v4", "Yurovsky et al. (2017)", "English",
-  "yurovsky_2017", "Yurovsky & Frank (2017)", "English",
-  "weaver_zettersten_2024", "Weaver et al. (2024)", "English",
-  "fernald_marchman_2012", "Fernald & Marchman (2012)", "English",
-  "frank_tablet_2016", "Frank et al. (2016)", "English",
-  "fmw_2013", "Fernald et al. (2013)", "English",
-  "adams_marchman_2018", "Adams et al. (2018)", "English",
-  "potter_canine", "Potter & Lew Williams (2023)", "English",
-  "fernald_totlot", "Fernald et al. (2006)", "English",
-  "pomper_prime", "Pomper & Saffran (2015)", "English",
-  "pomper_saffran_2016", "Pomper & Saffran (2016)", "Egnlish",
-  "swingley_aslin_2002", "Swingley & Aslin (2002)", "English",
-  "pomper_salientme", "Pomper & Saffran (2019)", "English",
-  "perry_cowpig", "Perry & Saffan (2017)", "English",
-  "ronfard_2021", "Ronfard et al. (2022)", "English",
-  "bacon_gendercues", "Bacon & Saffran (2022)", "English",
-  "garrison_bergelson_2020", "Garrison et al. (2020)", "English",
-  "pomper_yumme", "Pomper & Saffran (2018)", "English",
-  "mahr_coartic", "Mahr et al. (2015)", "English",
-  "potter_remix", "Potter et al. (2019)", "English",
-  "reflook_socword", "Yurovsky et al. (2013)", "English",
-  "yoon_simpimp_2015", "Yoon et al. (2015)", "English",
-  "borovsky_2019", "Borovsky & Peters (2019)", "English",
-  "pomper_dimy", "Pomper & Saffran (2017)", "English",
-  "weaver_saffran_2026", "Weaver & Saffran (2026)", "English",
-  "bergelson_swingley_2012", "Bergelson & Swingley (2012)", "English",
-  "moore_bergelson_2022_verb", "Moore & Bergelson (2022)", "English",
-  "hurtado_2008", "Hurtado et al. (2008)", "Spanish",
-  "kartushina_2019", "Kartushina & Mayor (2019)", "Norwegian",
-  "weisleder_stl", "Weisleder & Fernald (2013)", "Spanish",
-  "sander-montant_2022", "Sander-Montant et al. (2023)", "English, French",
-  "gazetriggered_2020", "Egger et al. (2020)", "Dutch",
-  "xsectional_2007", "Hurtado et al. (2007)", "Spanish",
-  "casillas_tseltal_2015", "Casillas et al. (2017)", "Tseltal",
-  "kremin_2021", "Kremin et al. (2023)", "English, French, Spanish",
-  "byers-heinlein_2017", "Byers-Heinlein et al. (2017)", "English, French",
-)
-
 global_summary <- dataset_summ |>
   ungroup() |>
   summarize(

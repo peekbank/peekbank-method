@@ -20,27 +20,8 @@ downsample_summarize_rt <- function(start_point, sample_down, iterations) {
     group_by(dataset_name, administration_id, target_label, iteration) |>
     mutate(repetition = row_number()) |>
     ungroup() |>
-    run_icc()
+    summarize_icc_resamples("rt")
 }
-
-
-
-run_icc <- function(d) {
-  d |>
-    group_by(dataset_name, iteration) |>
-    nest() |>
-    mutate(corr = map(data, \(x) get_icc(x, "rt"))) |>
-    select(-data) |>
-    unnest(corr) |>
-    ungroup() |>
-    empirical_ci()
-}
-
-cluster <- setup_cluster(
-  libs = c("dplyr", "stringr", "purrr", "tidyr", "agreement"),
-  copy_names = c("d_rt_dt", "run_icc", "get_icc", "empirical_ci", "downsample_summarize_rt")
-)
-
 
 params <- expand_grid(
   start_point = c(3, 5, 7, 10, 15),
@@ -50,9 +31,7 @@ params <- expand_grid(
 
 rt_iccs <- params |>
   mutate(iters = 1000) |>
-  partition(cluster) |>
   mutate(corr = pmap(list(start_point, sample_down, iters), \(s_p, s_d, iters) downsample_summarize_rt(s_p, s_d, iters))) |>
-  collect() |>
   unnest(corr)
 
 saveRDS(rt_iccs, "../cached_intermediates/5_rt_icc_boot.rds")

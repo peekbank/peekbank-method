@@ -37,19 +37,7 @@ downsample_summarize_accuracy <- function(start_point, sample_down, iter) {
     ))), across(any_of("age_bin"))) |>
     mutate(repetition = row_number()) |>
     ungroup() |>
-    run_icc()
-}
-
-# Bootstrap ICCs on pre-computed trial-level summaries.
-run_icc <- function(d) {
-  d |>
-    group_by(dataset_name, iteration) |>
-    nest() |>
-    mutate(corr = map(data, \(x) get_icc(x, "accuracy"))) |>
-    select(-data) |>
-    unnest(corr) |>
-    ungroup() |>
-    empirical_ci()
+    summarize_icc_resamples("accuracy")
 }
 
 params <- expand_grid(
@@ -58,18 +46,9 @@ params <- expand_grid(
 ) |> filter(sample_down <= start_point)
 
 
-# Pre-compute trial-level summaries on main process
-
-cluster <- setup_cluster(
-  libs = c("dplyr", "tidyr", "purrr", "agreement"),
-  copy_names = c("run_icc", "get_icc", "empirical_ci", "summarized_accuracy", "downsample_summarize_accuracy")
-)
-
 accs_boot <- params |>
   mutate(iters = 500) |>
-  partition(cluster) |>
   mutate(corr = pmap(list(start_point, sample_down, iters), \(s_p, s_d, iters) downsample_summarize_accuracy(s_p, s_d, iters))) |>
-  collect() |>
   unnest(corr)
 
 saveRDS(accs_boot, "../cached_intermediates/5_acc_icc_boot.rds")

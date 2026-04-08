@@ -2,8 +2,6 @@ source("../helper/common.R")
 
 d_aoi <- readRDS("../cached_intermediates/0_d_aoi.rds")
 
-d_aoi_age <- make_age_bins(d_aoi)
-
 cdi_data <- readRDS("../cached_intermediates/0_cdi_subjects.rds")
 
 
@@ -31,13 +29,6 @@ downsample_acc_cdi <- function(t_start = -500, t_end = 4000, start_point, sample
     left_join(cdi_data, by = c("administration_id", "dataset_name"))
 }
 
-cluster <- setup_cluster(
-  libs = c("dplyr", "stringr", "purrr", "tidyr", "stats", "tibble", "boot"),
-  copy_names = c("safe_boot_ci", "safe_cor", "do_cdi", "boot_cdi", "empirical_ci_cdi")
-)
-
-
-
 params <- expand_grid(
   t_start = c(400),
   t_end = c(2000, 3000, 4000),
@@ -47,20 +38,21 @@ params <- expand_grid(
 
 accs_boot_cdi <- params |>
   mutate(iters = 1000) |>
-  mutate(summary_data = pmap(list(t_start, t_end, start_point, sample_down, iters), \(t_s, t_e, s_p, s_d, iters) downsample_acc_cdi(t_s, t_e, s_p, s_d, iters))) |>
-  partition(cluster) |>
-  mutate(cdi = map(summary_data, \(d) {
-    d |>
-      group_by(dataset_name, iteration) |>
-      nest() |>
-      mutate(corr = map(data, \(d) do_cdi(d, 1:nrow(d)))) |>
-      select(-data) |>
-      unnest_wider(corr) |>
-      ungroup() |>
-      empirical_ci_cdi()
-  })) |>
-  collect() |>
-  select(-summary_data) |>
+  mutate(
+    cdi = pmap(
+      list(t_start, t_end, start_point, sample_down, iters),
+      \(t_s, t_e, s_p, s_d, iters) {
+        downsample_acc_cdi(t_s, t_e, s_p, s_d, iters) |>
+          group_by(dataset_name, iteration) |>
+          nest() |>
+          mutate(corr = map(data, calc_cdi)) |>
+          select(-data) |>
+          unnest_wider(corr) |>
+          ungroup() |>
+          empirical_ci_cdi()
+      }
+    )
+  ) |>
   unnest(cdi)
 
 saveRDS(accs_boot_cdi, "../cached_intermediates/5_acc_cdi_boot.rds")
