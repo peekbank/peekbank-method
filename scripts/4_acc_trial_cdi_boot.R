@@ -49,7 +49,7 @@ acc_trial_cdi_summarize <- function(d, flags, t_start, t_end, exclude_less_than,
     filter(count >= min_trial) |>
     select(-count) |>
     filter(!is.na(mean_var)) |>
-    left_join(cdi_data)
+    left_join(cdi_data, by = c("dataset_name", "administration_id"))
 }
 
 acc_params <- expand_grid(
