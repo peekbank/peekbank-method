@@ -99,7 +99,10 @@ get_icc <- function(x, column = "accuracy") {
 safe_cor <- function(x, y) {
   complete <- !is.na(x) & !is.na(y)
   if (sum(complete) > 2) {
-    tryCatch(cor.test(x[complete], y[complete])$estimate[[1]], error = function(e) NA_real_)
+    tryCatch(
+      suppressWarnings(cor.test(x[complete], y[complete])$estimate[[1]]),
+      error = function(e) NA_real_
+    )
   } else {
     NA_real_
   }
