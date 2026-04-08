@@ -20,7 +20,7 @@ acc_cdi <- function(t_start = -500, t_end = 4000) {
     group_by(administration_id, dataset_name) |>
     summarize(mean_var = mean(accuracy, na.rm = T)) |>
     filter(!is.na(mean_var)) |>
-    left_join(cdi_data)
+    left_join(cdi_data, by = c("dataset_name", "adminstration_id"))
 }
 
 
@@ -38,7 +38,7 @@ acc_cdi_age <- function(t_start = -500, t_end = 4000) {
     group_by(administration_id, dataset_name, age_bin) |>
     summarize(mean_var = mean(accuracy, na.rm = T)) |>
     filter(!is.na(mean_var)) |>
-    left_join(cdi_data)
+    left_join(cdi_data, by = c("dataset_name", "adminstration_id"))
 }
 
 

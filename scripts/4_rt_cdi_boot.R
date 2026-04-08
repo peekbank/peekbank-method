@@ -32,8 +32,8 @@ rt_cdi <- d_rt_dt |>
   cross_join(params) |>
   filter(count >= min_trial) |>
   select(-count) |>
-  left_join(cdi_data) |>
-  group_by(time_0, window, time_end, during, frac, measure, min_trial) |>
+  left_join(cdi_data, by = c("dataset_name", "adminstration_id"))
+group_by(time_0, window, time_end, during, frac, measure, min_trial) |>
   nest() |>
   mutate(cdi = map(data, calc_cdi)) |>
   select(-data) |>
@@ -45,8 +45,8 @@ rt_cdi_byage <- d_rt_dt_byage |>
   cross_join(params) |>
   filter(count >= min_trial) |>
   select(-count) |>
-  left_join(cdi_data) |>
-  group_by(age_bin, time_0, window, time_end, during, frac, measure, min_trial) |>
+  left_join(cdi_data, by = c("dataset_name", "adminstration_id"))
+group_by(age_bin, time_0, window, time_end, during, frac, measure, min_trial) |>
   nest() |>
   mutate(cdi = map(data, calc_cdi)) |>
   select(-data) |>

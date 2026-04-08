@@ -106,6 +106,11 @@ safe_cor <- function(x, y) {
 }
 
 calc_cdi <- function(data, by_age = FALSE) {
+  if (nrow(data) == 0) {
+    cols <- tibble(dataset_name = character(), comp_est = numeric(), prod_est = numeric(), age_est = numeric())
+    if (by_age) cols <- mutate(cols, age_bin = character())
+    return(cols)
+  }
   grp <- if (by_age) c("dataset_name", "age_bin") else "dataset_name"
   data |>
     group_by(across(all_of(grp))) |>

@@ -15,14 +15,14 @@ d_rt_dt <- preprocess_rt_dt(rts) |>
   group_by(dataset_name, time_0, window, time_end, during, frac, administration_id, measure) |>
   summarize(mean_var = mean(rt, na.rm = T)) |>
   filter(!is.na(mean_var)) |>
-  left_join(cdi_data)
+  left_join(cdi_data, by = c("dataset_name", "adminstration_id"))
 
 d_rt_dt_byage <- preprocess_rt_dt(rts) |>
   inner_join(age_bin_cutoff) |>
   group_by(dataset_name, time_0, window, time_end, during, frac, administration_id, age_bin, measure) |>
   summarize(mean_var = mean(rt, na.rm = T)) |>
   filter(!is.na(mean_var)) |>
-  left_join(cdi_data)
+  left_join(cdi_data, by = c("dataset_name", "adminstration_id"))
 
 # d_rt_dt_weird <- preprocess_rt_dt(rts_weird) |>
 #   filter(measure %in% c("log_land_rt", "land_rt")) |>
