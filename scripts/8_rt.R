@@ -20,7 +20,7 @@ rt_params <- expand_grid(
     option = c("alternative"),
     window = c(200),
     measure = c("first_launch_rt"),
-    min_trial = c(2)
+    min_trial = c(5)
   )
 )
 
@@ -35,7 +35,7 @@ rt_icc <- rt_params |>
   group_by(dataset_name, time_0, window, time_end, during, frac, measure, min_trial, option) |>
   nest() |>
   mutate(icc_admin = map(data, \(d) {
-    bootstrap_icc(d, column = "rt", bootstrap = 2000)
+    get_icc(d, column = "rt")
   })) |>
   select(-data) |>
   unnest(icc_admin)
@@ -55,7 +55,7 @@ rt_cdi <- rt_params |>
   left_join(cdi_data) |>
   group_by(time_0, window, time_end, during, frac, measure, min_trial, option) |>
   nest() |>
-  mutate(cdi = map(data, boot_cdi)) |>
+  mutate(cdi = map(data, calc_cdi)) |>
   select(-data) |>
   unnest(cdi)
 
@@ -78,7 +78,7 @@ rt_trt <- rt_params |>
   select(-count) |>
   group_by(measure, window, time_0, time_end, during, frac, min_trial, option) |>
   nest() |>
-  mutate(cdi = map(data, boot_test_retest)) |>
+  mutate(cdi = map(data, calc_test_retest)) |>
   select(-data) |>
   unnest(cdi)
 

@@ -24,7 +24,7 @@ grid_options <- expand_grid(
     time_0 = c(F, T), time_end = c(F), during = T, frac = c(0)
   )) |>
   bind_rows(expand_grid(
-    window = c(200, 250, 300, 350, 375, 400, 425, 450, 500, 600, 700, 800, 900, 1000),
+    window = c(0, 100, 200, 250, 300, 350, 375, 400, 425, 450, 500, 600, 700, 800, 900, 1000),
     time_0 = c(T), time_end = c(T), during = T, frac = c(1)
   ))
 

@@ -126,10 +126,48 @@ Figure \ref{fig:timecourse} shows the distribution of AOIs for different dataset
 
 
 
+DO AGE SPLIT VERSION OF THIS
+```{r acc-heat-map, fig.cap="A heat map showing the average ICC across datasets for different start and end points for the accuracy window. A region with the highest ICC (best reliability) is outlined.", fig.width=5, fig.height=3}
+acc_icc <- readRDS(here("cached_intermediates", "1_acc_icc.rds"))
+
+acc_icc_summary <- acc_icc |>
+  filter_icc("est") |> 
+  group_by(t_start, t_end) |>
+  summarize(
+    mean_icc = mean(est, na.rm = TRUE)
+  ) |>
+  mutate(window_size = t_end - t_start)
 
 
+ggplot(acc_icc_summary, aes(x = t_start, y = t_end, fill = mean_icc)) +
+  geom_tile(color = "white") +
+  scale_fill_viridis(name = "Mean ICC", option = "magma") +
+  scale_x_continuous(breaks = c(-500, 0, 500, 1000, 1500)) +
+  geom_rect(aes(xmin = 550, xmax = 850, ymin = 2750, ymax = 4050), linewidth = 1, color = "black", fill = alpha("grey", 0)) +
+  xlab("Window Start Time (in ms)") +
+  ylab("Window End Time (in ms)")
+```
 
 
+```{r, fig.height=7, fig.width=8, fig.cap="accuracy, model comparisons with 600-4000 as baseline condition "}
+baseline_acc <- function(df) {
+  df |> mutate(
+    t_start = relevel(t_start, "600"),
+    t_end = relevel(t_end, "4000")
+  )
+}
+
+fix_acc_interact <- function(df) {
+  df |>
+    separate(contrast, sep = " ", c("start", "end", NA, NA, NA)) |>
+    mutate(
+      t_start = str_replace(start, "t_start", "") |> as.numeric(),
+      t_end = str_replace(end, "t_end", "") |> as.numeric()
+    )
+}
+
+make_model_grid_plot(readRDS(here("cached_intermediates/1_acc_icc.rds")) |> filter(t_start %in% seq(0, 1000, 100) & t_end %in% c(2000, 3000, 4000) ), readRDS(here("cached_intermediates/1_acc_cdi.rds")), readRDS(here("cached_intermediates/1_acc_test_retest.rds")), baseline_acc, "t_start * t_end", x = t_start, facet = t_end, fix_function = fix_acc_interact)
+```
 ```{r, eval=F}
 readRDS(here("cached_intermediates/0_d_aoi.rds")) |>  group_by(dataset_name, t_norm, aoi) |>
   summarize(n=n()) |>  saveRDS(here("cached_intermediates/supplement_timecourse.rds"))
@@ -178,15 +216,345 @@ As some datasets have much shorter pre-disambiguation windows than others, we al
 Comparison between baseline-corrected accuracy with different baseline windows and accuracy with no baseline-correction. All datasets with data before time 0 were included.
 
 
+do this x 3 for 200-2000; 400-3000; 600-4000
+
+```{r, fig.height=7, fig.width=8, fig.cap="model of baseline correction, compared to no correction" }
+baseline_bc <- function(df) {
+  df |> mutate(
+    b_all = str_c(b_start, " -- ", b_end) |> as.factor(),
+    b_all = relevel(b_all, "none -- none")
+  )
+}
+
+
+fix_bc_interact <- function(df) {
+  df |>
+    mutate(contrast = str_replace_all(contrast, "\\)", "") |> str_replace_all("\\(", "")) |>
+    separate(contrast, sep = " ", c("start", NA, "end", NA, NA, NA)) |>
+    mutate(
+      b_start = str_replace(start, "b_start", ""),
+      b_end = str_replace(end, "b_end", "")
+    )
+}
+make_model_grid_plot(bc_icc, bc_cdi, bc_test_retest, baseline_bc, "b_all", x = b_start, col = b_end, fix_function = fix_bc_interact, breaks = c(-.2, 0), limits = c(-.4, .1), dodge=.5)
+```
+
+Similar patterns hold for different accuracy windows. 
+
+Even restricting to the datasets with the longest pre-windows, there are still not benefits to baseline correction. 
+
+And across different age bins. 
+
+
+recommendations from previous should probably dictate what the baseline correction main window is
+could look at other options in supplement for robustness!
+
+\pagebreak
+
+\FloatBarrier
+```{r, fig.height=7, fig.width=8, fig.cap="model of baseline correction, compared to no correction" }
+baseline_bc <- function(df) {
+  df |> mutate(
+    b_all = str_c(b_start, " -- ", b_end) |> as.factor(),
+    b_all = relevel(b_all, "none -- none")
+  )
+}
+
+
+fix_bc_interact <- function(df) {
+  df |>
+    mutate(contrast = str_replace_all(contrast, "\\)", "") |> str_replace_all("\\(", "")) |>
+    separate(contrast, sep = " ", c("start", NA, "end", NA, NA, NA)) |>
+    mutate(
+      b_start = str_replace(start, "b_start", ""),
+      b_end = str_replace(end, "b_end", "")
+    )
+}
+make_model_grid_plot(bc_icc, bc_cdi, bc_test_retest, baseline_bc, "b_all", x = b_start, col = b_end, fix_function = fix_bc_interact, breaks = c(-.2, 0), limits = c(-.4, .1), dodge=.5)
+```
+
+this is compelling, but we can probably just say it is text? 
+
+\pagebreak
+
+\FloatBarrier
+```{r, fig.height=7, fig.width=8, fig.cap="age split baseline correction"}
+baseline_lengths <- readRDS(here("cached_intermediates", "2_baseline_lengths.rds"))
+bc_icc_age <- readRDS(here("cached_intermediates", "2_bc_icc_boot_byage.rds")) |>
+  bind_rows(readRDS(here("cached_intermediates", "1_acc_icc_boot_byage.rds")) |> filter(t_start == 400)) |>
+  filter(t_end == 3000) |>
+  semi_join(baseline_lengths) |>
+  mutate(
+    b_start = ifelse(is.na(b_start), "none", as.character(b_start)),
+    b_end = ifelse(is.na(b_end), "none", as.character(b_end))
+  )
+
+bc_cdi_age <- readRDS(here("cached_intermediates", "2_bc_cdi_boot_byage.rds")) |>
+  bind_rows(readRDS(here("cached_intermediates", "1_acc_cdi_boot_byage.rds")) |> filter(t_start == 400)) |>
+  filter(t_end == 3000) |>
+  semi_join(baseline_lengths) |>
+  mutate(
+    b_start = ifelse(is.na(b_start), "none", as.character(b_start)),
+    b_end = ifelse(is.na(b_end), "none", as.character(b_end))
+  )
+
+make_model_grid_plot_age(bc_icc_age, bc_cdi_age, baseline_bc, "b_all", x = b_start, facet = b_end, fix_function = fix_bc_interact, breaks = c(-.2, 0), limits = c(-.4, .1))
+```
+
+can go in supplement
 # Reaction Time
 
 Figure \ref{fig:rt-fig-age} shows the reliability and validity of different reaction time parameters, split by age bin. 
 
 Reaction times usually require that all time points between the point of disambiguation and the minimum reaction time have the eyes on the distractor AOI. Given that reaction times require a (stimulus-driven) shift to the target, it makes sense that the target is not being fixated during this period of stimulus processing. However, we wondered how important it was that the eyes were on the distractor (versus other or missing AOIs) during this time period. Our analysis is shown in Figure \ref{fig:rt-fig-weird}. Note that how AOIs are coded may depend on earlier steps around how often AOIs are coded and how any imputations of missing data are handled. TODO interpretation 
 
+```{r, fig.height=7, fig.width=8, fig.cap="RT, baseline is untrimmed log land with 400 minimum RT"}
+rt_icc <- readRDS(here("cached_intermediates/3_rt_icc.rds")) |>
+  regroup_rt() |>
+  name_rt() |>
+  filter(window>=200, window <= 600)
+
+rt_cdi <- readRDS(here("cached_intermediates/3_rt_cdi.rds")) |>
+  regroup_rt() |>
+  name_rt() |>
+  filter(window>=200, window <= 600)
+
+rt_trt <- readRDS(here("cached_intermediates/3_rt_test_retest.rds")) |>
+  regroup_rt() |>
+  name_rt() |>
+  filter(window>=200, window <= 600)
+
+
+baseline_rt <- function(df) {
+  df |> mutate(
+    window = relevel(window, "400"),
+    trimming = relevel(trimming, "untrimmed"),
+    logged = relevel(logged, "log"),
+    type = relevel(type, "land")
+  )
+}
+
+
+fix_rt_interact <- function(df) {
+  df |>
+    mutate(contrast = str_replace_all(contrast, "\\)", "") |> str_replace_all("\\(", "")) |>
+    separate(contrast, sep = " ", c("trimming", "type", "window", "logged", NA, NA, NA, NA)) |>
+    mutate(window = str_replace(window, "window", "") |> as.numeric(), )
+}
+make_model_grid_plot(rt_icc, rt_cdi, rt_trt, baseline_rt, "window * trimming * logged * type", x = window, col = str_c(trimming, " ", type), facet = logged, fix_function = fix_rt_interact, dodge=50)
+```
+
+```{r, fig.height=7, fig.width=8, fig.cap="RT age split, baseline is untrimmed log land with 400 minimum RT"}
+rt_icc_age <- readRDS(here("cached_intermediates/3_rt_icc_boot_byage.rds")) |>
+  regroup_rt() |>
+  name_rt() |>
+  filter(window <= 600)
+
+rt_cdi_age <- readRDS(here("cached_intermediates/3_rt_cdi_boot_byage.rds")) |>
+  regroup_rt() |>
+  name_rt() |>
+  filter(window <= 600) |>
+  mutate(prod_est=-prod_est, comp_est=-comp_est)
+
+
+
+make_model_grid_plot_age(rt_icc_age, rt_cdi_age, baseline_rt, "window * trimming * logged * type", x = window, facet = str_c(trimming, " ", type, " ", logged), fix_function = fix_rt_interact, dodge=50, limits=c(-1, 1))
+```
+
 # Exclusions
 
+```{r, fig.height=7, fig.width=8, fig.cap="acc trial exclusions"}
+trial_icc <- readRDS(here("cached_intermediates/4_acc_trial_icc.rds")) |>
+  filter(t_start == 600, t_end == 4000) |>
+  select(-num_trials)
+
+
+num_trials <- readRDS(here("cached_intermediates/4_acc_trial_icc.rds")) |> unnest(num_trials) |> 
+  filter(t_start == 600, t_end == 4000) |>
+  group_by(t_start, t_end, exclude_less_than, look_both) |>
+  summarize(num_trials = sum(num_trials, na.rm = T), .groups = "drop") |>
+  group_by(t_end, t_start) |>
+  mutate(pct = num_trials / max(num_trials)) 
+
+trial_cdi <- readRDS(here("cached_intermediates/4_acc_trial_cdi.rds")) |> filter(t_start == 600, t_end == 4000)
+
+trial_trt <- readRDS(here("cached_intermediates/4_acc_trial_test_retest.rds")) |> filter(t_start == 600, t_end == 4000)
+
+trial_acc_include <- function(df) {
+  df |> mutate(combined = case_when(
+    exclude_less_than == 0 & look_both == "no_need" ~ "no trial exclude",
+    exclude_less_than == .5 & look_both == "ever" ~ "look both at least 50%",
+    T ~ NA
+  ))
+}
+
+baseline_trial_acc <- function(df) {
+  df |> mutate(
+    exclude_less_than = relevel(exclude_less_than, "0"),
+    look_both = relevel(look_both, "no_need")
+  )
+}
+
+
+fix_trial_acc_interact <- function(df) {
+  df |>
+    mutate(contrast = str_replace_all(contrast, "\\)", "") |> str_replace_all("\\(", "")) |>
+    separate(contrast, sep = " ", c("exclude_less_than", "look_both", NA, NA)) |>
+    mutate(exclude_less_than = str_replace(exclude_less_than, "exclude_less_than", "") |> as.numeric(), ) |> left_join(num_trials)
+}
+make_model_grid_plot(trial_icc, trial_cdi, trial_trt, baseline_trial_acc, "exclude_less_than * look_both", x = exclude_less_than, facet = look_both, col=pct, fix_function = fix_trial_acc_interact, limits = c(-.4, .1))
+```
+
+
+```{r, fig.height=7, fig.width=8, fig.cap="acc trial exclusions"}
+trial_icc_age <- readRDS(here("cached_intermediates/4_acc_trial_icc_boot_byage.rds")) |>
+  filter(t_start == 400, t_end == 3000) |>
+  select(-num_trials)
+trial_cdi_age <- readRDS(here("cached_intermediates/4_acc_trial_cdi_boot_byage.rds")) |> filter(t_start == 400, t_end == 3000)
+
+make_model_grid_plot_age(trial_icc_age, trial_cdi_age, baseline_trial_acc, "exclude_less_than * look_both", x = exclude_less_than, facet = look_both, fix_function = fix_trial_acc_interact, limits = c(-.4, .1))
+```
+
+```{r, fig.height=7, fig.width=6, fig.cap="admin level accuracy exclusions"}
+kid_icc <- readRDS(here("cached_intermediates/4_acc_kid_icc_boot.rds")) |>
+  filter(t_start == 400, t_end == 3000, exclude_less_than == 0, look_both == "no_need") |>
+  select(-num_trials)
+kid_cdi <- readRDS(here("cached_intermediates/4_acc_kid_cdi_boot.rds")) |> filter(t_start == 400, t_end == 3000, exclude_less_than == 0, look_both == "no_need")
+
+kid_trt <- readRDS(here("cached_intermediates/4_acc_kid_test_retest_boot.rds")) |> filter(t_start == 400, t_end == 3000, exclude_less_than == 0, look_both == "no_need")
+
+kid_acc_include <- function(df) {
+  df |> mutate(combined = case_when(
+    min_trial == 1 ~ "any",
+    min_trial == 5 ~ "5 trials",
+    T ~ NA
+  ))
+}
+
+set_of_lollis(kid_icc, kid_cdi, kid_trt, kid_acc_include)
+```
+
+```{r, fig.height=7, fig.width=8, fig.cap="accuracy kid level exclusions"}
+kid_icc_age <- readRDS(here("cached_intermediates/4_acc_kid_icc_boot_byage.rds")) |>
+  filter(t_start == 400, t_end == 3000, exclude_less_than == 0, look_both == "no_need") |>
+  select(-num_trials)
+kid_cdi_age <- readRDS(here("cached_intermediates/4_acc_kid_cdi_boot_byage.rds")) |> filter(t_start == 400, t_end == 3000, exclude_less_than == 0, look_both == "no_need")
+
+
+make_model_grid_plot_age(kid_icc_age, kid_cdi_age, baseline_kid_acc, "min_trial", x = min_trial, fix_function = fix_kid_acc_interact)
+```
+
+```{r, fig.height=7, fig.width=8, fig.cap="admin level accuracy exclusions"}
+baseline_kid_acc <- function(df) {
+  df |> mutate(
+    min_trial = relevel(min_trial, "1")
+  )
+}
+
+
+fix_kid_acc_interact <- function(df) {
+  df |>
+    mutate(contrast = str_replace_all(contrast, "\\)", "") |> str_replace_all("\\(", "")) |>
+    separate(contrast, sep = " ", c("min_trial", NA)) |>
+    mutate(min_trial = str_replace(min_trial, "min_trial", "") |> as.numeric(), )
+}
+make_model_grid_plot(kid_icc, kid_cdi, kid_trt, baseline_kid_acc, "min_trial", x = min_trial, fix_function = fix_kid_acc_interact)
+```
+
 kinda weird distribution across different datasets -- but might also be a missing data/low data issue? 
+```{r, fig.height=7, fig.width=6, "acc trial exclusions"}
+trial_icc <- readRDS(here("cached_intermediates/4_acc_trial_icc.rds")) |>
+  filter(t_start == 600, t_end == 4000) |>
+  select(-num_trials)
+
+
+num_trials <- readRDS(here("cached_intermediates/4_acc_trial_icc.rds")) |> unnest(num_trials) |> 
+  filter(t_start == 600, t_end == 4000) |>
+  group_by(t_start, t_end, exclude_less_than, look_both) |>
+  summarize(num_trials = sum(num_trials, na.rm = T), .groups = "drop") |>
+  group_by(t_end, t_start) |>
+  mutate(pct = num_trials / max(num_trials)) 
+
+trial_cdi <- readRDS(here("cached_intermediates/4_acc_trial_cdi.rds")) |> filter(t_start == 600, t_end == 4000)
+
+trial_trt <- readRDS(here("cached_intermediates/4_acc_trial_test_retest.rds")) |> filter(t_start == 600, t_end == 4000)
+
+trial_acc_include <- function(df) {
+  df |> mutate(combined = case_when(
+    exclude_less_than == 0 & look_both == "no_need" ~ "no trial exclude",
+    exclude_less_than == .5 & look_both == "ever" ~ "look both at least 50%",
+    T ~ NA
+  ))
+}
+
+set_of_lollis(trial_icc, trial_cdi, trial_trt, trial_acc_include)
+```
+
+```{r, fig.height=7, fig.width=6, fig.cap="rt, kid level exclusions"}
+kid_rt_icc <- readRDS(here("cached_intermediates/4_rt_icc.rds")) |>
+  regroup_rt() |>
+  name_rt() |>
+  filter(window == 400, trimming == "untrimmed", logged == "log", type == "land")
+
+kid_rt_cdi <- readRDS(here("cached_intermediates/4_rt_cdi_boot.rds")) |>
+  regroup_rt() |>
+  name_rt() |>
+  filter(window == 400, trimming == "untrimmed", logged == "log", type == "land") |> 
+  mutate(comp_est=-comp_est, prod_est=-prod_est)
+
+
+kid_rt_trt <- readRDS(here("cached_intermediates/4_rt_test_retest.rds")) |>
+  filter(dataset_name != "potter_remix") |>
+  regroup_rt() |>
+  name_rt() |>
+  filter(window == 400, trimming == "untrimmed", logged == "log", type == "land")
+
+
+kid_rt_include <- function(df) {
+  df |> mutate(combined = case_when(
+    min_trial == 1 ~ "any",
+    min_trial == 5 ~ "5 trials",
+    T ~ NA
+  ))
+}
+
+set_of_lollis(kid_rt_icc, kid_rt_cdi, kid_rt_trt, kid_rt_include)
+```
+```{r, fig.height=7, fig.width=8, fig.cap="rt kid level exclusions"}
+kid_rt_icc <- readRDS(here("cached_intermediates/4_rt_icc.rds")) |>
+  regroup_rt() |>
+  name_rt() |>
+  filter(window == 400, trimming == "untrimmed", logged == "log", type == "land")
+
+kid_rt_cdi <- readRDS(here("cached_intermediates/4_rt_cdi_boot.rds")) |>
+  regroup_rt() |>
+  name_rt() |>
+  filter(window == 400, trimming == "untrimmed", logged == "log", type == "land") |> 
+  mutate(comp_est=-comp_est, prod_est=-prod_est)
+
+
+kid_rt_trt <- readRDS(here("cached_intermediates/4_rt_test_retest.rds")) |>
+  filter(dataset_name != "potter_remix") |>
+  regroup_rt() |>
+  name_rt() |>
+  filter(window == 400, trimming == "untrimmed", logged == "log", type == "land")
+
+
+baseline_kid_rt <- function(df) {
+  df |> mutate(
+    min_trial = relevel(min_trial, "1")
+  )
+}
+
+
+fix_kid_rt_interact <- function(df) {
+  df |>
+    mutate(contrast = str_replace_all(contrast, "\\)", "") |> str_replace_all("\\(", "")) |>
+    separate(contrast, sep = " ", c("min_trial", NA)) |>
+    mutate(min_trial = str_replace(min_trial, "min_trial", "") |> as.numeric(), )
+}
+make_model_grid_plot(kid_rt_icc, kid_rt_cdi, kid_rt_trt, baseline_kid_rt, "min_trial", x = min_trial, fix_function = fix_kid_rt_interact)
+```
 
 ```{r, eval=F}
 
@@ -246,6 +614,59 @@ biased_kids |> group_by(administration_id, dataset_name) |> mutate(trial_num=row
 biased_kids |> mutate(bias=max(right_bias, left_bias)) |> ggplot(aes(x=administration_id,y=pct_on, color=bias))+facet_wrap(~dataset_name, scales="free_x")+geom_point()
 ```
 Overall 1.5% of kids (contributing less than 1% of trials) show a bias of 90% or more on more than 75% of trials. 
+
+
+```{r, fig.height=7, fig.width=8, fig.cap="rt kid level exclusions"}
+kid_rt_icc <- readRDS(here("cached_intermediates/4_rt_icc.rds")) |>
+  regroup_rt() |>
+  name_rt() |>
+  filter(window == 400, trimming == "untrimmed", logged == "log", type == "land")
+
+kid_rt_cdi <- readRDS(here("cached_intermediates/4_rt_cdi_boot.rds")) |>
+  regroup_rt() |>
+  name_rt() |>
+  filter(window == 400, trimming == "untrimmed", logged == "log", type == "land") |> 
+  mutate(comp_est=-comp_est, prod_est=-prod_est)
+
+
+kid_rt_trt <- readRDS(here("cached_intermediates/4_rt_test_retest.rds")) |>
+  filter(dataset_name != "potter_remix") |>
+  regroup_rt() |>
+  name_rt() |>
+  filter(window == 400, trimming == "untrimmed", logged == "log", type == "land")
+
+
+baseline_kid_rt <- function(df) {
+  df |> mutate(
+    min_trial = relevel(min_trial, "1")
+  )
+}
+
+
+fix_kid_rt_interact <- function(df) {
+  df |>
+    mutate(contrast = str_replace_all(contrast, "\\)", "") |> str_replace_all("\\(", "")) |>
+    separate(contrast, sep = " ", c("min_trial", NA)) |>
+    mutate(min_trial = str_replace(min_trial, "min_trial", "") |> as.numeric(), )
+}
+make_model_grid_plot(kid_rt_icc, kid_rt_cdi, kid_rt_trt, baseline_kid_rt, "min_trial", x = min_trial, fix_function = fix_kid_rt_interact)
+```
+
+
+```{r, fig.height=7, fig.width=8, fig.cap="rt kid level exclusions"}
+kid_rt_icc_age <- readRDS(here("cached_intermediates/4_rt_icc_boot_byage.rds")) |>
+  regroup_rt() |>
+  name_rt() |>
+  filter(window == 400, trimming == "untrimmed", logged == "log", type == "land")
+
+kid_rt_cdi_age <- readRDS(here("cached_intermediates/4_rt_cdi_boot.rds")) |>
+  regroup_rt() |>
+  name_rt() |>
+  filter(window == 400, trimming == "untrimmed", logged == "log", type == "land")|> 
+  mutate(comp_est=-comp_est, prod_est=-prod_est)
+
+make_model_grid_plot_age(kid_rt_icc_age, kid_rt_cdi_age, baseline_kid_rt, "min_trial", x = min_trial, fix_function = fix_kid_rt_interact)
+```
 
 \FloatBarrier
 

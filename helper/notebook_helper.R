@@ -80,34 +80,57 @@ filter_icc <- function(data, col_est) {
   data |> semi_join(include |> filter(pct_0 < .5))
 }
 
-do_lollipop_plot <- function(df, name, include_condition) {
+do_lollipop_plot <- function(df, name, include_condition, weights, flip = F) {
   df |>
     mutate(name = name) |>
     {{ include_condition }}() |>
     filter(!is.na(combined)) |>
+    left_join(weights) |>
     left_join(clean_names) |>
-    ggplot(aes(x = reorder(`Dataset Name`, est), y = est)) +
+    ggplot(aes(x = if (flip) reorder(`Dataset Name`, -est) else reorder(`Dataset Name`, est), y = est)) +
     geom_line() +
-    geom_point(aes(color = combined)) +
+    geom_point(aes(color = combined, size = n_admins)) +
+    scale_size_area(max_size = 2) +
+    guides(size = "none") +
     coord_flip() +
     labs(y = "Correlation") +
     scale_color_solarized(accent = "red") +
     facet_wrap(~name, nrow = 1) +
-    geom_hline(yintercept = 0) +
-    theme(legend.position = "none", axis.title.y = element_blank(), axis.text.y = element_text(size = 10))
+    geom_hline(yintercept = 0, lty = "dashed") +
+    theme(
+      legend.position = "none", axis.title.y = element_blank(), # axis.text.y = element_text(size = 10)
+      axis.text.y = element_blank(),
+      axis.ticks.y = element_blank(),
+      axis.title.x = element_blank()
+    )
 }
 
 
-set_of_lollis <- function(icc, cdi, trt, include_func) {
-  a <- do_lollipop_plot(icc |> filter_icc("est"), "ICC reliability", {{ include_func }})
-  b <- do_lollipop_plot(cdi |> filter(!is.na(comp_est)) |> rename(est = comp_est), "CDI Comprehension", {{ include_func }})
-  c <- do_lollipop_plot(cdi |> filter(!is.na(prod_est)) |> rename(est = prod_est), "CDI Production", {{ include_func }})
-  d <- do_lollipop_plot(trt |> filter(!is.na(est)), "Test retest reliability", {{ include_func }})
+set_of_lollis <- function(icc, cdi, trt, include_func, is_rt = F) {
+  a <- do_lollipop_plot(
+    icc |> filter_icc("est"), "ICC reliability", {{ include_func }},
+    dataset_summ |> group_by(dataset_name) |> summarize(n_admins = n_distinct(administration_id))
+  )
+  b <- do_lollipop_plot(
+    cdi |> filter(!is.na(comp_est)) |> rename(est = comp_est), "CDI Comprehension", {{ include_func }},
+    dataset_summ |> group_by(dataset_name) |> filter(!is.na(comp)) |> summarize(n_admins = n_distinct(administration_id)),
+    flip = is_rt
+  )
+  c <- do_lollipop_plot(cdi |> filter(!is.na(prod_est)) |> rename(est = prod_est), "CDI Production", {{ include_func }},
+    dataset_summ |> group_by(dataset_name) |> filter(!is.na(prod)) |> summarize(n_admins = n_distinct(administration_id)),
+    flip = is_rt
+  )
+  d <- do_lollipop_plot(
+    trt |> filter(!is.na(est)), "Test-retest reliability", {{ include_func }},
+    dataset_summ |> make_test_retest_pairs() |> group_by(dataset_name) |>
+      summarize(n_admins = n_distinct(pair_number))
+  )
 
   g <- ggplotGrob(a + theme(legend.position = "bottom"))
   leg <- g$grobs[[which(g$layout$name == "guide-box-bottom")]]
 
-  plot_grid(plot_grid(a, d), plot_grid(b, c), leg, nrow = 3, rel_heights = c(1, 1, .1))
+  # plot_grid(plot_grid(a, d), plot_grid(b, c), leg, nrow = 3, rel_heights = c(1, 1, .1))
+  plot_grid(plot_grid(a, d, b, c, nrow = 1), leg, nrow = 2, rel_heights = c(1, .1))
 }
 
 do_model <- function(df, make_baseline, weight_df, form) {
@@ -132,8 +155,8 @@ make_model_plot <- function(df, x, col = NULL, facet = NULL, fix_function, lab, 
     coord_flip() +
     labs(y = lab) +
     scale_y_continuous(breaks = breaks, limits = limits) +
-    geom_hline(yintercept = 0) +
-    theme(legend.position = "none", )
+    geom_hline(yintercept = 0, lty = "dashed") +
+    theme(legend.position = "none", legend.title = element_blank())
 
   if (!rlang::quo_is_null(facet_quo)) {
     p <- p + facet_wrap(vars(!!facet_quo))
@@ -246,7 +269,7 @@ make_model_plot_age <- function(df, x, col = NULL, facet = NULL, fix_function, l
     coord_flip() +
     labs(y = lab) +
     scale_y_continuous(breaks = breaks, limits = limits) +
-    geom_hline(yintercept = 0) +
+    geom_hline(yintercept = 0, lty = "dashed") +
     theme(legend.position = "none") +
     scale_color_manual(values = c("<18" = "#FDE725", "18-24" = "#35B779", "24-36" = "#31688E", ">=36" = "#440154"))
 
@@ -330,16 +353,65 @@ clean_names <- tribble(
 )
 
 
-in_text_stats <- function(df, sign_flip=F, places=2){
-  est=df$estimate[1]
-  low=df$conf.low[1]
-  high=df$conf.high[1]
-  if(sign_flip){
-    est=-est
-    new_low=-high
-    new_high=-low
-    low=new_low
-    high=new_high
+in_text_stats <- function(df, sign_flip = F, places = 2) {
+  est <- df$estimate[1]
+  low <- df$conf.low[1]
+  high <- df$conf.high[1]
+  if (sign_flip) {
+    est <- -est
+    new_low <- -high
+    new_high <- -low
+    low <- new_low
+    high <- new_high
   }
-  str_c(round(est,places), " [", round(low, places), ", " ,round(high,places),"]")
+  str_c(round(est, places), " [", round(low, places), ", ", round(high, places), "]")
+}
+
+
+# these are now only used for the simulations
+safe_rma <- function(d, col_est, col_upper, col_lower) {
+  d <- d |>
+    mutate(
+      stdev = (.data[[col_upper]] - .data[[col_lower]]) / (1.96 * 2),
+      var = stdev**2
+    ) |>
+    filter(!is.na(.data[[col_est]]), !is.na(var))
+  if (nrow(d) > 2) {
+    tryCatch(
+      rma(d[[col_est]], d$var, control = list(maxiter = 1000)) |> summary() |> coef() |> select(estimate, ci.lb, ci.ub),
+      error = function(e) tibble(estimate = NA, ci.lb = NA, ci.ub = NA)
+    )
+  } else {
+    tibble(estimate = NA, ci.lb = NA, ci.ub = NA)
+  }
+}
+
+do_cdi_meta <- function(dataset, grouping_factors) {
+  dataset |>
+    group_by(across(all_of(grouping_factors))) |>
+    nest() |>
+    mutate(
+      comp = map(data, \(d){
+        safe_rma(d, "comp_est", "comp_upper", "comp_lower")
+      }),
+      prod = map(data, \(d){
+        safe_rma(d, "prod_est", "prod_upper", "prod_lower")
+      }),
+      age = map(data, \(d){
+        safe_rma(d, "age_est", "age_upper", "age_lower")
+      }),
+    ) |>
+    select(-data) |>
+    unnest(c(comp, prod, age), names_sep = "_")
+}
+
+do_meta <- function(dataset, grouping_factors) {
+  dataset |>
+    group_by(across(all_of(grouping_factors))) |>
+    nest() |>
+    mutate(corr = map(data, \(d){
+      safe_rma(d, "est", "upper", "lower")
+    })) |>
+    unnest(corr) |>
+    select(-data)
 }

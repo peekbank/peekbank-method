@@ -7,7 +7,7 @@ cdi_data <- readRDS("../cached_intermediates/0_cdi_subjects.rds")
 pairs_aoi_data <- make_test_retest_pairs(d_aoi) |>
   left_join(d_aoi)
 
-pairs_sim <- pairs_aoi_data |> 
+pairs_sim <- pairs_aoi_data |>
   group_by(
     dataset_name, trial_id, dataset_id, subject_id, administration_id,
     target_label, pair_number, session_num
@@ -42,7 +42,7 @@ prep_accuracy <- function(d, flags, t_start, t_end, exclude_less_than, look_both
     filter(t_norm > t_start, t_norm < t_end) |>
     group_by(across(all_of(c(
       "dataset_name", "dataset_id", "administration_id", "target_label", "trial_id"
-    ))), across(any_of(c("age_bin", "subject_id", "pair_number", "session_num"))))|>
+    ))), across(any_of(c("age_bin", "subject_id", "pair_number", "session_num")))) |>
     summarise(
       accuracy = mean(correct, na.rm = TRUE),
       prop_data = mean(!is.na(correct)),
@@ -99,18 +99,14 @@ for_icc <- function(d) {
     ungroup()
 }
 
-# Bootstrap ICCs on pre-computed trial-level summaries.
-run_trial_icc_bootstrap <- function(d) {
+run_icc <- function(d) {
   d |>
     group_by(dataset_name, across(any_of("age_bin"))) |>
     nest() |>
-    mutate(
-      icc = map(data, \(x) bootstrap_icc(x, "accuracy", 2000)),
-      num_trials = map(data, \(x) nrow(x))
-    ) |>
-    select(-data) |>
-    unnest(icc)
+    mutate(est = map_dbl(data, \(x) get_icc(x, "accuracy"))) |>
+    select(-data)
 }
+
 
 cdi_summarize <- function(d) {
   d |>
@@ -134,13 +130,13 @@ do_test_retest <- function(d) {
     mutate(count = n()) |>
     filter(count == 2) |>
     ungroup() |>
-    boot_test_retest()
+    calc_test_retest()
 }
 
 acc_params <- expand_grid(
   option = "recommended",
-  t_start = c(400),
-  t_end = c(3000),
+  t_start = c(600),
+  t_end = c(4000),
   exclude_less_than = c(0),
   look_both = c("no_need"),
   min_trial = c(1)
@@ -152,9 +148,9 @@ bc_params <- expand_grid(
   t_end = c(2000),
   b_start = c(-1000),
   b_end = c(0),
-  exclude_less_than = c(.8),
+  exclude_less_than = c(.5),
   look_both = c("ever"),
-  min_trial = c(4)
+  min_trial = c(5)
 )
 
 
@@ -163,7 +159,7 @@ accs_icc <- acc_params |>
     list(t_start, t_end, exclude_less_than, look_both, min_trial),
     \(t_s, t_e, e, l, m) prep_accuracy(d_aoi, trial_flags, t_s, t_e, e, l, m) |> for_icc()
   )) |>
-  mutate(icc = map(summary_data, run_trial_icc_bootstrap)) |>
+  mutate(icc = map(summary_data, run_icc)) |>
   select(-summary_data) |>
   unnest(col = icc)
 
@@ -175,7 +171,7 @@ accs_cdi_summarized <- acc_params |>
     list(t_start, t_end, exclude_less_than, look_both, min_trial),
     \(t_s, t_e, e, l, m) prep_accuracy(d_aoi, trial_flags, t_s, t_e, e, l, m) |> cdi_summarize()
   )) |>
-  mutate(cdi = map(summary_data, boot_cdi)) |>
+  mutate(cdi = map(summary_data, calc_cdi)) |>
   select(-summary_data) |>
   unnest(cdi)
 
@@ -191,13 +187,12 @@ accs_boot_test_retest <- acc_params |>
 saveRDS(accs_boot_test_retest, "../cached_intermediates/8_acc_test_retest.rds")
 
 
-
 bc_icc_summarized <- bc_params |>
   mutate(summary_data = pmap(
     list(t_start, t_end, b_start, b_end, exclude_less_than, look_both, min_trial),
     \(t_s, t_e, b_s, b_e, e, l, m) prep_bc(d_aoi, trial_flags, t_s, t_e, b_s, b_e, e, l, m) |> for_icc()
   )) |>
-  mutate(icc = map(summary_data, run_trial_icc_bootstrap)) |>
+  mutate(icc = map(summary_data, run_icc)) |>
   select(-summary_data) |>
   unnest(col = icc)
 
@@ -209,7 +204,7 @@ bc_cdi_summarized <- bc_params |>
     list(t_start, t_end, b_start, b_end, exclude_less_than, look_both, min_trial),
     \(t_s, t_e, b_s, b_e, e, l, m) prep_bc(d_aoi, trial_flags, t_s, t_e, b_s, b_e, e, l, m) |> cdi_summarize()
   )) |>
-  mutate(cdi = map(summary_data, boot_cdi)) |>
+  mutate(cdi = map(summary_data, calc_cdi)) |>
   select(-summary_data) |>
   unnest(cdi)
 
