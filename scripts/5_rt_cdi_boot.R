@@ -38,7 +38,7 @@ rt_boot_cdi <- params |>
         suppressWarnings(downsample_rt_cdi(s_p, s_d, iters)) |>
           group_by(dataset_name, iteration) |>
           nest() |>
-          mutate(corr = map(data, calc_cdi)) |>
+          mutate(corr = map2(data, dataset_name, \(d, dn) calc_cdi(mutate(d, dataset_name = dn)))) |>
           select(-data) |>
           unnest_wider(corr) |>
           ungroup() |>
