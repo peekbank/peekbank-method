@@ -17,7 +17,6 @@ pairs_sim <- pairs_aoi_data |>
   left_join(pairs_aoi_data)
 
 
-
 acc_test_retest <- function(t_start, t_end, exclude_less_than, look_both, min_trial) {
   df_temp <- pairs_sim
   if (look_both == "ever") {
@@ -48,11 +47,8 @@ acc_test_retest <- function(t_start, t_end, exclude_less_than, look_both, min_tr
     mutate(count = n()) |>
     filter(count == 2) |>
     ungroup() |>
-    boot_test_retest()
+    calc_test_retest()
 }
-
-
-
 
 
 acc_params <- expand_grid(

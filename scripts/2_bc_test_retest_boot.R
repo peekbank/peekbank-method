@@ -26,10 +26,8 @@ bc_test_retest <- function(b_start, b_end, t_start = -500, t_end = 4000) {
 }
 
 
-
-
 bc_acc_params <- expand_grid(
-  t_start = 400,
+  t_start = c(400, 200, 600),
   t_end = c(2000, 3000, 4000),
   b_start = seq(-4000, -1000, 1000),
   b_end = c(-500, 0),

@@ -35,8 +35,8 @@ run_icc <- function(d) {
 }
 
 acc_params <- expand_grid(
-  t_start = c(0, 100, 200, 300, 400, 500, 600, 700, 800, 900, 1000),
-  t_end = c(2000, 3000, 4000),
+  t_start = seq(-500, 1500, 100),
+  t_end = seq(2000, 4000, 100),
 )
 
 accs_summarized <- acc_params |>

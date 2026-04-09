@@ -94,15 +94,15 @@ do_lollipop_plot <- function(df, name, include_condition) {
     scale_color_solarized(accent = "red") +
     facet_wrap(~name, nrow = 1) +
     geom_hline(yintercept = 0) +
-    theme(legend.position = "none", axis.title.y = element_blank())
+    theme(legend.position = "none", axis.title.y = element_blank(), axis.text.y = element_text(size = 10))
 }
 
 
 set_of_lollis <- function(icc, cdi, trt, include_func) {
   a <- do_lollipop_plot(icc |> filter_icc("est"), "ICC reliability", {{ include_func }})
-  b <- do_lollipop_plot(cdi |> filter(!is.na(comp_est)) |> rename(est = comp_est), "CDI Comp", {{ include_func }})
-  c <- do_lollipop_plot(cdi |> filter(!is.na(prod_est)) |> rename(est = prod_est), "CDI Prod", {{ include_func }})
-  d <- do_lollipop_plot(trt |> filter(!is.na(est)), "Test retest", {{ include_func }})
+  b <- do_lollipop_plot(cdi |> filter(!is.na(comp_est)) |> rename(est = comp_est), "CDI Comprehension", {{ include_func }})
+  c <- do_lollipop_plot(cdi |> filter(!is.na(prod_est)) |> rename(est = prod_est), "CDI Production", {{ include_func }})
+  d <- do_lollipop_plot(trt |> filter(!is.na(est)), "Test retest reliability", {{ include_func }})
 
   g <- ggplotGrob(a + theme(legend.position = "bottom"))
   leg <- g$grobs[[which(g$layout$name == "guide-box-bottom")]]
@@ -328,3 +328,18 @@ clean_names <- tribble(
   "kremin_2021", "Kremin et al. (2023)", "English, French, Spanish",
   "byers-heinlein_2017", "Byers-Heinlein et al. (2017)", "English, French",
 )
+
+
+in_text_stats <- function(df, sign_flip=F, places=2){
+  est=df$estimate[1]
+  low=df$conf.low[1]
+  high=df$conf.high[1]
+  if(sign_flip){
+    est=-est
+    new_low=-high
+    new_high=-low
+    low=new_low
+    high=new_high
+  }
+  str_c(round(est,places), " [", round(low, places), ", " ,round(high,places),"]")
+}

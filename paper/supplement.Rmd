@@ -123,31 +123,11 @@ Figure \ref{fig:acc-fig-age} shows the results for different accuracy windows sp
 
 Figure \ref{fig:timecourse} shows the distribution of AOIs for different datasets and different timepoints. Some datasets have less data at the start or end due to varying length recordings, or being a mix of multiple experiments with different recording windows. Most (but not all) datasets had data before the point of disambiguation and up to 3000ms. Datasets varied dramatically in overall size. 
 
-```{r acc-fig-age, fig.cap="Bootstrapped results of different accuracy parameter combinations, split out by age of participants.", fig.height=8, fig.width=6}
-acc_icc_age <- readRDS(here("cached_intermediates", "1_acc_icc_boot_byage.rds")) |> do_meta(c("t_start", "t_end", "age_bin"))
 
-acc_cdi_age <- readRDS(here("cached_intermediates", "1_acc_cdi_boot_byage.rds")) |> do_cdi_meta(c("t_start", "t_end", "age_bin"))
 
-acc_all_age <- combined_metrics_age(acc_icc_age, acc_cdi_age) |> 
-  select(t_start, t_end, Type, estimate, ci.ub, ci.lb, age_bin)
 
-acc_all_age |> order_age() |> 
-  filter(t_start %in% c(0, 200, 400, 600, 800, 1000)) |>
-  ggplot(aes(x = t_start, col = as.character(t_end), y = estimate, ymin = ci.lb, group = t_end, ymax = ci.ub)) +
-  geom_pointrange(position = position_dodge(50)) +
-  coord_flip() +
-  facet_grid(age_bin~Type, scales = "free_x") +
-  theme(legend.position = "bottom", ) +
-  labs(y = "Correlation", x = "Window start time (ms)", color = "Window end time (ms)") +
-  scale_color_solarized()+
-  facetted_pos_scales(
-  y = list(
-    Type == "ICC reliability" ~ scale_y_continuous(limits = c(0, .7)),
-    Type == "Corr. with CDI Production" ~ scale_y_continuous(limits = c(-.15, .55)),
-    Type == "Corr. with CDI Comp." ~ scale_y_continuous(limits = c(-.15, .55))
-  )
-)
-```
+
+
 
 
 ```{r, eval=F}
@@ -155,6 +135,27 @@ readRDS(here("cached_intermediates/0_d_aoi.rds")) |>  group_by(dataset_name, t_n
   summarize(n=n()) |>  saveRDS(here("cached_intermediates/supplement_timecourse.rds"))
 ```
 
+
+```{r, fig.height=7, fig.width=8, fig.cap = "age split models of accuracy, 600-4000 as baseline"}
+baseline_acc <- function(df) {
+  df |> mutate(
+    t_start = relevel(t_start, "600"),
+    t_end = relevel(t_end, "4000")
+  )
+}
+
+fix_acc_interact <- function(df) {
+  df |>
+    separate(contrast, sep = " ", c("start", "end", NA, NA, NA)) |>
+    mutate(
+      t_start = str_replace(start, "t_start", "") |> as.numeric(),
+      t_end = str_replace(end, "t_end", "") |> as.numeric()
+    )
+}
+
+
+make_model_grid_plot_age(readRDS(here("cached_intermediates/1_acc_icc_byage.rds")), readRDS(here("cached_intermediates/1_acc_cdi_byage.rds")), baseline_acc, "t_start * t_end", x = t_start, facet = t_end, fix_function = fix_acc_interact, dodge=50)
+```
 
 ```{r timecourse, fig.cap="Distribution of AOIs across timepoints and datasets. Solid vertical line at point if disambiguation, Dashed lines at 400 and 3000ms, and dotted line at 2000ms.", fig.width=10, fig.height=8}
 readRDS(here("cached_intermediates/supplement_timecourse.rds")) |> group_by(dataset_name) |> mutate(aoi=ifelse(aoi %in% c("missing", "other"), "missing/other", aoi)) |> 
@@ -173,148 +174,15 @@ Figure \ref{fig:bc-age} shows baseline-corrected measures split out by age. TODO
 
 As some datasets have much shorter pre-disambiguation windows than others, we also looked at baseline-corrected accuracy on the subset with data before 3000ms pre-disambiguation (Figure \ref{fig:bc-early}). Even on this subset, baseline-corrected accuracies have worse validity and reliablity than normal accuracy measures. 
 
-```{r bc-age, fig.cap="Reliability and validity measures for baseline-corrected accuracy, split by age. The post-diambiguation window was 400 to 3000ms."}
-baseline_lengths <- readRDS(here("cached_intermediates", "2_baseline_lengths.rds"))
-bc_icc_age  <- readRDS(here("cached_intermediates", "2_bc_icc_boot_byage.rds")) |>
-  bind_rows(readRDS(here("cached_intermediates", "1_acc_icc_boot_byage.rds")) |> filter(t_start == 400)) |>
-  filter(t_end==3000) |> 
-  semi_join(baseline_lengths) |>
-  mutate(b_start = ifelse(is.na(b_start), "none", as.character(b_start))) |>
-  do_meta(c("t_start", "t_end", "b_start", "b_end", "age_bin"))
-
-
-bc_cdi_age <- readRDS(here("cached_intermediates", "2_bc_cdi_boot_byage.rds")) |>
-  bind_rows(readRDS(here("cached_intermediates", "1_acc_cdi_boot_byage.rds")) |> filter(t_start == 400)) |>
-    filter(t_end==3000) |> 
-  semi_join(baseline_lengths) |>
-  mutate(b_start = ifelse(is.na(b_start), "none", as.character(b_start))) |>
-  do_cdi_meta(c("t_start", "t_end", "b_start", "b_end", "age_bin"))
-
-
-bc_age <-combined_metrics_age(bc_icc_age, bc_cdi_age)|>
-  mutate(
-    b_end = ifelse(is.na(b_end), "no baseline", as.character(b_end)),
-    b_start = ifelse(b_start == "none", "no baseline", b_start)
-  )
-
-bc_age |> order_age() |> 
-  ggplot(aes(x = b_start, col = as.character(b_end), y = estimate, ymin = ci.lb, group = t_end, ymax = ci.ub)) +
-  geom_pointrange(position = position_dodge(.5)) +
-  coord_flip() +
-  facet_grid(age_bin~Type, scales = "free_x") +
-  theme(legend.position = "bottom", ) +
-  labs(y = "Correlation", x = "Window start time (ms)", color = "Window end time (ms)") +
-  scale_color_brewer(palette="Set2")+
-  facetted_pos_scales(
-  y = list(
-    Type == "ICC reliability" ~ scale_y_continuous(limits = c(0, .7)),
-    Type == "Corr. with CDI Production" ~ scale_y_continuous(limits = c(-.15, .55)),
-    Type == "Corr. with CDI Comp." ~ scale_y_continuous(limits = c(-.15, .55))
-  )
-)
-```
-
 
 Comparison between baseline-corrected accuracy with different baseline windows and accuracy with no baseline-correction. All datasets with data before time 0 were included.
 
-```{r bc-early, fig.cap="Reliability and validity outcomes for baseline-corrected accuracy only for datasets with a long pre-window starting before 3000 ms before disambiguation."}
-baseline_lengths <- readRDS(here("cached_intermediates", "2_baseline_lengths.rds"))
-bc_icc_long <- readRDS(here("cached_intermediates", "2_bc_icc_boot.rds")) |>
-  bind_rows(readRDS(here("cached_intermediates", "1_acc_icc_boot.rds")) |> filter(t_start == 400)) |>
-  filter(t_end==3000) |> 
-  semi_join(baseline_lengths |> filter(t_min< -3000)) |>
-  mutate(b_start = ifelse(is.na(b_start), "none", as.character(b_start))) |>
-  do_meta(c("t_start", "t_end", "b_start", "b_end"))
-
-
-bc_cdi_long <- readRDS(here("cached_intermediates", "2_bc_cdi_boot.rds")) |>
-  bind_rows(readRDS(here("cached_intermediates", "1_acc_cdi_boot.rds")) |> filter(t_start == 400)) |>
-    filter(t_end==3000) |> 
-  semi_join(baseline_lengths |> filter(t_min< -3000)) |>
-  mutate(b_start = ifelse(is.na(b_start), "none", as.character(b_start))) |>
-  do_cdi_meta(c("t_start", "t_end", "b_start", "b_end"))
-
-bc_acc_all_long <-combined_metrics_age(bc_icc_long, bc_cdi_long)|>
-  mutate(
-    b_end = ifelse(is.na(b_end), "no baseline", as.character(b_end)),
-    b_start = ifelse(b_start == "none", "no baseline", b_start)
-  )
-
-bc_acc_all_long |> ggplot(aes(x = b_start, col = b_end, y = estimate, ymin = ci.lb, group = t_end, ymax = ci.ub)) +
-  geom_pointrange(position = position_dodge2(width = .5)) +
-  coord_flip() +
-  facet_wrap(~Type, scales = "free_x", nrow = 1) +
-  theme(legend.position = "bottom", ) +
-  labs(y = "Correlation", x = "Baseline start time (ms)", color = "Baseline end time (ms)") +
-  scale_color_brewer(palette="Set2")+
-  facetted_pos_scales(
-  y = list(
-    Type == "ICC reliability" ~ scale_y_continuous(limits = c(0.15, .65)),
-    Type == "Corr. with CDI Production" ~ scale_y_continuous(limits = c(0, .5)),
-        Type == "Test-retest reliability" ~ scale_y_continuous(limits = c(0.15, .65)),
-    Type == "Corr. with CDI Comp." ~ scale_y_continuous(limits = c(0, .5))
-  )
-)
-```
 
 # Reaction Time
 
 Figure \ref{fig:rt-fig-age} shows the reliability and validity of different reaction time parameters, split by age bin. 
 
 Reaction times usually require that all time points between the point of disambiguation and the minimum reaction time have the eyes on the distractor AOI. Given that reaction times require a (stimulus-driven) shift to the target, it makes sense that the target is not being fixated during this period of stimulus processing. However, we wondered how important it was that the eyes were on the distractor (versus other or missing AOIs) during this time period. Our analysis is shown in Figure \ref{fig:rt-fig-weird}. Note that how AOIs are coded may depend on earlier steps around how often AOIs are coded and how any imputations of missing data are handled. TODO interpretation 
-
-```{r rt-fig-age, fig.cap="Measurement properties of RT, split by age bin. "}
-rt_icc_age <- readRDS(here("cached_intermediates", "3_rt_icc_boot_byage.rds")) |> regroup_rt() |> name_rt() |>  do_meta(c("approach", "window", "age_bin"))
-
-rt_cdi_age <- readRDS(here("cached_intermediates", "3_rt_cdi_boot_byage.rds")) |> regroup_rt() |> name_rt() |>  do_cdi_meta(c("approach", "window", "age_bin"))
-
-rt_all_age <- combined_metrics_age(rt_icc_age, rt_cdi_age) |> order_age()
-
-rt_all_age |> order_age() |> filter(window>0,window<600) |> 
-  ggplot(aes(x = window, col = as.character(approach), y = estimate, ymin = ci.lb, ymax = ci.ub)) +
-  geom_pointrange(position = position_dodge(15)) +
-  coord_flip() +
-  facet_grid(age_bin~Type, scales = "free_x") +
-  theme(legend.position = "bottom", ) +
-  labs(y = "Correlation", x = "Minimum RT", color = "RT Approach") +
-  scale_color_brewer(palette="Paired")+
-  facetted_pos_scales(
-  y = list(
-    Type == "ICC reliability" ~ scale_y_continuous(limits = c(.15, .85)),
-    Type == "Corr. with CDI Production" ~ scale_y_continuous(limits = c(-.45, .25)),
-    Type == "Corr. with CDI Comp." ~ scale_y_continuous(limits = c(-.45, .25))
-  )
-)
-```
-
-
-```{r fig-rt-weird, fig.cap="Exploration of relaxing requirements around looking for RT."}
-weird_icc <- readRDS(here("cached_intermediates/3_rt_icc_boot.rds")) |> filter(window==400, measure %in% c("land_rt", "log_land_rt")) |> do_meta(c("time_0", "time_end", "frac", "measure"))
-
-weird_cdi <- readRDS(here("cached_intermediates/3_rt_cdi_boot_weird.rds")) |> 
-  filter(window==400, measure %in% c("land_rt", "log_land_rt"))|> do_cdi_meta(c("time_0", "time_end", "frac", "measure"))
-
-weird_trt <- readRDS(here("cached_intermediates/3_rt_test_retest_boot_weird.rds")) |> 
-  filter(window==400, measure %in% c("land_rt", "log_land_rt"))|> do_meta(c("time_0", "time_end", "frac", "measure"))
-
-weird_rt_all <- combined_metrics(weird_icc, weird_cdi, weird_trt)
-
-weird_rt_all |> filter(measure=="log_land_rt") |>   ggplot(aes(x = str_c(time_0, time_end), col = as.character(frac), y = estimate, ymin = ci.lb, ymax = ci.ub)) +
-  geom_pointrange(position = position_dodge2(width = .5)) +
-  coord_flip() +
-  facet_wrap(~Type, scales = "free_x", nrow = 1) +
-  theme(legend.position = "bottom", ) +
-  labs(y = "Correlation", x = "Minimum RT", color = "Type of RT") +
-  scale_color_brewer(palette="Paired")+
-  facetted_pos_scales(
-  y = list(
-    Type == "ICC reliability" ~ scale_y_continuous(limits = c(0.3, .8)),
-    Type == "Corr. with CDI Production" ~ scale_y_continuous(limits = c(-.5, 0)),
-        Type == "Test-retest reliability" ~ scale_y_continuous(limits = c(0.1, .6)),
-    Type == "Corr. with CDI Comp." ~ scale_y_continuous(limits = c(-.5, 0))
-  )
-)
-```
 
 # Exclusions
 
