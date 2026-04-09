@@ -45,7 +45,9 @@ accs_boot_cdi <- params |>
         downsample_acc_cdi(t_s, t_e, s_p, s_d, iters) |>
           group_by(dataset_name, iteration) |>
           nest() |>
-          mutate(corr = map2(data, dataset_name, \(d, dn) calc_cdi(mutate(d, dataset_name = dn)))) |>
+          mutate(corr = map2(data, dataset_name, \(d, dn) {
+            calc_cdi(mutate(d, dataset_name = dn)) |> select(-any_of("dataset_name"))
+          })) |>
           select(-data) |>
           unnest_wider(corr) |>
           ungroup() |>
