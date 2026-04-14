@@ -307,11 +307,11 @@ We first calculated the ICC reliability for accuracy across datasets, computing 
 Because we were concerned that the best data-processing options could be different for children of different ages, we ran the same linear mixed effect models separately for data just on children in each of 4 age groups: <18 months, 18-24 months, 24-36 months, and >36 months. 
 
 
-```{r acc-lolli, fig.height=3, fig.width=6, fig.pos="t", fig.cap="Per dataset outcome measures for two window options: 200ms-2000ms (red) and 600ms-4000ms (blue). Dot size is proportional within each panel to the number of administrations." }
+```{r acc-lolli, fig.height=3, fig.width=6, fig.pos="t", fig.cap="Per dataset outcome measures for two window options: 300ms-1800ms (red) and 600ms-4000ms (blue). Dot size is proportional within each panel to the number of administrations." }
 acc_include <- function(df) {
   df |> mutate(combined = case_when(
     t_start == 600 & t_end == 4000 ~ "600ms - 4000ms",
-    t_start == 200 & t_end == 2000 ~ "200ms - 2000ms",
+    t_start == 300 & t_end == 1800 ~ "300ms - 1800ms",
     T ~ NA
   ))
 }
@@ -336,25 +336,25 @@ fix_acc_interact <- function(df) {
     select(t_start, t_end, estimate, conf.low, conf.high)
 }
 acc_icc_mod <- do_model(
-    readRDS(here("cached_intermediates/1_acc_icc.rds")) |> filter(t_start %in% seq(0, 1000, 100) & t_end %in% c(2000, 3000, 4000)) |> filter_icc("est"), baseline_acc,
+    readRDS(here("cached_intermediates/1_acc_icc.rds")) |> filter(t_start %in% seq(0, 1000, 100) & t_end %in%seq(1800, 4000, 200)) |> filter_icc("est"), baseline_acc,
     dataset_summ |> group_by(dataset_name) |> summarize(n_admins = n_distinct(administration_id)),
     "t_start * t_end"
   ) |> fix_acc_interact()
 
 acc_comp_mod <- do_model(
-   readRDS(here("cached_intermediates/1_acc_cdi.rds")) |> filter(!is.na(comp_est)) |> rename(est = comp_est), baseline_acc,
+   readRDS(here("cached_intermediates/1_acc_cdi.rds")) |> filter(!is.na(comp_est)) |> rename(est = comp_est) |> filter(t_start %in% seq(0, 1000, 100) & t_end %in%seq(1800, 4000, 200)), baseline_acc,
     dataset_summ |> group_by(dataset_name) |> filter(!is.na(comp)) |> summarize(n_admins = n_distinct(administration_id)),
    "t_start * t_end"
   ) |> fix_acc_interact()
 
   acc_prod_mod <- do_model(
-    readRDS(here("cached_intermediates/1_acc_cdi.rds")) |> filter(!is.na(prod_est)) |> rename(est = prod_est), baseline_acc,
+    readRDS(here("cached_intermediates/1_acc_cdi.rds")) |> filter(!is.na(prod_est)) |> rename(est = prod_est) |> filter(t_start %in% seq(0, 1000, 100) & t_end %in%seq(1800, 4000, 200)), baseline_acc,
     dataset_summ |> group_by(dataset_name) |> filter(!is.na(prod)) |> summarize(n_admins = n_distinct(administration_id)),
   "t_start * t_end"
   ) |> fix_acc_interact()
   
   acc_trt_mod <- do_model(
-    readRDS(here("cached_intermediates/1_acc_test_retest.rds")) |> filter(!is.na(est)), baseline_acc,
+    readRDS(here("cached_intermediates/1_acc_test_retest.rds")) |> filter(!is.na(est)) |> filter(t_start %in% seq(0, 1000, 100) & t_end %in%seq(1800, 4000, 200)), baseline_acc,
     dataset_summ |> make_test_retest_pairs() |> group_by(dataset_name) |>
       summarize(n_admins = n_distinct(pair_number)),
     "t_start * t_end"
@@ -362,13 +362,13 @@ acc_comp_mod <- do_model(
   
   
   acc_icc_mod_age <- do_model_age(
-    readRDS(here("cached_intermediates/1_acc_icc_byage.rds")) |>filter(t_start %in% seq(0, 1000, 100) & t_end %in% c(2000, 3000, 4000)) |>  filter_icc("est"), baseline_acc,
+    readRDS(here("cached_intermediates/1_acc_icc_byage.rds")) |>filter(t_start %in% seq(0, 1000, 100) & t_end %in%seq(1800, 4000, 200)) |>  filter_icc("est"), baseline_acc,
     dataset_summ |> bin_ages() |> group_by(dataset_name, age_bin) |> summarize(n_admins = n_distinct(administration_id)),
     "t_start * t_end"
   ) |> fix_acc_interact()
   
      acc_prod_mod_age <- do_model_age(
-    readRDS(here("cached_intermediates/1_acc_cdi_byage.rds")) |> filter(!is.na(prod_est)) |> rename(est = prod_est), baseline_acc,
+    readRDS(here("cached_intermediates/1_acc_cdi_byage.rds")) |> filter(!is.na(prod_est)) |>filter(t_start %in% seq(0, 1000, 100) & t_end %in%seq(1800, 4000, 200)) |> rename(est = prod_est), baseline_acc,
     dataset_summ |>bin_ages() |> group_by(dataset_name, age_bin) |> filter(!is.na(prod)) |> summarize(n_admins = n_distinct(administration_id)),
   "t_start * t_end"
   ) |> fix_acc_interact()
@@ -381,7 +381,7 @@ Average ICCs across windows are shown in Figure \ref{fig:acc-heat-map}. As expec
 
 A dataset by dataset comparison of the differences between a 200-2000ms window and a 600-4000 ms window are shown in Figure \ref{fig:acc-lolli}. Nearly all datasets have higher ICC reliability for the later and longer window than the shorter window that is more typical of current practice. All 5 datasets with close in time pairs of administrations also show increased reliability on this later and longer window than the shorter window. Correlations with CDI vary across datasets, with an overall similar effect for both windows. 
 
-Our mixed effect model confirms that there are expected reliability gains from switching from a 200-2000ms window to a 600-4000ms one. ICC reliability is expected to increase by `r acc_icc_mod |> filter(t_start==200, t_end==2000) |> in_text_stats(sign_flip=T)` and test-retest reliability by `r acc_trt_mod |> filter(t_start==200, t_end==2000) |> in_text_stats(sign_flip=T)`. There are limited differences in validity between these two windows (`r acc_comp_mod |> filter(t_start==200, t_end==2000) |> in_text_stats(sign_flip=T)` for comprehension, and `r acc_prod_mod |> filter(t_start==200, t_end==2000) |> in_text_stats(sign_flip=T)` for production). 
+Our mixed effect model confirms that there are expected reliability gains from switching from a 300-1800ms window to a 600-4000ms one. ICC reliability is expected to increase by `r acc_icc_mod |> filter(t_start==300, t_end==1800) |> in_text_stats(sign_flip=T)` and test-retest reliability by `r acc_trt_mod |> filter(t_start==300, t_end==1800) |> in_text_stats(sign_flip=T)`. There are limited differences in validity between these two windows (`r acc_comp_mod |> filter(t_start==300, t_end==1800) |> in_text_stats(sign_flip=T)` for comprehension, and `r acc_prod_mod |> filter(t_start==300, t_end==1800) |> in_text_stats(sign_flip=T)` for production). 
 
 There are a wide range of window options with generally comparable reliability and validity measures (Fig S3 in supplement). For instance, a 400 - 3000 ms window is not significantly different from a 600 - 4000 ms window on any of the outcome measures. <!--Compared to a 400-3000ms, window of 600-4000 is expected to increase ICC by `r acc_icc_mod |> filter(t_start==400, t_end==3000) |> in_text_stats(sign_flip=T)` and increase test-retest reliability by `r acc_trt_mod |> filter(t_start==400, t_end==3000) |> in_text_stats(sign_flip=T)`. Differences in CDI correlation are not substantive (`r acc_comp_mod |> filter(t_start==400, t_end==3000) |> in_text_stats(sign_flip=T)` for comprehension, and `r acc_prod_mod |> filter(t_start==400, t_end==3000) |> in_text_stats(sign_flip=T)` for production).-->
 
@@ -391,9 +391,9 @@ Exactly when the accuracy window starts is not important, although we recommend 
 
 These patterns generally hold across age. The overall level of reliability rises with age, as younger children have less signal, and experiments with younger children may also use fewer trials (see Figure S2 for an age-split version of the ICC heat map). However, to make data-driven recommendations, a question is whether there are substantive differences in what windows maximize validity and reliability across age. 
 
-While the strength of evidence varied, the overall pattern of results was remarkable consistent across the different age groups (see Figure S4). For instance, across different ages there is an improvement in ICC for using a 600-4000 window compared to a 200-2000ms one. For <18 months, the ICC difference is `r acc_icc_mod_age |> filter(t_start==200, t_end==2000, age_bin=="<18") |> in_text_stats(sign_flip=T)`; for 18-24 months, `r acc_icc_mod_age |> filter(t_start==200, t_end==2000, age_bin=="18-24") |> in_text_stats(sign_flip=T)`; for 24-36 months,  `r acc_icc_mod_age |> filter(t_start==200, t_end==2000, age_bin=="24-36") |> in_text_stats(sign_flip=T)`; and for 36+ months `r acc_icc_mod_age |> filter(t_start==200, t_end==2000, age_bin==">=36") |> in_text_stats(sign_flip=T)`. The main difference that is seen across ages is that when there is less signal to begin with, there's less difference between different measurements. 
+While the strength of evidence varied, the overall pattern of results was remarkable consistent across the different age groups (see Figure S4). For instance, across different ages there is an improvement in ICC for using a 600-4000 window compared to a 300-1800ms one. For <18 months, the ICC difference is `r acc_icc_mod_age |> filter(t_start==300, t_end==1800, age_bin=="<18") |> in_text_stats(sign_flip=T)`; for 18-24 months, `r acc_icc_mod_age |> filter(t_start==300, t_end==1800, age_bin=="18-24") |> in_text_stats(sign_flip=T)`; for 24-36 months,  `r acc_icc_mod_age |> filter(t_start==300, t_end==1800, age_bin=="24-36") |> in_text_stats(sign_flip=T)`; and for 36+ months `r acc_icc_mod_age |> filter(t_start==300, t_end==1800, age_bin==">=36") |> in_text_stats(sign_flip=T)`. The main difference that is seen across ages is that when there is less signal to begin with, there's less difference between different measurements. 
 
-For CDI production, there might be slight age effects, but the differences are not significant and are difficult to interpret. For <18 months, a longer window results in change of `r acc_prod_mod_age |> filter(t_start==200, t_end==2000, age_bin=="<18") |> in_text_stats(sign_flip=T)` in correlation with CDI production ; for 18-24 months, `r acc_prod_mod_age |> filter(t_start==200, t_end==2000, age_bin=="18-24") |> in_text_stats(sign_flip=T)`; for 24-36 months,  `r acc_prod_mod_age |> filter(t_start==200, t_end==2000, age_bin=="24-36") |> in_text_stats(sign_flip=T)`. These small and inconsistent age effects could be due to dataset differences across different ages or small but true developmental differences. 
+For CDI production, there might be slight age effects, but the differences are not significant and are difficult to interpret. For <18 months, a longer window results in change of `r acc_prod_mod_age |> filter(t_start==300, t_end==1800, age_bin=="<18") |> in_text_stats(sign_flip=T)` in correlation with CDI production ; for 18-24 months, `r acc_prod_mod_age |> filter(t_start==300, t_end==1800, age_bin=="18-24") |> in_text_stats(sign_flip=T)`; for 24-36 months,  `r acc_prod_mod_age |> filter(t_start==300, t_end==1800, age_bin=="24-36") |> in_text_stats(sign_flip=T)`. These small and inconsistent age effects could be due to dataset differences across different ages or small but true developmental differences. 
 
 Strong effects are likely to show up in any reasonable window, but for eking the most reliability out of data, we recommend windows that start somewhere in the 400-600 ms range and go for longer than 2000 ms. Why would later starting and later ending windows increase reliability? This suggests that there is some signal in the post 2000ms window, and that there may not be so much signal in the early 200-400 ms time. While some children may look quickly to the target and then look away, other children who look to the target later or who continue looking at the target at still contributing signal in this region, and overall children in many datasets are in aggregate looking to the target more than the distractor more in this region (even if less than at the peak, Figure SZZ). Importantly, since accuracy is measured as the ratio of target looks to either target or distractor looks, looking completely away does not count against accuracy.
 
@@ -409,8 +409,8 @@ One commonly acknowledged issue in LWL studies is that looking behavior could be
 We considered baseline-corrected accuracies with various starting and ending points for the baseline window, and used a 600ms-4000ms main window (although the results generalize to other main windows). We restricted ourselves to datasets with at least some pre-0 data. We also included a "no baseline" version which was just accuracy on 600-4000ms with no correction. Baseline windows started at -1000, -2000, -3000 and -4000ms and ended at -500 or 0 ms. 
 
 
-```{r bc-lolli, fig.height=3, fig.width=6, fig.cap="Comparison between a baseline-corrected accuracy in red and accuracy in blue across datasets and measures. Both use an accuracy window of 600 - 4000ms, the baseline window was -1000 - 0ms.  " }
-baseline_lengths <- readRDS(here("cached_intermediates", "2_baseline_lengths.rds"))
+```{r bc-lolli, fig.height=3, fig.width=6, fig.cap="Comparison between a baseline-corrected accuracy in red and accuracy in blue across datasets and measures. Both use an accuracy window of 600 - 4000ms, the baseline window was -2000 - 0ms.  " }
+baseline_lengths <- readRDS(here("cached_intermediates", "2_baseline_lengths.rds")) |> filter(t_min<=-2000)
 bc_icc <- readRDS(here("cached_intermediates", "2_bc_icc.rds")) |>
   bind_rows(readRDS(here("cached_intermediates", "1_acc_icc.rds"))) |> filter(t_start == 600) |>
   filter(t_end == 4000) |>
@@ -443,7 +443,7 @@ bc_test_retest <- readRDS(here("cached_intermediates", "2_bc_test_retest.rds")) 
 bc_include <- function(df) {
   df |> mutate(combined = case_when(
     b_start == "none" & b_end == "none" ~ "accuracy with no baseline correction",
-    b_start == -1000 & b_end == 0 ~ "baseline-corrected accuracy",
+    b_start == -2000 & b_end == 0 ~ "baseline-corrected accuracy",
     T ~ NA
   ))
 }
@@ -500,7 +500,7 @@ bc_comp_mod <- do_model(
 
 Baseline-corrected accuracy led to worse reliability and validity than accuracy. 
 
-As an example, Figure \ref{fig:bc-lolli} shows per-dataset results for accuracy compared to a baseline-corrected accuracy using a -1000 - 0 baseline window. 
+As an example, Figure \ref{fig:bc-lolli} shows per-dataset results for accuracy compared to a baseline-corrected accuracy using a -2000 - 0 baseline window. 
 All baseline correction options that we considered led to significantly worse reliability and validity measures compared to using normal accuracy without any correction. For a regular window of 600-4000, baseline correction is expected to make ICC worse by at least `r bc_icc_mod |> filter(estimate==max(estimate)) |> in_text_stats(sign_flip=T)`; test-retest worse by at least `r bc_trt_mod |> filter(estimate==max(estimate)) |> in_text_stats(sign_flip=T)`; correlation with comprehension worse by at least `r bc_comp_mod |> filter(estimate==max(estimate)) |> in_text_stats(sign_flip=T)` and correlation with production worse by at least `r bc_prod_mod |> filter(estimate==max(estimate)) |> in_text_stats(sign_flip=T)`. 
 
 Similar patterns hold for different accuracy windows (Fig SXX maybe) and across different age bins (Fig SYY). Even restricting to the datasets with the longest pre-windows, there are still not benefits to baseline correction (Figure SXX). 

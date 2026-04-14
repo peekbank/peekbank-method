@@ -3,25 +3,24 @@ source("../helper/params.R")
 
 d_aoi <- readRDS("../cached_intermediates/0_d_aoi.rds")
 
-# Trial-level exclusion flags (small lookup, not joined back to d_aoi)
+trial_totals <- get_total_trials(d_aoi) |>
+  distinct(dataset_name, administration_id, max_trials)
+
+# Trial-level flags for semi_join (t_norm == 0 is onset)
 trial_flags <- d_aoi |>
   group_by(dataset_name, trial_id, dataset_id, subject_id, administration_id, target_label) |>
   summarise(
-    total_target_prop = mean(correct, na.rm = TRUE),
-    pre_looking = mean(correct[t_norm < 400], na.rm = TRUE),
+    has_correct_at_0 = any(t_norm == 0 & !is.na(correct)),
     .groups = "drop"
   )
 
 d_aoi_age <- make_age_bins(d_aoi)
 
 # Summarize to trial-level accuracy after applying exclusion filters.
-# Uses trial_flags for look_both filtering via semi_join (avoids full left_join).
-# Includes age_bin in grouping if present in the data.
-summarize_trial_exclusion <- function(d, flags, t_start, t_end, exclude_less_than, look_both, min_trial) {
-  if (look_both == "ever") {
-    flags <- filter(flags, total_target_prop > 0, total_target_prop < 1)
-  } else if (look_both == "before") {
-    flags <- filter(flags, pre_looking > 0, pre_looking < 1)
+# min_frac: numerator = trials passing window + prop + look_at_start; denominator = max_trials from get_total_trials.
+summarize_trial_exclusion <- function(d, flags, t_start, t_end, exclude_less_than, look_at_start, min_trial, min_frac) {
+  if (look_at_start == "yes") {
+    flags <- filter(flags, has_correct_at_0)
   }
 
   join_cols <- c("dataset_name", "trial_id", "dataset_id", "administration_id", "target_label")
@@ -40,9 +39,15 @@ summarize_trial_exclusion <- function(d, flags, t_start, t_end, exclude_less_tha
     filter(prop_data >= exclude_less_than) |>
     filter(!is.na(accuracy)) |>
     group_by(administration_id, dataset_name, across(any_of("age_bin"))) |>
+    mutate(valid_n = n()) |>
+    left_join(trial_totals, by = c("dataset_name", "administration_id")) |>
     mutate(
-      count = n(),
+      # frac_valid: trials retained under this param row / max trials that administration could contribute
+      frac_valid = valid_n / max_trials
     ) |>
+    filter(!is.na(max_trials), frac_valid >= min_frac) |>
+    select(-valid_n, -max_trials, -frac_valid) |>
+    mutate(count = n()) |>
     filter(count >= min_trial) |>
     select(-count) |>
     group_by(across(all_of(c(
@@ -63,19 +68,18 @@ run_trial_icc <- function(d) {
     select(-data)
 }
 
-acc_params <- acc_trial_params_main
+acc_params <- acc_params_trial
 
-# Pre-compute trial-level summaries on main process
 accs_summarized <- acc_params |>
   mutate(summary_data = pmap(
-    list(t_start, t_end, exclude_less_than, look_both, min_trial),
-    \(t_s, t_e, e, l, m) summarize_trial_exclusion(d_aoi, trial_flags, t_s, t_e, e, l, m)
+    list(t_start, t_end, exclude_less_than, look_at_start, min_trial, min_frac),
+    \(t_s, t_e, e, las, m, mf) summarize_trial_exclusion(d_aoi, trial_flags, t_s, t_e, e, las, m, mf)
   ))
 
 accs_summarized_age <- acc_params |>
   mutate(summary_data = pmap(
-    list(t_start, t_end, exclude_less_than, look_both, min_trial),
-    \(t_s, t_e, e, l, m) summarize_trial_exclusion(d_aoi_age, trial_flags, t_s, t_e, e, l, m)
+    list(t_start, t_end, exclude_less_than, look_at_start, min_trial, min_frac),
+    \(t_s, t_e, e, las, m, mf) summarize_trial_exclusion(d_aoi_age, trial_flags, t_s, t_e, e, las, m, mf)
   ))
 
 gc()
@@ -94,18 +98,16 @@ accs_icc_age <- accs_summarized_age |>
 
 saveRDS(accs_icc_age, "../cached_intermediates/4_acc_trial_icc_byage.rds")
 
-acc_params_kid <- acc_trial_params_kid
-
 kid_accs_summarized <- acc_params_kid |>
   mutate(summary_data = pmap(
-    list(t_start, t_end, exclude_less_than, look_both, min_trial),
-    \(t_s, t_e, e, l, m) summarize_trial_exclusion(d_aoi, trial_flags, t_s, t_e, e, l, m)
+    list(t_start, t_end, exclude_less_than, look_at_start, min_trial, min_frac),
+    \(t_s, t_e, e, las, m, mf) summarize_trial_exclusion(d_aoi, trial_flags, t_s, t_e, e, las, m, mf)
   ))
 
 kid_accs_summarized_age <- acc_params_kid |>
   mutate(summary_data = pmap(
-    list(t_start, t_end, exclude_less_than, look_both, min_trial),
-    \(t_s, t_e, e, l, m) summarize_trial_exclusion(d_aoi_age, trial_flags, t_s, t_e, e, l, m)
+    list(t_start, t_end, exclude_less_than, look_at_start, min_trial, min_frac),
+    \(t_s, t_e, e, las, m, mf) summarize_trial_exclusion(d_aoi_age, trial_flags, t_s, t_e, e, las, m, mf)
   ))
 
 
