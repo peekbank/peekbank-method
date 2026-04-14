@@ -28,18 +28,20 @@ rt_params <- expand_grid(
 acc_params_trial <- expand_grid(
   t_start = c(300, 400, 600),
   t_end = c(1800, 3000, 4000),
-  exclude_less_than = c(0, .1, .2, .3, .4, .5, .6, .7, .8, .9, 1),
-  look_both = c("before", "ever", "no_need"),
-  min_trial = c(1)
+  exclude_less_than = c(0, .1, .2, .3, .4, .5, .6, .7, .8),
+  look_at_start = c("yes", "no"),
+  min_trial = c(1),
+  min_frac = c(0),
 )
 
 acc_params_kid <- expand_grid(
   t_start = c(300, 400, 600),
   t_end = c(1800, 3000, 4000),
   exclude_less_than = c(0, .2, .5, .7),
-  look_both = c("no_need"),
-  min_trial = c(1, 2, 3, 4, 5, 6, 7, 8, 10, 15)
-)
+  look_at_start = c("no"),
+  min_trial = c(1, 2, 3, 4, 6, 8, 10, 12, 14, 16),
+  min_frac = c(0, .2, .4, .6, .8)
+) |> filter(!(min_trial > 1 & min_frac > 0)) # only use one at a time
 
 
 

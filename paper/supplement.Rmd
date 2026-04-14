@@ -132,6 +132,10 @@ Because of this, we do administration-level bootstrapping for the CDI and age co
 
 \FloatBarrier
 
+# Can we back out # of trials?
+
+
+
 # Accuracy 
 
 

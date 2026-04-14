@@ -274,7 +274,10 @@ Looking while listening data takes a lot of processing to go from the experiment
 ## Recommendation 1: Measure accuracy for more than 2 seconds post disambiguation
 
 <!-- [what is accuracy, who uses it, and what is the range of common practice]  -->
-In LWL studies, accuracy is typically calculated as the fraction of time a child is looking at the target divided by the time they are looking at the target or the distractor. These fractions are computed over some window of time, but the selection of this window is complex. Typically windows start shortly after the point of disambiguation and continue until several seconds later; this window is  intended to capture the peak of children's stimulus-driven looks to the target. However, in practice studies vary in what windows are used, and often window selection is a locus for analytic flexibility (choosing windows post hoc to maximize a particular effect) [@peelle2021]. Some analysts recommend relatively short windows that start several hundred milliseconds after stimulus onset and end around 1500 milliseconds later [e.g., @fernald2008], however practices vary throughout the literature. In this analysis, we begin from first principles and ask what windows maximize reliability and validity on word recognition trials.  
+In LWL studies, accuracy is typically calculated as the fraction of time a child is looking at the target divided by the time they are looking at the target or the distractor. These fractions are computed over some window of time, but the selection of this window is complex. Typically windows start shortly after the point of disambiguation and continue until several seconds later; this window is  intended to capture the peak of children's stimulus-driven looks to the target. However, in practice studies vary in what windows are used, and often window selection is a locus for analytic flexibility (choosing windows post hoc to maximize a particular effect) [@peelle2021].
+In the literature, it is common to use windows from  300ms -- 1800 ms  [following @fernald2008] or from  367ms -2000 ms[following @swingleyaslin2022]. Windows that last for longer are less commonly used -- example until 4000ms in @bergselsonswingley2017semantic 3500ms in @bergelsonswingley2012 or @kartushina or until 2800ms in @weaverzettersten2024 or 3000 ms @lopez_perez_2025. 
+
+Some analysts recommend relatively short windows that start several hundred milliseconds after stimulus onset and end around 1500 milliseconds later [e.g., @fernald2008], however practices vary throughout the literature. In this analysis, we begin from first principles and ask what windows maximize reliability and validity on word recognition trials.  
 
 ```{r acc-heat-map, fig.cap="A heat map showing the average ICC across datasets for different start and end points for the accuracy window. A region with the highest ICC (best reliability) is outlined.", fig.width=5, fig.height=3}
 acc_icc <- readRDS(here("cached_intermediates", "1_acc_icc.rds"))
@@ -399,7 +402,7 @@ Strong effects are likely to show up in any reasonable window, but for eking the
 
 ## Recommendation 2: Do not use baseline-corrected accuracy 
 
-One commonly acknowledged issue in LWL studies is that looking behavior could be partly driven by preferences over the target images themselves [@fernald2008;@novack2025development]: Children may have a baseline preference to look at one image over another, even in the absence of auditory stimuli. Although thoughtful design choices can minimize these issues (see Recommendation 6), some researchers also attempt to deal with baseline differences in stimulus salience in their analysis. This practice is known as "baseline correction": at the data-processing stage, researchers use a difference measure between accuracy on a post-stimulus window and "accuracy" (looks to target versus looks to target or distractor) on a pre-stimulus window [@bergelson2012;@weaver2024].
+One commonly acknowledged issue in LWL studies is that looking behavior could be partly driven by preferences over the target images themselves [@fernald2008;@novack2025development]: Children may have a baseline preference to look at one image over another, even in the absence of auditory stimuli. Although thoughtful design choices can minimize these issues (see Recommendation 6), some researchers also attempt to deal with baseline differences in stimulus salience in their analysis. This practice is known as "baseline correction": at the data-processing stage, researchers use a difference measure between accuracy on a post-stimulus window and "accuracy" (looks to target versus looks to target or distractor) on a pre-stimulus window [@bergelson2012;@weaver2024]. Pre-stimulus windows are calculated on the 2seconds before POD (weaver x 2) or for the entire pre-stimulus time 3-4 seconds (@bergelsonswingley2012)
 
 ### Analytic approach
 
@@ -509,6 +512,7 @@ Why would incorporating baseline information lead to worse metrics? There is a c
 
 In addition to accuracy measures, LWL studies also provide the potential for computing children's reaction time [RT; @fernald2008]. RT is typically computed on trials when the child is initially looking at the distractor and shifts to the target after stimulus onset, as there is not a way to measure how quickly a child decides to keep looking at the target. RT computations include many choice points: 
 
+commonly filtered to 300-1800 (following fernald2008)
 - **Launch vs. landing**: RTs can be computed based on when a child's eyes leave from the distractor or when a child's eyes land on the target. 
 - **Exclusion of short RTs**: Short RTs are often excluded because they are considered unlikely to be generated in response to the stimulus. 
 - **Linear vs. logarithmic analysis**: Reaction time data are often analyzed using a logarithmic transform (consistent with the idea that reaction times are log-normally distributed and that effects on them may be multiplicative rather than additive) [@csibra2016statistical;@frank2025continuous].
@@ -644,6 +648,19 @@ Overall RT measures complement accuracy measures and capture substantial signal;
 For LWL studies, trial-level exclusions tend to be either for contributing too few time points (ex. too much tracker loss or a child looking away from the screen too much) [citations] or for "zoning" where a child only looks at one image and not the other. Zoning exclusions are sometimes done for trials where one image was not fixated at all in the entire trial, but can also be done for trials where one image was not fixated prior to the start of the accuracy window. 
 
 If trials with zoning or with few valid looking points still provide signal of the child-level language behavior, excluding them will decrease reliability and validity. On the other side, if these trials are not representing the construct and are just noise, excluding them will increase reliability and validity. 
+
+
+trial level exclusions:
+* pomper saffran is clearest for 2/3 on target requirement
+* some do 500ms continuous instead 
+* or generic inattentive
+* or .5 weaver zettersten
+
+* some require looking to T and/or D at t=0
+
+* kid level -- often requirement for up to half of trials (varies by unit) 
+
+* but for RT often does as min # of RTs -- usually 2 (cf various marchman papers all do this), but (distinctly unclear if accuracy/kid metrics also affect RT or not)
 
 ## Analytic approach
 

@@ -11,6 +11,37 @@ library(agreement)
 set.seed(42)
 options(dplyr.summarise.inform = FALSE)
 
+get_total_trials <- function(d_aoi) {
+  d_aoi |>
+    distinct(age, administration_id, dataset_name, trial_id) |>
+    distinct() |>
+    group_by(age, administration_id, dataset_name) |>
+    tally() |>
+    group_by(dataset_name) |>
+    mutate(max_trials = max(n)) |>
+    ungroup() |>
+    mutate(max_trials = case_when(
+      # deal with the weird ones as best we can
+      dataset_name == "adams_marchman_2018" & age < 21 ~ 32, # younger does 32
+      dataset_name == "adams_marchman_2018" & n > 18 ~ 32, # a few older are still on young form
+      dataset_name == "adams_marchman_2018" & n > 14 ~ 18, # older is either 18 or 14, we can't actually tell when it's which so are generous
+      dataset_name == "adams_marchman_2018" ~ 14,
+      dataset_name == "fmw_2013" & age < 24 ~ 32,
+      dataset_name == "fmw_2013" ~ 24,
+      dataset_name == "fernald_totlot" & age == 15 ~ 24,
+      dataset_name == "fernald_totlot" & age == 18 & n < 9 ~ 8,
+      dataset_name == "fernald_totlot" & age == 18 ~ 12,
+      dataset_name == "fernald_totlot" & age == 21 ~ 12,
+      dataset_name == "fernald_totlot" & age == 25 ~ 23,
+      dataset_name == "fernald_marchman_2012" & age > 27 ~ 13,
+      dataset_name == "fernald_marchman_2012" & age > 19 ~ 18,
+      dataset_name == "fernald_marchman_2012" ~ 32,
+      dataset_name == "kartushina_2019" & n > 32 ~ n, # we don't know what's going on
+      dataset_name == "kartushina_2019" ~ 32,
+      T ~ max_trials
+    ))
+}
+
 get_age_bin_cutoff <- function(d_aoi, min_per_bin = 5) {
   d_aoi |>
     # filter(!is.na(correct)) |>
