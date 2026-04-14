@@ -1,9 +1,10 @@
 source("../helper/common.R")
 source("../helper/rt_helper.R")
+source("../helper/params.R")
 
 # d_aoi <- readRDS("../cached_intermediates/0_d_aoi.rds")
 
-rts <- readRDS("../cached_intermediates/3_rts.rds") |> filter(time_0, time_end, frac == 1, window == 400)
+rts <- readRDS("../cached_intermediates/3_rts.rds") |> filter(time_0, time_end, frac == 1, min_rt == 400)
 
 
 d_rt_dt <- preprocess_rt_dt(rts) |> filter(measure == "log_land_rt")
@@ -23,10 +24,7 @@ downsample_summarize_rt <- function(start_point, sample_down, iterations) {
     summarize_icc_resamples("rt")
 }
 
-params <- expand_grid(
-  start_point = c(3, 5, 7, 10, 15),
-  sample_down = c(2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15)
-) |> filter(sample_down <= start_point)
+params <- rt_downsample_params |> filter(sample_down > 1)
 
 
 rt_iccs <- params |>

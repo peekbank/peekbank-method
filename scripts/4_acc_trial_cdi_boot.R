@@ -1,4 +1,5 @@
 source("../helper/common.R")
+source("../helper/params.R")
 
 d_aoi <- readRDS("../cached_intermediates/0_d_aoi.rds")
 
@@ -52,22 +53,10 @@ acc_trial_cdi_summarize <- function(d, flags, t_start, t_end, exclude_less_than,
     left_join(cdi_data, by = c("dataset_name", "administration_id"))
 }
 
-acc_params <- expand_grid(
-  t_start = c(200, 400, 600),
-  t_end = c(2000, 3000, 4000),
-  exclude_less_than = c(0, .1, .2, .3, .4, .5, .6, .7, .8, .9, 1),
-  look_both = c("before", "ever", "no_need"),
-  min_trial = c(1) # no restrictions
-)
+acc_params <- acc_trial_params_main
 
 
-acc_params_kid <- expand_grid(
-  t_start = c(400, 600, 200),
-  t_end = c(2000, 3000, 4000),
-  exclude_less_than = c(0, .2, .5),
-  look_both = c("no_need"),
-  min_trial = c(1, 2, 3, 4, 5, 8, 10, 15)
-)
+acc_params_kid <- acc_trial_params_kid
 
 accs_cdi_summarized <- acc_params |>
   mutate(summary_data = pmap(

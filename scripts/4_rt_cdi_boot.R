@@ -1,16 +1,17 @@
 source("../helper/common.R")
 source("../helper/rt_helper.R")
+source("../helper/params.R")
 
 d_aoi <- readRDS("../cached_intermediates/0_d_aoi.rds")
 
 age_bin_cutoff <- get_age_bin_cutoff(d_aoi)
 
-rts <- readRDS("../cached_intermediates/3_rts.rds") |> filter(time_0, time_end, frac == 1, window == 400)
+rts <- readRDS("../cached_intermediates/3_rts.rds") |> filter(time_0, time_end, frac == 1, min_rt == 400)
 
 cdi_data <- readRDS("../cached_intermediates/0_cdi_subjects.rds")
 
 d_rt_dt <- preprocess_rt_dt(rts) |>
-  group_by(dataset_name, time_0, window, time_end, during, frac, administration_id, measure) |>
+  group_by(dataset_name, time_0, min_rt, max_rt, time_end, during, frac, administration_id, measure) |>
   summarize(
     mean_var = mean(rt, na.rm = T),
     count = sum(!is.na(rt))
@@ -19,21 +20,21 @@ d_rt_dt <- preprocess_rt_dt(rts) |>
 
 d_rt_dt_byage <- preprocess_rt_dt(rts) |>
   inner_join(age_bin_cutoff) |>
-  group_by(dataset_name, time_0, window, time_end, during, frac, administration_id, age_bin, measure) |>
+  group_by(dataset_name, time_0, min_rt, max_rt, time_end, during, frac, administration_id, age_bin, measure) |>
   summarize(
     mean_var = mean(rt, na.rm = T),
     count = sum(!is.na(rt))
   ) |>
   filter(!is.na(mean_var))
 
-params <- expand_grid(min_trial = c(1, 2, 3, 4, 5, 6))
+params <- rt_params_min_trial
 
 rt_cdi <- d_rt_dt |>
   cross_join(params) |>
   filter(count >= min_trial) |>
   select(-count) |>
   left_join(cdi_data, by = c("dataset_name", "administration_id")) |>
-  group_by(time_0, window, time_end, during, frac, measure, min_trial) |>
+  group_by(time_0, min_rt, max_rt, time_end, during, frac, measure, min_trial) |>
   nest() |>
   mutate(cdi = map(data, calc_cdi)) |>
   select(-data) |>
@@ -46,7 +47,7 @@ rt_cdi_byage <- d_rt_dt_byage |>
   filter(count >= min_trial) |>
   select(-count) |>
   left_join(cdi_data, by = c("dataset_name", "administration_id")) |>
-  group_by(age_bin, time_0, window, time_end, during, frac, measure, min_trial) |>
+  group_by(age_bin, time_0, min_rt, max_rt, time_end, during, frac, measure, min_trial) |>
   nest() |>
   mutate(cdi = map(data, calc_cdi)) |>
   select(-data) |>

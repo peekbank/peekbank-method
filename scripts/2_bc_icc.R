@@ -1,4 +1,5 @@
 source("../helper/common.R")
+source("../helper/params.R")
 
 d_aoi <- readRDS("../cached_intermediates/0_d_aoi.rds")
 
@@ -36,12 +37,7 @@ run_bc_icc <- function(d) {
     select(-data)
 }
 
-bc_acc_params <- expand_grid(
-  t_start = c(200, 400, 600),
-  t_end = c(2000, 3000, 4000),
-  b_start = seq(-4000, -1000, 1000),
-  b_end = c(-500, 0),
-)
+bc_acc_params <- bc_params_stage2_main
 
 # Pre-compute trial-level summaries on main process
 bc_summarized <- bc_acc_params |>

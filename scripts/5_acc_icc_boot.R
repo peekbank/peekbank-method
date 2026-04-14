@@ -1,4 +1,5 @@
 source("../helper/common.R")
+source("../helper/params.R")
 
 d_aoi <- readRDS("../cached_intermediates/0_d_aoi.rds")
 
@@ -40,10 +41,7 @@ downsample_summarize_accuracy <- function(start_point, sample_down, iter) {
     summarize_icc_resamples("accuracy")
 }
 
-params <- expand_grid(
-  start_point = c(5, 10, 15, 20),
-  sample_down = c(2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20)
-) |> filter(sample_down <= start_point)
+params <- acc_downsample_params_icc
 
 
 accs_boot <- params |>

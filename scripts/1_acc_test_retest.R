@@ -1,4 +1,5 @@
 source("../helper/common.R")
+source("../helper/params.R")
 
 d_aoi <- readRDS("../cached_intermediates/0_d_aoi.rds")
 
@@ -25,10 +26,7 @@ acc_test_retest <- function(t_start = -500, t_end = 4000) {
 
 
 
-acc_params <- expand_grid(
-  t_start = c(0, 100, 200, 300, 400, 500, 600, 700, 800, 900, 1000),
-  t_end = c(2000, 3000, 4000),
-)
+acc_params <- acc_params_stage1_cdi_trt
 accs_test_retest <- acc_params |>
   mutate(corr = pmap(list(t_start, t_end), \(t_s, t_e) acc_test_retest(t_s, t_e))) |>
   unnest(corr)

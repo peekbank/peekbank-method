@@ -1,4 +1,5 @@
 source("../helper/common.R")
+source("../helper/params.R")
 
 d_aoi <- readRDS("../cached_intermediates/0_d_aoi.rds")
 
@@ -49,12 +50,7 @@ bc_acc_cdi_age <- function(b_start = -2000, b_end = 0,
     left_join(cdi_data, by = c("dataset_name", "administration_id"))
 }
 
-bc_acc_params <- expand_grid(
-  t_start = c(200, 400, 600),
-  t_end = c(2000, 3000, 4000),
-  b_start = seq(-4000, -1000, 1000),
-  b_end = c(-500, 0),
-)
+bc_acc_params <- bc_params_stage2_main
 
 bc_cdi <- bc_acc_params |>
   mutate(summary_data = pmap(list(b_start, b_end, t_start, t_end), \(b_s, b_e, t_s, t_e) bc_acc_cdi(b_s, b_e, t_s, t_e))) |>

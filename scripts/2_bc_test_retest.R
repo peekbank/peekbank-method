@@ -1,4 +1,5 @@
 source("../helper/common.R")
+source("../helper/params.R")
 
 d_aoi <- readRDS("../cached_intermediates/0_d_aoi.rds")
 
@@ -26,12 +27,7 @@ bc_test_retest <- function(b_start, b_end, t_start = -500, t_end = 4000) {
 }
 
 
-bc_acc_params <- expand_grid(
-  t_start = c(400, 200, 600),
-  t_end = c(2000, 3000, 4000),
-  b_start = seq(-4000, -1000, 1000),
-  b_end = c(-500, 0),
-)
+bc_acc_params <- bc_params_stage2_main
 
 bc_test_retest_result <- bc_acc_params |>
   mutate(corr = pmap(list(b_start, b_end, t_start, t_end), \(b_s, b_e, t_s, t_e) bc_test_retest(b_s, b_e, t_s, t_e))) |>

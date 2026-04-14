@@ -1,4 +1,5 @@
 source("../helper/common.R")
+source("../helper/params.R")
 
 d_aoi <- readRDS("../cached_intermediates/0_d_aoi.rds")
 
@@ -34,10 +35,7 @@ run_icc <- function(d) {
     select(-data)
 }
 
-acc_params <- expand_grid(
-  t_start = seq(-500, 1500, 100),
-  t_end = seq(2000, 4000, 100),
-)
+acc_params <- acc_params_stage1_icc
 
 accs_summarized <- acc_params |>
   mutate(summary_data = pmap(list(t_start, t_end), \(t_s, t_e) summarize_accuracy(d_aoi, t_s, t_e)))

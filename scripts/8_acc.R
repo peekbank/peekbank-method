@@ -1,4 +1,5 @@
 source("../helper/common.R")
+source("../helper/params.R")
 
 d_aoi <- readRDS("../cached_intermediates/0_d_aoi.rds")
 
@@ -133,25 +134,8 @@ do_test_retest <- function(d) {
     calc_test_retest()
 }
 
-acc_params <- expand_grid(
-  option = "recommended",
-  t_start = c(600),
-  t_end = c(4000),
-  exclude_less_than = c(0),
-  look_both = c("no_need"),
-  min_trial = c(1)
-)
-
-bc_params <- expand_grid(
-  option = "alternative",
-  t_start = c(200),
-  t_end = c(2000),
-  b_start = c(-1000),
-  b_end = c(0),
-  exclude_less_than = c(.5),
-  look_both = c("ever"),
-  min_trial = c(5)
-)
+acc_params <- acc_params_summary_recommended
+bc_params <- bc_params_summary_alternative
 
 
 accs_icc <- acc_params |>

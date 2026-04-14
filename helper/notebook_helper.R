@@ -285,10 +285,12 @@ make_model_grid_plot_age <- function(icc, cdi, make_baseline, form, x, facet = N
     icc |> filter_icc("est"), {{ make_baseline }},
     dataset_summ |> bin_ages() |> group_by(dataset_name, age_bin) |> summarize(n_admins = n_distinct(administration_id)),
     form
-  ) |> make_model_plot_age({{ x }},
-    facet = {{ facet }}, fix_function = {{ fix_function }},
-    lab = "ICC reliability", breaks = breaks, limits = limits, dodge = dodge
-  )
+  ) |>
+    make_model_plot_age({{ x }},
+      facet = {{ facet }}, fix_function = {{ fix_function }},
+      lab = "ICC reliability", breaks = breaks, limits = limits, dodge = dodge
+    )
+
   comp_plot <- do_model_age(
     cdi |> filter(!is.na(comp_est)) |> rename(est = comp_est), {{ make_baseline }},
     dataset_summ |> bin_ages() |> group_by(dataset_name, age_bin) |> filter(!is.na(comp)) |> summarize(n_admins = n_distinct(administration_id)),
@@ -324,7 +326,7 @@ clean_names <- tribble(
   "potter_canine", "Potter & Lew Williams (2023)", "English",
   "fernald_totlot", "Fernald et al. (2006)", "English",
   "pomper_prime", "Pomper & Saffran (2015)", "English",
-  "pomper_saffran_2016", "Pomper & Saffran (2016)", "Egnlish",
+  "pomper_saffran_2016", "Pomper & Saffran (2016)", "English",
   "swingley_aslin_2002", "Swingley & Aslin (2002)", "English",
   "pomper_salientme", "Pomper & Saffran (2019)", "English",
   "perry_cowpig", "Perry & Saffan (2017)", "English",

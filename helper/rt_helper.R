@@ -155,6 +155,10 @@ preprocess_rt_dt <- function(rts) {
   rts |>
     filter(shift_type == "D-T") |>
     mutate(
+      # Keep RTs within the parameterized min/max bounds for each row.
+      rt = ifelse(rt >= min_rt & rt <= max_rt, rt, NA_real_)
+    ) |>
+    mutate(
       land_rt = rt,
       first_launch_rt = shift_start_rt,
     ) |>

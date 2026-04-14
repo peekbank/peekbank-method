@@ -2,7 +2,7 @@ source("../helper/common.R")
 
 list.files() |>
   as_tibble() |>
-  filter(str_detect(value, "^[1-4]_"), str_detect(value, "cdi|icc|test_retest")) |>
+  filter(str_detect(value, "^[1-3]_")) |>
   mutate(foo = walk(value, \(v){
     message("Running: ", v)
 

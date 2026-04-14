@@ -1,4 +1,5 @@
 source("../helper/common.R")
+source("../helper/params.R")
 
 d_aoi <- readRDS("../cached_intermediates/0_d_aoi.rds")
 
@@ -51,21 +52,9 @@ acc_test_retest <- function(t_start, t_end, exclude_less_than, look_both, min_tr
 }
 
 
-acc_params <- expand_grid(
-  t_start = c(400, 200, 600),
-  t_end = c(2000, 3000, 4000),
-  exclude_less_than = c(0, .1, .2, .3, .4, .5, .6, .7, .8, .9, 1),
-  look_both = c("before", "ever", "no_need"),
-  min_trial = 1
-)
+acc_params <- acc_trial_params_main
 
-acc_params_kid <- expand_grid(
-  t_start = c(400, 600, 200),
-  t_end = c(2000, 3000, 4000),
-  exclude_less_than = c(0, .2, .5),
-  look_both = c("no_need"),
-  min_trial = c(1, 2, 3, 4, 5, 8, 10, 15)
-)
+acc_params_kid <- acc_trial_params_kid
 
 accs_test_retest <- acc_params |>
   mutate(corr = pmap(list(t_start, t_end, exclude_less_than, look_both, min_trial), \(t_s, t_e, e, l, m) acc_test_retest(t_s, t_e, e, l, m))) |>

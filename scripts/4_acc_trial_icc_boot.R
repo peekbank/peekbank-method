@@ -1,4 +1,5 @@
 source("../helper/common.R")
+source("../helper/params.R")
 
 d_aoi <- readRDS("../cached_intermediates/0_d_aoi.rds")
 
@@ -62,13 +63,7 @@ run_trial_icc <- function(d) {
     select(-data)
 }
 
-acc_params <- expand_grid(
-  t_start = c(400, 200, 600),
-  t_end = c(2000, 3000, 4000),
-  exclude_less_than = c(0, .1, .2, .3, .4, .5, .6, .7, .8, .9, 1),
-  look_both = c("before", "ever", "no_need"),
-  min_trial = c(1)
-)
+acc_params <- acc_trial_params_main
 
 # Pre-compute trial-level summaries on main process
 accs_summarized <- acc_params |>
@@ -99,13 +94,7 @@ accs_icc_age <- accs_summarized_age |>
 
 saveRDS(accs_icc_age, "../cached_intermediates/4_acc_trial_icc_byage.rds")
 
-acc_params_kid <- expand_grid(
-  t_start = c(400, 200, 600),
-  t_end = c(2000, 3000, 4000),
-  exclude_less_than = c(0, .2, .5),
-  look_both = c("no_need"),
-  min_trial = c(1, 2, 3, 4, 5, 8, 10, 15)
-)
+acc_params_kid <- acc_trial_params_kid
 
 kid_accs_summarized <- acc_params_kid |>
   mutate(summary_data = pmap(

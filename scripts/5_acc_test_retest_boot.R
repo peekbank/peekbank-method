@@ -1,4 +1,5 @@
 source("../helper/common.R")
+source("../helper/params.R")
 
 d_aoi <- readRDS("../cached_intermediates/0_d_aoi.rds")
 
@@ -42,12 +43,7 @@ acc_downsample_test_retest <- function(t_start, t_end, start_point, sample_down,
     empirical_ci()
 }
 
-params <- expand_grid(
-  t_start = c(400),
-  t_end = c(2000, 3000, 4000),
-  start_point = c(5, 10, 15, 20),
-  sample_down = c(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20)
-) |> filter(sample_down <= start_point)
+params <- acc_downsample_params_cdi_trt
 
 acc_downsample <- params |>
   mutate(iters = 1000) |>
