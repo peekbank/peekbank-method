@@ -43,7 +43,7 @@ acc_downsample_test_retest <- function(t_start, t_end, start_point, sample_down,
     empirical_ci()
 }
 
-params <- acc_downsample_params_cdi_trt
+params <- acc_downsample_params
 
 acc_downsample <- params |>
   mutate(iters = 1000) |>

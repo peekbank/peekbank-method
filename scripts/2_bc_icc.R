@@ -37,7 +37,7 @@ run_bc_icc <- function(d) {
     select(-data)
 }
 
-bc_acc_params <- bc_params_stage2_main
+bc_acc_params <- bc_params
 
 # Pre-compute trial-level summaries on main process
 bc_summarized <- bc_acc_params |>

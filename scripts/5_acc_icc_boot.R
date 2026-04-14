@@ -41,7 +41,7 @@ downsample_summarize_accuracy <- function(start_point, sample_down, iter) {
     summarize_icc_resamples("accuracy")
 }
 
-params <- acc_downsample_params_icc
+params <- acc_downsample_params
 
 
 accs_boot <- params |>

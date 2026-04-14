@@ -50,7 +50,7 @@ bc_acc_cdi_age <- function(b_start = -2000, b_end = 0,
     left_join(cdi_data, by = c("dataset_name", "administration_id"))
 }
 
-bc_acc_params <- bc_params_stage2_main
+bc_acc_params <- bc_params
 
 bc_cdi <- bc_acc_params |>
   mutate(summary_data = pmap(list(b_start, b_end, t_start, t_end), \(b_s, b_e, t_s, t_e) bc_acc_cdi(b_s, b_e, t_s, t_e))) |>

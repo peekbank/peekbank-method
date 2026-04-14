@@ -30,7 +30,7 @@ downsample_acc_cdi <- function(t_start = -500, t_end = 4000, start_point, sample
     left_join(cdi_data, by = c("administration_id", "dataset_name"))
 }
 
-params <- acc_downsample_params_cdi_trt
+params <- acc_downsample_params
 
 accs_boot_cdi <- params |>
   mutate(iters = 1000) |>

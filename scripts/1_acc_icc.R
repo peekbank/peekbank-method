@@ -35,7 +35,7 @@ run_icc <- function(d) {
     select(-data)
 }
 
-acc_params <- acc_params_stage1_icc
+acc_params <- acc_params
 
 accs_summarized <- acc_params |>
   mutate(summary_data = pmap(list(t_start, t_end), \(t_s, t_e) summarize_accuracy(d_aoi, t_s, t_e)))

@@ -43,7 +43,7 @@ acc_cdi_age <- function(t_start = -500, t_end = 4000) {
 }
 
 
-acc_params <- acc_params_stage1_cdi_trt
+acc_params <- acc_params
 
 accs_cdi <- acc_params |>
   mutate(summary_data = pmap(list(t_start, t_end), \(t_s, t_e) acc_cdi(t_s, t_e))) |>

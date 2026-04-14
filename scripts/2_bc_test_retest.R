@@ -27,7 +27,7 @@ bc_test_retest <- function(b_start, b_end, t_start = -500, t_end = 4000) {
 }
 
 
-bc_acc_params <- bc_params_stage2_main
+bc_acc_params <- bc_params
 
 bc_test_retest_result <- bc_acc_params |>
   mutate(corr = pmap(list(b_start, b_end, t_start, t_end), \(b_s, b_e, t_s, t_e) bc_test_retest(b_s, b_e, t_s, t_e))) |>
