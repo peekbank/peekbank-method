@@ -6,7 +6,10 @@ d_aoi <- readRDS("../cached_intermediates/0_d_aoi.rds")
 
 age_bin_cutoff <- get_age_bin_cutoff(d_aoi)
 
-rts <- readRDS("../cached_intermediates/3_rts.rds") |> filter(time_0, time_end, frac == 1, min_rt == 400)
+rts <- readRDS("../cached_intermediates/3_rts.rds") |>
+  left_join(rt_params) |>
+  filter(time_0, time_end, frac == 1, min_rt == 400, max_rt == 4000)
+
 
 d_rt_dt <- preprocess_rt_dt(rts) |>
   group_by(dataset_name, time_0, min_rt, max_rt, time_end, during, frac, administration_id, target_label, measure) |>

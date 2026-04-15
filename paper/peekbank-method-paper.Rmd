@@ -527,7 +527,7 @@ commonly filtered to 300-1800 (following fernald2008)
 
 ### Analytic approach
 
-```{r rt-heat,  fig.width=7, fig.height=8, fig.cap="Heat map of different parameter options for measuring RT and how they on average affected ICC."}
+```{r rt-heat,  fig.width=7, fig.height=4, fig.cap="Heat map of different parameter options for measuring RT and how they on average affected ICC."}
 
 rt_icc <- readRDS(here("cached_intermediates/3_rt_icc.rds"))
 
@@ -536,79 +536,20 @@ rt_icc <- readRDS(here("cached_intermediates/3_rt_icc.rds"))
   regroup_rt() |>
   mutate(
     type = ifelse(type == "land", "Land RT,", "Launch RT,"),
-    trimming = ifelse(trimming == "untrimmed", "", "max-shift cutoff,"),
     logged = ifelse(logged == "log", "log scale", "raw scale")
   ) |>
+   filter(trimming=="untrimmed") |> 
+ filter(logged=="raw scale") |> 
    filter_icc("est") |> 
    group_by(type, trimming, logged, min_rt, max_rt) |> 
    summarize(est=mean(est, na.rm=T)) |> 
-  ggplot(aes(y = min_rt, fill = est, x = max_rt)) +
+  ggplot(aes(x = min_rt, fill = est, y = max_rt)) +
   geom_tile(interpolate = T) +
-  coord_flip() +
-   facet_wrap(~str_c(type, logged,trimming))+
+        geom_rect(aes(xmin = 325, xmax = 475, ymin = 2100, ymax = 4050), linewidth = 1, color = "black", fill = alpha("grey", 0)) +
+    geom_rect(aes(xmin = 250, xmax = 450, ymin = 1750, ymax = 2050), linewidth = 1, color = "blue", fill = alpha("grey", 0))+
+   facet_wrap(~type)+
   scale_fill_viridis(discrete = F, option = "magma") +
-  labs(y = "Min RT", x = "Max RT", color = "ICC reliability")
-```
-```{r rt-heat,  fig.width=7, fig.height=8, fig.cap="Heat map of different parameter options for measuring RT and how they on average affected ICC."}
-
-rt_cdi <- readRDS(here("cached_intermediates/3_rt_cdi.rds"))
-
- rt_cdi |> 
-      #filter(window %in% seq(0, 1000, 100)) |> 
-  regroup_rt() |> 
-  mutate(
-    type = ifelse(type == "land", "Land RT,", "Launch RT,"),
-    trimming = ifelse(trimming == "untrimmed", "", "max-shift cutoff,"),
-    logged = ifelse(logged == "log", "log scale", "raw scale")
-  ) |> 
-   filter(!is.na(comp_est)) |> 
-   group_by(type, trimming, logged, min_rt, max_rt) |> 
-   summarize(est=mean(comp_est, na.rm=T)) |> 
-  ggplot(aes(y = min_rt, fill = est, x = max_rt)) +
-  geom_tile(interpolate = T) +
-  coord_flip() +
-   facet_wrap(~str_c(type, logged,trimming))+
-  scale_fill_viridis(discrete = F, option = "magma") +
-  labs(y = "Min RT", x = "Max RT", color = "ICC reliability")
- 
-  rt_cdi |> 
-      #filter(window %in% seq(0, 1000, 100)) |> 
-  regroup_rt() |> 
-  mutate(
-    type = ifelse(type == "land", "Land RT,", "Launch RT,"),
-    trimming = ifelse(trimming == "untrimmed", "", "max-shift cutoff,"),
-    logged = ifelse(logged == "log", "log scale", "raw scale")
-  ) |> 
-   filter(!is.na(prod_est)) |> 
-   group_by(type, trimming, logged, min_rt, max_rt) |> 
-   summarize(est=mean(prod_est, na.rm=T)) |> 
-  ggplot(aes(y = min_rt, fill = est, x = max_rt)) +
-  geom_tile(interpolate = T) +
-  coord_flip() +
-   facet_wrap(~str_c(type, logged,trimming))+
-  scale_fill_viridis(discrete = F, option = "magma") +
-  labs(y = "Min RT", x = "Max RT", color = "ICC reliability")
-```
-```{r rt-heat,  fig.width=7, fig.height=8, fig.cap="Heat map of different parameter options for measuring RT and how they on average affected ICC."}
-
-rt_trt <- readRDS(here("cached_intermediates/3_rt_test_retest.rds"))
-
- rt_trt |> 
-      #filter(window %in% seq(0, 1000, 100)) |> 
-  regroup_rt() |>
-  mutate(
-    type = ifelse(type == "land", "Land RT,", "Launch RT,"),
-    trimming = ifelse(trimming == "untrimmed", "", "max-shift cutoff,"),
-    logged = ifelse(logged == "log", "log scale", "raw scale")
-  ) |>
-   group_by(type, trimming, logged, min_rt, max_rt) |> 
-   summarize(est=mean(est, na.rm=T)) |> 
-  ggplot(aes(y = min_rt, fill = est, x = max_rt)) +
-  geom_tile(interpolate = T) +
-  coord_flip() +
-   facet_wrap(~str_c(type, logged,trimming))+
-  scale_fill_viridis(discrete = F, option = "magma") +
-  labs(y = "Min RT", x = "Max RT", color = "ICC reliability")
+  labs(x = "Min RT", y = "Max RT", color = "ICC reliability")
 ```
 
 
@@ -619,25 +560,24 @@ For the main validity and reliability measures, we compare a launch-based RT wit
 
 ```{r rt-lolli, fig.height=3, fig.width=6, fig.cap="Dataset differences in RT measurement "}
 rt_icc <- readRDS(here("cached_intermediates/3_rt_icc.rds")) |>
-  regroup_rt() |>
-  name_rt() |>
-  filter(window>=200, window <= 600)
+  filter(min_rt >=200, min_rt<=600) |> 
+  filter(max_rt %in% c(1800, 3000, 4000)) |> 
+  regroup_rt() 
 
 rt_cdi <- readRDS(here("cached_intermediates/3_rt_cdi.rds")) |>
-  regroup_rt() |>
-  name_rt() |>
-  filter(window>=200, window <= 600)
+   filter(min_rt >=200, min_rt<=600) |> 
+  filter(max_rt %in% c(1800, 3000, 4000)) |> 
+  regroup_rt()
 
 rt_trt <- readRDS(here("cached_intermediates/3_rt_test_retest.rds")) |>
-  regroup_rt() |>
-  name_rt() |>
-  filter(window>=200, window <= 600)
-
+   filter(min_rt >=200, min_rt<=600) |> 
+  filter(max_rt %in% c(1800, 3000, 4000)) |> 
+  regroup_rt() 
 
 rt_include <- function(df) {
   df |> mutate(combined = case_when(
-    window == 400 & trimming == "untrimmed" & logged == "log" & type == "land" ~ "400 untrimmed land, log",
-    window == 200 & trimming == "trim_first" & logged == "raw" & type == "first_launch" ~ "200 trimmed launch, raw",
+    min_rt== 400 & trimming == "untrimmed" & logged == "log" & max_rt==4000 &type == "land" ~ "400 untrimmed land, log",
+    min_rt == 300 & trimming=="untrimmed" & max_rt==1800 & logged == "raw" & type == "first_launch" ~ "200 trimmed launch, raw",
     T ~ NA
   ))
 }
@@ -649,7 +589,8 @@ set_of_lollis(rt_icc, rt_cdi, rt_trt, rt_include, is_rt=T)
 ```{r}
 baseline_rt <- function(df) {
   df |> mutate(
-    window = relevel(window, "400"),
+    min_rt = relevel(min_rt, "400"),
+    max_rt = relevel(max_rt, "4000"),
     trimming = relevel(trimming, "untrimmed"),
     logged = relevel(logged, "log"),
     type = relevel(type, "land")
@@ -660,33 +601,34 @@ baseline_rt <- function(df) {
 fix_rt_interact <- function(df) {
   df |>
     mutate(contrast = str_replace_all(contrast, "\\)", "") |> str_replace_all("\\(", "")) |>
-    separate(contrast, sep = " ", c("trimming", "type", "window", "logged", NA, NA, NA, NA)) |>
-    mutate(window = str_replace(window, "window", "") |> as.numeric())
+    separate(contrast, sep = " ", c("min_rt", "max_rt", "trimming", "logged", "type", NA, NA, NA, NA, NA, NA)) |>
+    mutate(min_rt = str_replace(min_rt, "min_rt", "") |> as.numeric(),
+           max_rt = str_replace(max_rt, "max_rt", "") |> as.numeric())
 }
 
 rt_icc_mod <- do_model(
     rt_icc |> filter_icc("est"), baseline_rt,
     dataset_summ |> group_by(dataset_name) |> summarize(n_admins = n_distinct(administration_id)),
-   "window * trimming * logged * type"
+   "min_rt * max_rt * trimming * logged * type"
   ) |> fix_rt_interact()
 
 rt_comp_mod <- do_model(
    rt_cdi |> filter(!is.na(comp_est)) |> rename(est = comp_est), baseline_rt,
     dataset_summ |> group_by(dataset_name) |> filter(!is.na(comp)) |> summarize(n_admins = n_distinct(administration_id)),
-  "window * trimming * logged * type"
+  "min_rt * max_rt * trimming * logged * type"
   ) |> fix_rt_interact()
 
   rt_prod_mod <- do_model(
    rt_cdi |> filter(!is.na(prod_est)) |> rename(est = prod_est), baseline_rt,
     dataset_summ |> group_by(dataset_name) |> filter(!is.na(prod)) |> summarize(n_admins = n_distinct(administration_id)),
-"window * trimming * logged * type"
+"min_rt * max_rt * trimming * logged * type"
   ) |> fix_rt_interact()
   
 rt_trt_mod <- do_model(
     rt_trt |> filter(!is.na(est)), baseline_rt,
     dataset_summ |> make_test_retest_pairs() |> group_by(dataset_name) |>
       summarize(n_admins = n_distinct(pair_number)),
- "window * trimming * logged * type"
+"min_rt * max_rt * trimming * logged * type"
   ) |> fix_rt_interact()
   
 ```
@@ -697,12 +639,12 @@ An initial exploration of ICC reliability (Figure \ref{fig:rt-heat}) indicated t
 
 A comparison between two different ways of calculating RT is shown in Fig \ref{fig:rt-lolli}. 
 
-Compared to a minimum of 200 ms launch-based RT raw-scale, a land-based minimum of 400 RT (logged) is expected to increase ICC by `r rt_icc_mod |> filter(type=="first_launch", window==200, logged=="raw") |> in_text_stats(sign_flip=T)` and possibly increase test-retest reliability by `r rt_trt_mod |> filter(type=="first_launch", window==200, logged=="raw") |> in_text_stats(sign_flip=T)`. Differences in CDI correlation are not substantive (`r rt_comp_mod |> filter(type=="first_launch", window==200, logged=="raw") |> in_text_stats()` for comprehension, and `r rt_prod_mod |> filter(type=="first_launch", window==200, logged=="raw") |> in_text_stats() ` for production). 
+Compared to a minimum of 300 ms launch-based RT raw-scale restricted to 300-1800ms, a land-based minimum of 400 -4000 RT (logged) is expected to increase ICC by `r rt_icc_mod |> filter(type=="first_launch", window==300, trimming=="untrimmed", logged=="raw") |> in_text_stats(sign_flip=T)` and possibly increase test-retest reliability by `r rt_trt_mod |> filter(type=="first_launch", window==200, trimming=="untrimmed", logged=="raw") |> in_text_stats(sign_flip=T)`. Differences in CDI correlation are not substantive (`r rt_comp_mod |> filter(type=="first_launch", trimming=="untrimmed", window==200, logged=="raw") |> in_text_stats()` for comprehension, and `r rt_prod_mod |> filter(type=="first_launch", window==200,trimming=="untrimmed", logged=="raw") |> in_text_stats() ` for production). 
 
 These patterns generally hold for children of different ages (Figure SXX). 
 
 
-We recommend that researchers use minimum RT cutoffs around 400 ms as these increase reliability compared to shorter cutoffs like 200 ms. While the differences between different methods are small, we recommend using landing-based RT on the log scale to maximize overall reliability. 
+We recommend that researchers use minimum RT cutoffs around 400 ms as these increase reliability compared to shorter cutoffs ms. There's no reason to cut off RTs too early. While the differences between different methods are small, we recommend using landing-based RT on the log scale to maximize overall reliability. 
 
 Overall RT measures complement accuracy measures and capture substantial signal; the exact details don't matter that much.
 
@@ -748,7 +690,7 @@ trial_icc <- readRDS(here("cached_intermediates/4_acc_trial_icc.rds")) |>
 
 num_trials <- readRDS(here("cached_intermediates/4_acc_trial_icc.rds")) |> unnest(num_trials) |> 
   filter(t_start == 600, t_end == 4000) |>
-  group_by(t_start, t_end, exclude_less_than, look_both, dataset_name) |>
+  group_by(t_start, t_end, exclude_less_than, look_at_start, dataset_name) |>
   summarize(num_trials = sum(num_trials, na.rm = T), .groups = "drop") |>
   group_by(t_end, t_start, dataset_name) |>
   mutate(pct = num_trials / max(num_trials)) 
@@ -760,7 +702,7 @@ trial_trt <- readRDS(here("cached_intermediates/4_acc_trial_test_retest.rds")) |
 baseline_trial_acc <- function(df) {
   df |> mutate(
     exclude_less_than = relevel(exclude_less_than, "0"),
-    look_both = relevel(look_both, "no_need")
+    look_at_start = relevel(look_at_start, "no")
   )
 }
 
@@ -768,32 +710,32 @@ baseline_trial_acc <- function(df) {
 fix_trial_acc_interact <- function(df) {
   df |>
     mutate(contrast = str_replace_all(contrast, "\\)", "") |> str_replace_all("\\(", "")) |>
-    separate(contrast, sep = " ", c("exclude_less_than", "look_both", NA, NA)) |>
+    separate(contrast, sep = " ", c("exclude_less_than", "look_at_start", NA, NA)) |>
     mutate(exclude_less_than = str_replace(exclude_less_than, "exclude_less_than", "") |> as.numeric(), ) |> left_join(num_trials)
 }
 
 trial_acc_icc_mod <- do_model(
     trial_icc |> filter_icc("est"), baseline_trial_acc,
     dataset_summ |> group_by(dataset_name) |> summarize(n_admins = n_distinct(administration_id)),
-"exclude_less_than * look_both"  ) |> fix_trial_acc_interact()
+"exclude_less_than * look_at_start"  ) |> fix_trial_acc_interact()
 
 trial_acc_comp_mod <- do_model(
    trial_cdi |> filter(!is.na(comp_est)) |> rename(est = comp_est), baseline_trial_acc,
     dataset_summ |> group_by(dataset_name) |> filter(!is.na(comp)) |> summarize(n_admins = n_distinct(administration_id)),
-"exclude_less_than * look_both"  ) |> fix_trial_acc_interact()
+"exclude_less_than * look_at_start"  ) |> fix_trial_acc_interact()
 
   trial_acc_prod_mod <- do_model(
    trial_cdi |> filter(!is.na(prod_est)) |> rename(est = prod_est), baseline_trial_acc,
     dataset_summ |> group_by(dataset_name) |> filter(!is.na(prod)) |> summarize(n_admins = n_distinct(administration_id)),
-"exclude_less_than * look_both"  ) |> fix_trial_acc_interact()
+"exclude_less_than * look_at_start"  ) |> fix_trial_acc_interact()
   
 trial_acc_trt_mod <- do_model(
     trial_trt |> filter(!is.na(est)), baseline_trial_acc,
     dataset_summ |> make_test_retest_pairs() |> group_by(dataset_name) |>
       summarize(n_admins = n_distinct(pair_number)),
-"exclude_less_than * look_both"  ) |> fix_trial_acc_interact()
+"exclude_less_than * look_at_start"  ) |> fix_trial_acc_interact()
 
-trials_retained <- num_trials |> filter(look_both=="no_need", exclude_less_than %in% c( .5)) |>ungroup() |>  summarize(mid=mean(pct*100), lower=min(pct*100), upper=max(pct*100))
+trials_retained <- num_trials |> filter(look_at_start=="no", exclude_less_than %in% c( .5)) |>ungroup() |>  summarize(mid=mean(pct*100), lower=min(pct*100), upper=max(pct*100))
 ```
 
 

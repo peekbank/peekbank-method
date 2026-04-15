@@ -3,8 +3,12 @@ source("../helper/rt_helper.R")
 source("../helper/params.R")
 
 d_aoi <- readRDS("../cached_intermediates/0_d_aoi.rds")
+
+age_bin_cutoff <- get_age_bin_cutoff(d_aoi)
+
 rts <- readRDS("../cached_intermediates/3_rts.rds") |>
-  filter(time_0, time_end, frac == 1, min_rt == 400)
+  left_join(rt_params) |>
+  filter(time_0, time_end, frac == 1, min_rt == 400, max_rt == 4000)
 
 pairs_long <- make_test_retest_pairs(d_aoi)
 

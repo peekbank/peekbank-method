@@ -148,6 +148,8 @@ do_model <- function(df, make_baseline, weight_df, form) {
 
 make_model_plot <- function(df, x, col = NULL, facet = NULL, fix_function, lab, breaks = c(-.1, 0, .1), limits = c(-.2, .2), dodge = 0) {
   facet_quo <- rlang::enquo(facet)
+  facet_quo <- rlang::enquo(col)
+
   p <- df |>
     {{ fix_function }}() |>
     ggplot(aes(x = {{ x }}, col = {{ col }}, y = estimate, ymin = conf.low, ymax = conf.high)) +
@@ -162,6 +164,9 @@ make_model_plot <- function(df, x, col = NULL, facet = NULL, fix_function, lab, 
     p <- p + facet_wrap(vars(!!facet_quo))
   }
 
+  if (!rlang::quo_is_null(facet_col)) {
+    p <- p + scale_color_viridis()
+  }
   p
 }
 
