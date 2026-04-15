@@ -549,6 +549,69 @@ rt_icc <- readRDS(here("cached_intermediates/3_rt_icc.rds"))
   scale_fill_viridis(discrete = F, option = "magma") +
   labs(y = "Min RT", x = "Max RT", color = "ICC reliability")
 ```
+```{r rt-heat,  fig.width=7, fig.height=8, fig.cap="Heat map of different parameter options for measuring RT and how they on average affected ICC."}
+
+rt_cdi <- readRDS(here("cached_intermediates/3_rt_cdi.rds"))
+
+ rt_cdi |> 
+      #filter(window %in% seq(0, 1000, 100)) |> 
+  regroup_rt() |> 
+  mutate(
+    type = ifelse(type == "land", "Land RT,", "Launch RT,"),
+    trimming = ifelse(trimming == "untrimmed", "", "max-shift cutoff,"),
+    logged = ifelse(logged == "log", "log scale", "raw scale")
+  ) |> 
+   filter(!is.na(comp_est)) |> 
+   group_by(type, trimming, logged, min_rt, max_rt) |> 
+   summarize(est=mean(comp_est, na.rm=T)) |> 
+  ggplot(aes(y = min_rt, fill = est, x = max_rt)) +
+  geom_tile(interpolate = T) +
+  coord_flip() +
+   facet_wrap(~str_c(type, logged,trimming))+
+  scale_fill_viridis(discrete = F, option = "magma") +
+  labs(y = "Min RT", x = "Max RT", color = "ICC reliability")
+ 
+  rt_cdi |> 
+      #filter(window %in% seq(0, 1000, 100)) |> 
+  regroup_rt() |> 
+  mutate(
+    type = ifelse(type == "land", "Land RT,", "Launch RT,"),
+    trimming = ifelse(trimming == "untrimmed", "", "max-shift cutoff,"),
+    logged = ifelse(logged == "log", "log scale", "raw scale")
+  ) |> 
+   filter(!is.na(prod_est)) |> 
+   group_by(type, trimming, logged, min_rt, max_rt) |> 
+   summarize(est=mean(prod_est, na.rm=T)) |> 
+  ggplot(aes(y = min_rt, fill = est, x = max_rt)) +
+  geom_tile(interpolate = T) +
+  coord_flip() +
+   facet_wrap(~str_c(type, logged,trimming))+
+  scale_fill_viridis(discrete = F, option = "magma") +
+  labs(y = "Min RT", x = "Max RT", color = "ICC reliability")
+```
+```{r rt-heat,  fig.width=7, fig.height=8, fig.cap="Heat map of different parameter options for measuring RT and how they on average affected ICC."}
+
+rt_trt <- readRDS(here("cached_intermediates/3_rt_test_retest.rds"))
+
+ rt_trt |> 
+      #filter(window %in% seq(0, 1000, 100)) |> 
+  regroup_rt() |>
+  mutate(
+    type = ifelse(type == "land", "Land RT,", "Launch RT,"),
+    trimming = ifelse(trimming == "untrimmed", "", "max-shift cutoff,"),
+    logged = ifelse(logged == "log", "log scale", "raw scale")
+  ) |>
+   group_by(type, trimming, logged, min_rt, max_rt) |> 
+   summarize(est=mean(est, na.rm=T)) |> 
+  ggplot(aes(y = min_rt, fill = est, x = max_rt)) +
+  geom_tile(interpolate = T) +
+  coord_flip() +
+   facet_wrap(~str_c(type, logged,trimming))+
+  scale_fill_viridis(discrete = F, option = "magma") +
+  labs(y = "Min RT", x = "Max RT", color = "ICC reliability")
+```
+
+
 In our initial exploration, we considered a wide range of options for measuring RT, fulling crossing a) launch or land based, b) removing RTs with a shift-length greater than 600 ms (or not), c) using a log or raw scale, and d) minimum RTs between 0 and 1000 ms. (note: fuller range still needs to run) 
 
 
