@@ -516,14 +516,17 @@ Why would incorporating baseline information lead to worse metrics? There is a c
 
 In addition to accuracy measures, LWL studies also provide the potential for computing children's reaction time [RT; @fernald2008]. RT is typically computed on trials when the child is initially looking at the distractor and shifts to the target after stimulus onset, as there is not a way to measure how quickly a child decides to keep looking at the target. RT computations include many choice points: 
 
-commonly filtered to 300-1800 (following fernald2008)
 - **Launch vs. landing**: RTs can be computed based on when a child's eyes leave from the distractor or when a child's eyes land on the target. 
-- **Exclusion of short RTs**: Short RTs are often excluded because they are considered unlikely to be generated in response to the stimulus. 
+- **Exclusion of short and long RTs**: Short and long RTs are often excluded because they are considered unlikely to be generated in response to the stimulus. 
 - **Linear vs. logarithmic analysis**: Reaction time data are often analyzed using a logarithmic transform (consistent with the idea that reaction times are log-normally distributed and that effects on them may be multiplicative rather than additive) [@csibra2016statistical;@frank2025continuous].
+
+TODO do we mention that you can also exclude for long shift length, and also be picky or not about how eyes glued to the distractor the kid is?
 
 <!-- Launches could be a more precise index of the timing of intent to look at the target, but leaving from the distractor could also be done with intent to look elsewhere. Thus, launch based analyses sometimes exclude trials where it takes a child too long to go from distractor to target (shift-length cutoff). [ citations to what papers do what] -->
 
 <!-- In the literature, common cutoffs are ... based on what minimum times to initiate eye movements are. We explore a range of different potential cutoffs in at attempt to maximize reliability. This can be thought of as the point at what point RTs shift from mostly being random (not driven by the stimulus) to mostly being stimulus driven.  -->
+
+commonly filtered to 300-1800 (following fernald2008)
 
 ### Analytic approach
 
@@ -639,7 +642,7 @@ An initial exploration of ICC reliability (Figure \ref{fig:rt-heat}) indicated t
 
 A comparison between two different ways of calculating RT is shown in Fig \ref{fig:rt-lolli}. 
 
-Compared to a minimum of 300 ms launch-based RT raw-scale restricted to 300-1800ms, a land-based minimum of 400 -4000 RT (logged) is expected to increase ICC by `r rt_icc_mod |> filter(type=="first_launch", window==300, trimming=="untrimmed", logged=="raw") |> in_text_stats(sign_flip=T)` and possibly increase test-retest reliability by `r rt_trt_mod |> filter(type=="first_launch", window==200, trimming=="untrimmed", logged=="raw") |> in_text_stats(sign_flip=T)`. Differences in CDI correlation are not substantive (`r rt_comp_mod |> filter(type=="first_launch", trimming=="untrimmed", window==200, logged=="raw") |> in_text_stats()` for comprehension, and `r rt_prod_mod |> filter(type=="first_launch", window==200,trimming=="untrimmed", logged=="raw") |> in_text_stats() ` for production). 
+Compared to a minimum of 300 ms launch-based RT raw-scale restricted to 300-1800ms, a land-based minimum of 400 -4000 RT (logged) is expected to increase ICC by `r rt_icc_mod |> filter(type=="first_launch", min_rt==300, max_rt==1800, trimming=="untrimmed", logged=="raw") |> in_text_stats(sign_flip=T)` and possibly increase test-retest reliability by `r rt_trt_mod |> filter(type=="first_launch", min_rt==300, max_rt==1800, trimming=="untrimmed", logged=="raw") |> in_text_stats(sign_flip=T)`. Differences in CDI correlation are not substantive (`r rt_comp_mod |> filter(type=="first_launch", trimming=="untrimmed", min_rt==300, max_rt==1800, logged=="raw") |> in_text_stats()` for comprehension, and `r rt_prod_mod |> filter(type=="first_launch", min_rt==300, max_rt==1800, trimming=="untrimmed", logged=="raw") |> in_text_stats() ` for production). 
 
 These patterns generally hold for children of different ages (Figure SXX). 
 

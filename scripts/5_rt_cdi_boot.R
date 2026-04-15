@@ -2,7 +2,9 @@ source("../helper/common.R")
 source("../helper/rt_helper.R")
 source("../helper/params.R")
 
-rts <- readRDS("../cached_intermediates/3_rts.rds") |> filter(time_0, time_end, frac == 1, min_rt == 400)
+rts <- readRDS("../cached_intermediates/3_rts.rds") |>
+  left_join(rt_params) |>
+  filter(time_0, time_end, frac == 1, min_rt == 400, max_rt == 4000)
 d_rt_dt <- preprocess_rt_dt(rts) |> filter(measure == "log_land_rt")
 
 cdi_data <- readRDS("../cached_intermediates/0_cdi_subjects.rds")

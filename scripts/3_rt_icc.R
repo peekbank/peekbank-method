@@ -9,7 +9,7 @@ age_bin_cutoff <- get_age_bin_cutoff(d_aoi)
 
 rts <- readRDS("../cached_intermediates/3_rts.rds") |> left_join(rt_params)
 
-# rts_weird <- readRDS("../cached_intermediates/3_rts.rds") |> filter(min_rt == 400)
+rts_weird <- readRDS("../cached_intermediates/3_weird_rts.rds") |> left_join(rt_params_weird)
 
 d_rt_dt <- preprocess_rt_dt(rts) |>
   group_by(dataset_name, time_0, min_rt, max_rt, time_end, during, frac, administration_id, target_label, measure) |>
@@ -18,6 +18,11 @@ d_rt_dt <- preprocess_rt_dt(rts) |>
 d_rt_dt_byage <- preprocess_rt_dt(rts) |>
   inner_join(age_bin_cutoff) |>
   group_by(dataset_name, time_0, min_rt, max_rt, time_end, during, frac, administration_id, target_label, age_bin, measure) |>
+  mutate(repetition = row_number())
+
+
+d_rt_dt_weird <- preprocess_rt_dt(rts_weird) |>
+  group_by(dataset_name, time_0, min_rt, max_rt, time_end, during, frac, administration_id, target_label, measure) |>
   mutate(repetition = row_number())
 
 rt_iccs <- d_rt_dt |>
@@ -35,3 +40,11 @@ rt_iccs_age <- d_rt_dt_byage |>
   select(-data)
 
 saveRDS(rt_iccs_age, "../cached_intermediates/3_rt_icc_byage.rds")
+
+rt_iccs_weird <- d_rt_dt_weird |>
+  group_by(dataset_name, time_0, min_rt, max_rt, time_end, during, frac, measure) |>
+  nest() |>
+  mutate(est = map_dbl(data, \(d) get_icc(d, column = "rt"))) |>
+  select(-data)
+
+saveRDS(rt_iccs_weird, "../cached_intermediates/3_rt_icc_weird.rds")

@@ -148,7 +148,7 @@ do_model <- function(df, make_baseline, weight_df, form) {
 
 make_model_plot <- function(df, x, col = NULL, facet = NULL, fix_function, lab, breaks = c(-.1, 0, .1), limits = c(-.2, .2), dodge = 0) {
   facet_quo <- rlang::enquo(facet)
-  facet_quo <- rlang::enquo(col)
+  col_quo <- rlang::enquo(col)
 
   p <- df |>
     {{ fix_function }}() |>
@@ -164,7 +164,16 @@ make_model_plot <- function(df, x, col = NULL, facet = NULL, fix_function, lab, 
     p <- p + facet_wrap(vars(!!facet_quo))
   }
 
-  if (!rlang::quo_is_null(facet_col)) {
+  if (!rlang::quo_is_null(col_quo)) {
+    v <- rlang::eval_tidy(rlang::expr(`$`(!!sym("df"), !!col_quo)), env = parent.frame())
+
+    if (is.factor(v) || is.character(v) || is.logical(v)) {
+      p <- p + scale_color_solarized()
+    } else if (is.numeric(v)) {
+      p <- p + scale_color_viridis()
+    } else {
+      stop("Unsupported color column type")
+    }
     p <- p + scale_color_viridis()
   }
   p

@@ -26,8 +26,8 @@ rt_params <- expand_grid(
 
 
 rt_params_weird <- expand_grid(
-  min_rt = seq(0, 1000, 100),
-  max_rt = seq(1600, 4000, 200),
+  min_rt = c(400),
+  max_rt = c(4000),
   time_0 = c(FALSE, TRUE),
   time_end = c(FALSE, TRUE),
   during = TRUE,
@@ -62,12 +62,12 @@ acc_downsample_params <- expand_grid(
   t_start = c(600),
   t_end = c(4000),
   start_point = c(5, 10, 15, 20),
-  sample_down = c(2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20)
+  sample_down = c(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20)
 ) |> filter(sample_down <= start_point)
 
 rt_downsample_params <- expand_grid(
-  start_point = c(3, 5, 7, 10, 15),
-  sample_down = c(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15)
+  start_point = c(3, 5, 7, 10),
+  sample_down = c(1, 2, 3, 4, 5, 6, 7, 8, 9, 10)
 ) |> filter(sample_down <= start_point)
 
 

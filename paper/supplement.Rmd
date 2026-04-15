@@ -363,52 +363,98 @@ Figure \ref{fig:rt-heat-age} shows a heat map of ICC relability across different
 
 ```{r rt-heat-age,  fig.width=7, fig.height=3, fig.cap="Heat map of different parameter options for measuring RT and how they on average affected ICC."}
 
-rt_icc <- readRDS(here("cached_intermediates/3_rt_icc_byage.rds"))
+rt_icc_age <- readRDS(here("cached_intermediates/3_rt_icc_byage.rds"))
 
- rt_icc |> order_age() |> 
-      filter(window %in% seq(0, 1000, 100)) |> 
+ rt_icc_age |> 
+      #filter(window %in% seq(0, 1000, 100)) |> 
   regroup_rt() |>
   mutate(
-    type = ifelse(type == "land", "Land RT,", "Launch RT,"),
-    trimming = ifelse(trimming == "untrimmed", "", "max-shift cutoff,"),
+    type = ifelse(type == "land", "Land RT", "Launch RT"),
     logged = ifelse(logged == "log", "log scale", "raw scale")
   ) |>
+   filter(trimming=="untrimmed") |> 
+ filter(logged=="raw scale") |> 
    filter_icc("est") |> 
-   group_by(type, trimming, logged, window, age_bin) |> 
+   order_age() |> 
+   group_by(type, trimming, logged, min_rt, max_rt, age_bin) |> 
    summarize(est=mean(est, na.rm=T)) |> 
-  ggplot(aes(y = window, fill = est, group = window, x = str_c(type, " ", trimming, " ", logged))) +
+  ggplot(aes(x = min_rt, fill = est, y = max_rt)) +
   geom_tile(interpolate = T) +
-  coord_flip() +
+   facet_grid(age_bin~type)+
   scale_fill_viridis(discrete = F, option = "magma") +
-   facet_wrap(~age_bin)+
-  labs(y = "RT measure", x = "Minimum RT", color = "ICC reliability")
+  labs(x = "Min RT", y = "Max RT", color = "ICC reliability")
 ```
 
 Figure \ref{fig:rt-mod} shows models estimates for different model parameters compared to the index condition of untrimmed log land with 400 minimum RT. Because faster RT tends to correlate with higher language skill and thus higher CDI measures, for the bottom two panels, positive numbers indicate worse correlations in the tested condition compared to index. 
 
 ```{r rt-mod, fig.height=7, fig.width=8, fig.cap="RT, baseline is untrimmed log land with 400 minimum RT"}
 rt_icc <- readRDS(here("cached_intermediates/3_rt_icc.rds")) |>
-  filter(window %in% seq(0, 1000, 100)) |> 
-  regroup_rt() |>
-  name_rt() |>
-  filter(window >= 200, window <= 600)
+  filter(min_rt >=200, min_rt<=600) |> 
+  filter(max_rt %in% c(1800, 3000, 4000)) |> 
+  regroup_rt() 
 
 rt_cdi <- readRDS(here("cached_intermediates/3_rt_cdi.rds")) |>
-  filter(window %in% seq(0, 1000, 100)) |> 
-  regroup_rt() |>
-  name_rt() |>
-  filter(window >= 200, window <= 600)
+   filter(min_rt >=200, min_rt<=600) |> 
+  filter(max_rt %in% c(1800, 3000, 4000)) |> 
+  regroup_rt()
 
 rt_trt <- readRDS(here("cached_intermediates/3_rt_test_retest.rds")) |>
-  filter(window %in% seq(0, 1000, 100)) |> 
-  regroup_rt() |>
-  name_rt() |>
-  filter(window >= 200, window <= 600)
+   filter(min_rt >=200, min_rt<=600) |> 
+  filter(max_rt %in% c(1800, 3000, 4000)) |> 
+  regroup_rt() 
+
+baseline_rt <- function(df) {
+  df |> mutate(
+    min_rt = relevel(min_rt, "400"),
+    max_rt = relevel(max_rt, "4000"),
+    trimming = relevel(trimming, "untrimmed"),
+    logged = relevel(logged, "log"),
+    type = relevel(type, "land")
+  )
+}
+
+fix_rt_interact <- function(df) {
+  df |>
+    mutate(contrast = str_replace_all(contrast, "\\)", "") |> str_replace_all("\\(", "")) |>
+    separate(contrast, sep = " ", c("min_rt", "max_rt", "trimming", "logged", "type", NA, NA, NA, NA, NA, NA)) |>
+    mutate(min_rt = str_replace(min_rt, "min_rt", "") |> as.numeric(),
+           max_rt = str_replace(max_rt, "max_rt", "") |> as.numeric()) |> 
+    filter(logged=="log", trimming=="untrimmed")
+}
+
+make_model_grid_plot(rt_icc, rt_cdi, rt_trt, baseline_rt, "min_rt * max_rt * trimming * logged * type", x = min_rt, col = str_c(trimming, " ", type," ", logged), facet = max_rt, fix_function = fix_rt_interact, dodge = 50, limits=c(-.5, .3))
+```
+```{r}
+fix_rt_interact_2 <- function(df) {
+  df |>
+    mutate(contrast = str_replace_all(contrast, "\\)", "") |> str_replace_all("\\(", "")) |>
+    separate(contrast, sep = " ", c("min_rt", "max_rt", "trimming", "logged", "type", NA, NA, NA, NA, NA, NA)) |>
+    mutate(min_rt = str_replace(min_rt, "min_rt", "") |> as.numeric(),
+           max_rt = str_replace(max_rt, "max_rt", "") |> as.numeric()) |> 
+    filter(min_rt==400, max_rt==4000)
+}
+
+make_model_grid_plot(rt_icc, rt_cdi, rt_trt, baseline_rt, "min_rt * max_rt * trimming * logged * type", x = str_c(trimming, " ", type), col = logged, facet = max_rt, fix_function = fix_rt_interact_2,dodge=.5, limits=c(-.5, .3))
+```
+
+Figure \ref{fig:rt-age} shows the reliability and validity of different reaction time parameters, split by age bin. 
+
+```{r rt-age, fig.height=7, fig.width=8, fig.cap="RT age split, baseline is untrimmed log land with 400 minimum RT"}
+rt_icc_age <- readRDS(here("cached_intermediates/3_rt_icc_byage.rds")) |>
+  filter(min_rt >=200, min_rt<=600) |> 
+  filter(max_rt %in% c(1800, 3000, 4000)) |> 
+  regroup_rt() 
+
+rt_cdi_age <- readRDS(here("cached_intermediates/3_rt_cdi_byage.rds")) |>
+   filter(min_rt >=200, min_rt<=600) |> 
+  filter(max_rt %in% c(1800, 3000, 4000)) |> 
+  regroup_rt()
 
 
 baseline_rt <- function(df) {
   df |> mutate(
-    window = relevel(window, "400"),
+    min_rt = relevel(min_rt, "400"),
+    max_rt = relevel(max_rt, "4000"),
     trimming = relevel(trimming, "untrimmed"),
     logged = relevel(logged, "log"),
     type = relevel(type, "land")
@@ -416,32 +462,7 @@ baseline_rt <- function(df) {
 }
 
 
-fix_rt_interact <- function(df) {
-  df |>
-    mutate(contrast = str_replace_all(contrast, "\\)", "") |> str_replace_all("\\(", "")) |>
-    separate(contrast, sep = " ", c("trimming", "type", "window", "logged", NA, NA, NA, NA)) |>
-    mutate(window = str_replace(window, "window", "") |> as.numeric(), )
-}
-make_model_grid_plot(rt_icc, rt_cdi, rt_trt, baseline_rt, "window * trimming * logged * type", x = window, col = str_c(trimming, " ", type), facet = logged, fix_function = fix_rt_interact, dodge = 50, limits=c(-.5, .3))
-```
-
-Figure \ref{fig:rt-age} shows the reliability and validity of different reaction time parameters, split by age bin. 
-
-```{r rt-age, fig.height=7, fig.width=8, fig.cap="RT age split, baseline is untrimmed log land with 400 minimum RT"}
-rt_icc_age <- readRDS(here("cached_intermediates/3_rt_icc_byage.rds")) |>
-    filter(window %in% seq(0, 1000, 100)) |> 
-  regroup_rt() |>
-  name_rt() |>
-  filter(window <= 600)
-
-rt_cdi_age <- readRDS(here("cached_intermediates/3_rt_cdi_byage.rds")) |>
-    filter(window %in% seq(0, 1000, 100)) |> 
-  regroup_rt() |>
-  name_rt() |>
-  filter(window <= 600) 
-
-
-make_model_grid_plot_age(rt_icc_age, rt_cdi_age, baseline_rt, "window * trimming * logged * type", x = window, facet = str_c(trimming, " ", type, " ", logged), fix_function = fix_rt_interact, dodge = 50, limits = c(-.6, .3))
+make_model_grid_plot_age(rt_icc_age, rt_cdi_age,  baseline_rt, "min_rt * max_rt * trimming * logged * type", x = min_rt, facet = str_c(max_rt, type), fix_function = fix_rt_interact, dodge = 50, limits=c(-.5, .3))
 ```
 
 # Exclusions
@@ -460,7 +481,7 @@ trial_icc <- readRDS(here("cached_intermediates/4_acc_trial_icc.rds")) |>
 num_trials <- readRDS(here("cached_intermediates/4_acc_trial_icc.rds")) |>
   unnest(num_trials) |>
   filter(t_start == 600, t_end == 4000) |>
-  group_by(t_start, t_end, exclude_less_than, look_both) |>
+  group_by(t_start, t_end, exclude_less_than, look_at_start) |>
   summarize(num_trials = sum(num_trials, na.rm = T), .groups = "drop") |>
   group_by(t_end, t_start) |>
   mutate(pct = num_trials / max(num_trials))
@@ -471,8 +492,8 @@ trial_trt <- readRDS(here("cached_intermediates/4_acc_trial_test_retest.rds")) |
 
 trial_acc_include <- function(df) {
   df |> mutate(combined = case_when(
-    exclude_less_than == 0 & look_both == "no_need" ~ "no trial exclude",
-    exclude_less_than == .5 & look_both == "ever" ~ "look both at least 50%",
+    exclude_less_than == 0 & look_at_start == "no" ~ "no trial exclude",
+    exclude_less_than == .5 & look_at_start == "yes" ~ "look both at least 50%",
     T ~ NA
   ))
 }
@@ -493,7 +514,7 @@ trial_icc <- readRDS(here("cached_intermediates/4_acc_trial_icc.rds")) |>
 num_trials <- readRDS(here("cached_intermediates/4_acc_trial_icc.rds")) |>
   unnest(num_trials) |>
   filter(t_start == 600, t_end == 4000) |>
-  group_by(t_start, t_end, exclude_less_than, look_both) |>
+  group_by(t_start, t_end, exclude_less_than, look_at_start) |>
   summarize(num_trials = sum(num_trials, na.rm = T), .groups = "drop") |>
   group_by(t_end, t_start) |>
   mutate(pct = num_trials / max(num_trials))
@@ -502,18 +523,11 @@ trial_cdi <- readRDS(here("cached_intermediates/4_acc_trial_cdi.rds")) |> filter
 
 trial_trt <- readRDS(here("cached_intermediates/4_acc_trial_test_retest.rds")) |> filter(t_start == 600, t_end == 4000)
 
-trial_acc_include <- function(df) {
-  df |> mutate(combined = case_when(
-    exclude_less_than == 0 & look_both == "no_need" ~ "no trial exclude",
-    exclude_less_than == .5 & look_both == "ever" ~ "look both at least 50%",
-    T ~ NA
-  ))
-}
 
 baseline_trial_acc <- function(df) {
   df |> mutate(
     exclude_less_than = relevel(exclude_less_than, "0"),
-    look_both = relevel(look_both, "no_need")
+    look_at_start = relevel(look_at_start, "no")
   )
 }
 
@@ -521,11 +535,11 @@ baseline_trial_acc <- function(df) {
 fix_trial_acc_interact <- function(df) {
   df |>
     mutate(contrast = str_replace_all(contrast, "\\)", "") |> str_replace_all("\\(", "")) |>
-    separate(contrast, sep = " ", c("exclude_less_than", "look_both", NA, NA)) |>
+    separate(contrast, sep = " ", c("exclude_less_than", "look_at_start", NA, NA)) |>
     mutate(exclude_less_than = str_replace(exclude_less_than, "exclude_less_than", "") |> as.numeric(), ) |>
     left_join(num_trials)
 }
-make_model_grid_plot(trial_icc, trial_cdi, trial_trt, baseline_trial_acc, "exclude_less_than * look_both", x = exclude_less_than, facet = look_both, col = pct, fix_function = fix_trial_acc_interact, limits = c(-.4, .1))
+make_model_grid_plot(trial_icc, trial_cdi, trial_trt, baseline_trial_acc, "exclude_less_than * look_at_start", x = exclude_less_than, facet = look_at_start, col = pct, fix_function = fix_trial_acc_interact, limits = c(-.4, .1))
 ```
 Figure \ref{fig:acc-trial-age} shows age splits of the same. TODO HOW TO SHOW DATA LOSS & WHAT ARE REASONABLE BOUNDS
 

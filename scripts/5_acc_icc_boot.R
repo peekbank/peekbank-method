@@ -7,7 +7,7 @@ d_aoi <- readRDS("../cached_intermediates/0_d_aoi.rds")
 # Includes age_bin in grouping if present in the data.
 
 summarized_accuracy <- d_aoi |>
-  filter(t_norm > 400, t_norm < 3000) |>
+  filter(t_norm >= 600, t_norm <= 4000) |>
   group_by(across(all_of(c(
     "dataset_name", "dataset_id", "administration_id", "target_label", "trial_id"
   ))), across(any_of("age_bin"))) |>
@@ -41,7 +41,7 @@ downsample_summarize_accuracy <- function(start_point, sample_down, iter) {
     summarize_icc_resamples("accuracy")
 }
 
-params <- acc_downsample_params
+params <- acc_downsample_params |> filter(sample_down > 1)
 
 
 accs_boot <- params |>
