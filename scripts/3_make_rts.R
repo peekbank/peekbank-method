@@ -16,7 +16,9 @@ rle_data <- d_aoi %>%
     values = rle(aoi)$values
   )
 
-grid_options <- rt_params
+grid_options <- rt_params |>
+  select(-max_rt) |>
+  distinct()
 
 rts <- rle_data %>%
   group_by(administration_id, trial_id, trial_order) %>%

@@ -153,8 +153,8 @@ Peekbank is an aggregation of datasets from a number of LWL studies. This work i
 
 ## Inclusion criteria
 
-We focus our exploration of data processing choices on a set of items where we have the clearest expectations around what we are trying to measure. While LWL is also used to study a variety of experimental effects, such as the effects of noise, novel word learning, expectations of mutual exclusivity, inferences from selective verbs, blah blah, these items may index different constructs. 
-We limit our analyses to trials where both the target and distractor are real nouns, the carrier phrase is neutral with no experimental manipulation. 
+We focus our exploration of data processing choices on a set of items where we have the clearest expectations around what we are trying to measure. While LWL is also used to study a variety of experimental effects, such as the effects of noise, novel word learning, and expectations of mutual exclusivity, these items may index different constructs. 
+We limit our analyses to trials where both the target and distractor are real nouns, the carrier phrase is neutral, and the name of the target noun is said only once.  
 TODO list out full vanilla criteria
 While still heterogenous, these "vanilla" trials have a shared interpretation for how looking behavior is expected to relate to underlying language knowledge and processing. 
 We only include trials from childen 60 months or younger. We do not place restrictions on the language of the trials or children's language background. 
@@ -253,13 +253,13 @@ dataset_table |>
 
 ## Approach
 
-Throughout we use two reliabilty metrics and two validity metrics. 
+Throughout we use two reliability metrics and two validity metrics. 
 
-An intra-class correlation (ICC) as a measure of reliability. Specifically, we use a measure of inter-rater reliability that measures (within a dataset) how much different items (target labels) are consistent with each other in "rating" the subjects (kid-administrations). 
+Reliability refers to how consistently measurements are measuring the same thing. One of our measures of reliability is an intra-class correlation (ICC). Specifically, we use a measure of inter-rater reliability that measures (within a dataset) how much different items (target labels) are consistent with each other in "rating" the subjects (kid-administrations). CITATION
 
-Test-retest reliability for measures on the same child at two different administrations within 1.5 months of each other. This measure is only possible on a subset of the datasets that closely spaced repeat administrations. While we are limited in how much data we have for test-retest reliability, this is the metric that is most important for measuring stable individual differences. 
+Another measure of reliability is test-retest reliability which measures the correlation for for measures on the same child at two different administrations within 1.5 months of each other. This measure is only possible on a subset of the datasets that closely spaced repeat administrations. While we are limited in how much data we have for test-retest reliability, this is the metric that is most important for measuring stable individual differences. 
 
-For validity, we correlate with CDI production measures and CDI comprehension measures, from the datasets where we have CDI administrations. We use both short and long form CDIs, using the fraction of items a child was marked as knowing as our measure. 
+In addition to having reliable measures, we also care that our measurements correspond to the construct of interest (vocabulary and language processing speed). For validity, we correlate with CDI production measures and CDI comprehension measures, from the datasets where we have CDI administrations. We use both short and long form CDIs, using the fraction of items a child was marked as knowing as our measure. 
 In general, correlating with production and comprehension in the expected directions is desirable, although we also may expect that LWL measures are picking up on slightly different aspects of language learning than is represented in CDI. 
 
 Additional details about how these were calculated are in Supplement XX.
@@ -275,11 +275,9 @@ Looking while listening data takes a lot of processing to go from the experiment
 
 <!-- [what is accuracy, who uses it, and what is the range of common practice]  -->
 In LWL studies, accuracy is typically calculated as the fraction of time a child is looking at the target divided by the time they are looking at the target or the distractor. These fractions are computed over some window of time, but the selection of this window is complex. Typically windows start shortly after the point of disambiguation and continue until several seconds later; this window is  intended to capture the peak of children's stimulus-driven looks to the target. However, in practice studies vary in what windows are used, and often window selection is a locus for analytic flexibility (choosing windows post hoc to maximize a particular effect) [@peelle2021].
-In the literature, it is common to use windows from  300ms -- 1800 ms  [following @fernald2008] or from  367ms -2000 ms[following @swingleyaslin2022]. Windows that last for longer are less commonly used -- example until 4000ms in @bergselsonswingley2017semantic 3500ms in @bergelsonswingley2012 or @kartushina or until 2800ms in @weaverzettersten2024 or 3000 ms @lopez_perez_2025. 
+Common analysis windows include starting 300 milliseconds after stimulus onset and ending 1800 ms after stimulus onset [following @fernald2008] and 367ms to 2000ms after stimulus onset [following @swingley2002], although windows that extend until 3 or 4 seconds after stimulus onset are also used [@bergelson2012;@bergelson2017semantic;@lopezperez2024]. In this analysis, we begin from first principles and ask what windows maximize reliability and validity on word recognition trials.  
 
-Some analysts recommend relatively short windows that start several hundred milliseconds after stimulus onset and end around 1500 milliseconds later [e.g., @fernald2008], however practices vary throughout the literature. In this analysis, we begin from first principles and ask what windows maximize reliability and validity on word recognition trials.  
-
-```{r acc-heat-map, fig.cap="A heat map showing the average ICC across datasets for different start and end points for the accuracy window. A region with the highest ICC (best reliability) is outlined.", fig.width=5, fig.height=3}
+```{r acc-heat-map, fig.cap="A heat map showing the average ICC across datasets for different start and end points for the accuracy window. A region with the highest ICC (best reliability) is outlined in black, and the region most commonly represented in the literature is outlined in blue.", fig.width=5, fig.height=3}
 acc_icc <- readRDS(here("cached_intermediates", "1_acc_icc.rds"))
 
 acc_icc_summary <- acc_icc |>
@@ -296,15 +294,16 @@ ggplot(acc_icc_summary, aes(x = t_start, y = t_end, fill = mean_icc)) +
   scale_fill_viridis(name = "Mean ICC", option = "magma") +
   scale_x_continuous(breaks = c(-500, 0, 500, 1000, 1500)) +
   geom_rect(aes(xmin = 550, xmax = 850, ymin = 2750, ymax = 4050), linewidth = 1, color = "black", fill = alpha("grey", 0)) +
+    geom_rect(aes(xmin = 250, xmax = 450, ymin = 1750, ymax = 2050), linewidth = 1, color = "blue", fill = alpha("grey", 0))+
   xlab("Window Start Time (in ms)") +
   ylab("Window End Time (in ms)")
 ```
 
 ### Analytic approach
 
-We first calculated the ICC reliability for accuracy across datasets, computing average ICC across a range of different window onsets and offsets. Next, to further explore the impact of window size, we focused on the comparison between windows ending at 2000ms, 3000ms, and 4000ms as well as fine-grained options for window onset between 0 and 1000ms. ICC, CDI correlations, and test-retest reliability were all calculated by dataset, for each combination of parameter values. To aggregate across datasets, we used a linear mixed effect model with random intercept by dataset, weighted by the number of administrations. We interpret the fixed-effect contrasts as what differences in outcome measure would be expected from switching from one set of parameters to another on a generic dataset. We report estimates and 95% confidence intervals. [refer to Supplement YY for details].
+We first calculated the ICC reliability for accuracy across datasets, computing average ICC across a range of different window onsets and offsets. Next, we added the additional metrics of  CDI correlations and test-retest reliability, which were calculated by dataset, for each combination of parameter values. To aggregate across datasets, we used a linear mixed effect model with random intercept by dataset, weighted by the number of administrations. We interpret the fixed-effect contrasts as what differences in outcome measure would be expected from switching from one set of parameters to another on a generic dataset. We report estimates and 95% confidence intervals. 
 
-Because we were concerned that the best data-processing options could be different for children of different ages, we ran the same linear mixed effect models separately for data just on children in each of 4 age groups: <18 months, 18-24 months, 24-36 months, and >36 months. 
+The best data-processing options might be different for children of different ages, so we ran the same linear mixed effect models separately for data just on children in each of 4 age groups: <18 months, 18-24 months, 24-36 months, and >36 months. 
 
 
 ```{r acc-lolli, fig.height=3, fig.width=6, fig.pos="t", fig.cap="Per dataset outcome measures for two window options: 300ms-1800ms (red) and 600ms-4000ms (blue). Dot size is proportional within each panel to the number of administrations." }
@@ -379,15 +378,11 @@ acc_comp_mod <- do_model(
 
 Average ICCs across windows are shown in Figure \ref{fig:acc-heat-map}. As expected, including time points from before the point of disambiguation decreases reliability. Our initial exploration found a region of high reliability with onsets in the 600-800 range and offsets in the 2800-4000 range, surrounded by a gradual decline in ICC reliability. 
 
-A dataset by dataset comparison of the differences between a 200-2000ms window and a 600-4000 ms window are shown in Figure \ref{fig:acc-lolli}. Nearly all datasets have higher ICC reliability for the later and longer window than the shorter window that is more typical of current practice. All 5 datasets with close in time pairs of administrations also show increased reliability on this later and longer window than the shorter window. Correlations with CDI vary across datasets, with an overall similar effect for both windows. 
+A dataset by dataset comparison of the differences between a 300-1800ms window (representative of common practice) and a 600-4000 ms window are shown in Figure \ref{fig:acc-lolli}. Nearly all datasets have higher ICC reliability for the later and longer window than the shorter window. All 5 datasets with close in time pairs of administrations also show increased reliability on this later and longer window. Correlations with CDI vary across datasets, with an overall similar effect for both windows. 
 
 Our mixed effect model confirms that there are expected reliability gains from switching from a 300-1800ms window to a 600-4000ms one. ICC reliability is expected to increase by `r acc_icc_mod |> filter(t_start==300, t_end==1800) |> in_text_stats(sign_flip=T)` and test-retest reliability by `r acc_trt_mod |> filter(t_start==300, t_end==1800) |> in_text_stats(sign_flip=T)`. There are limited differences in validity between these two windows (`r acc_comp_mod |> filter(t_start==300, t_end==1800) |> in_text_stats(sign_flip=T)` for comprehension, and `r acc_prod_mod |> filter(t_start==300, t_end==1800) |> in_text_stats(sign_flip=T)` for production). 
 
-There are a wide range of window options with generally comparable reliability and validity measures (Fig S3 in supplement). For instance, a 400 - 3000 ms window is not significantly different from a 600 - 4000 ms window on any of the outcome measures. <!--Compared to a 400-3000ms, window of 600-4000 is expected to increase ICC by `r acc_icc_mod |> filter(t_start==400, t_end==3000) |> in_text_stats(sign_flip=T)` and increase test-retest reliability by `r acc_trt_mod |> filter(t_start==400, t_end==3000) |> in_text_stats(sign_flip=T)`. Differences in CDI correlation are not substantive (`r acc_comp_mod |> filter(t_start==400, t_end==3000) |> in_text_stats(sign_flip=T)` for comprehension, and `r acc_prod_mod |> filter(t_start==400, t_end==3000) |> in_text_stats(sign_flip=T)` for production).-->
-
-While the looking signal between 2 and 4 seconds is weaker than between .5 and 2 seconds, there is still signal, especially just after the 2 second mark (even for older children, see Figure SNN). 
-
-Exactly when the accuracy window starts is not important, although we recommend starting between 400ms and 600 milliseconds to optimally balance validity and reliability. Continuing for a long window also increases reliability. 
+There are a wide range of window options with generally comparable reliability and validity measures (Fig S3 in supplement). For instance, a 400 - 3000 ms window is not significantly different from a 600 - 4000 ms window on any of the outcome measures. 
 
 These patterns generally hold across age. The overall level of reliability rises with age, as younger children have less signal, and experiments with younger children may also use fewer trials (see Figure S2 for an age-split version of the ICC heat map). However, to make data-driven recommendations, a question is whether there are substantive differences in what windows maximize validity and reliability across age. 
 
@@ -395,18 +390,22 @@ While the strength of evidence varied, the overall pattern of results was remark
 
 For CDI production, there might be slight age effects, but the differences are not significant and are difficult to interpret. For <18 months, a longer window results in change of `r acc_prod_mod_age |> filter(t_start==300, t_end==1800, age_bin=="<18") |> in_text_stats(sign_flip=T)` in correlation with CDI production ; for 18-24 months, `r acc_prod_mod_age |> filter(t_start==300, t_end==1800, age_bin=="18-24") |> in_text_stats(sign_flip=T)`; for 24-36 months,  `r acc_prod_mod_age |> filter(t_start==300, t_end==1800, age_bin=="24-36") |> in_text_stats(sign_flip=T)`. These small and inconsistent age effects could be due to dataset differences across different ages or small but true developmental differences. 
 
-Strong effects are likely to show up in any reasonable window, but for eking the most reliability out of data, we recommend windows that start somewhere in the 400-600 ms range and go for longer than 2000 ms. Why would later starting and later ending windows increase reliability? This suggests that there is some signal in the post 2000ms window, and that there may not be so much signal in the early 200-400 ms time. While some children may look quickly to the target and then look away, other children who look to the target later or who continue looking at the target at still contributing signal in this region, and overall children in many datasets are in aggregate looking to the target more than the distractor more in this region (even if less than at the peak, Figure SZZ). Importantly, since accuracy is measured as the ratio of target looks to either target or distractor looks, looking completely away does not count against accuracy.
+While the looking signal between 2 and 4 seconds is weaker than between .5 and 2 seconds, there is still signal, especially just after the 2 second mark (even for older children, see Figure SNN). 
 
+Exactly when the accuracy window starts is not important, although we recommend starting between 400ms and 600 milliseconds to optimally balance validity and reliability. Continuing for a long window also increases reliability. 
 
+Strong effects are likely to show up in any reasonable window, but for eking the most reliability out of data, we recommend windows that start somewhere in the 400-600 ms range and go for longer than 2000 ms. Why would later starting and later ending windows increase reliability? This suggests that there is some signal in the post 2000ms window, and that there may not be so much signal in the early 300-600ms time. While some children may look quickly to the target and then look away, other children who look to the target later or who continue looking at the target at still contributing signal in this region, and overall children in many datasets are in aggregate looking to the target more than the distractor more in this region (even if less than at the peak, Figure SZZ). Importantly, since accuracy is measured as the ratio of target looks to either target or distractor looks, looking completely away does not count against accuracy.
+
+Windowing seems to primarily affect reliability measures and not validity measures. It is not currently knowable whether the consistent later signal reflects child-level differences that are not language-relevant or whether these child-level differences are linguistic, but are distinct signal from the CDI. 
 
 
 ## Recommendation 2: Do not use baseline-corrected accuracy 
 
-One commonly acknowledged issue in LWL studies is that looking behavior could be partly driven by preferences over the target images themselves [@fernald2008;@novack2025development]: Children may have a baseline preference to look at one image over another, even in the absence of auditory stimuli. Although thoughtful design choices can minimize these issues (see Recommendation 6), some researchers also attempt to deal with baseline differences in stimulus salience in their analysis. This practice is known as "baseline correction": at the data-processing stage, researchers use a difference measure between accuracy on a post-stimulus window and "accuracy" (looks to target versus looks to target or distractor) on a pre-stimulus window [@bergelson2012;@weaver2024]. Pre-stimulus windows are calculated on the 2seconds before POD (weaver x 2) or for the entire pre-stimulus time 3-4 seconds (@bergelsonswingley2012)
+One commonly acknowledged issue in LWL studies is that looking behavior could be partly driven by preferences over the target images themselves [@fernald2008;@novack2025]: Children may have a baseline preference to look at one image over another, even in the absence of auditory stimuli. Although thoughtful design choices can minimize these issues (see Recommendation 6), some researchers also attempt to deal with baseline differences in stimulus salience in their analysis. This practice is known as "baseline correction": at the data-processing stage, researchers use a difference measure between accuracy on a post-stimulus window and "accuracy" (looks to target versus looks to target or distractor) on a pre-stimulus window [@bergelson2012;@weaver2024]. The pre-stimulus window can be the 2 seconds prior to disambiguation [@weaver2024] or the full 3-4 second pre-stimulus period [@bergelson2012]. There are also other ways researchers account for stimulus saliency by comparing across paired trials or adding additional predictors to their models, but these are out of scope [CITATIONS, also maybe just move to discussion?]
 
 ### Analytic approach
 
-We considered baseline-corrected accuracies with various starting and ending points for the baseline window, and used a 600ms-4000ms main window (although the results generalize to other main windows). We restricted ourselves to datasets with at least some pre-0 data. We also included a "no baseline" version which was just accuracy on 600-4000ms with no correction. Baseline windows started at -1000, -2000, -3000 and -4000ms and ended at -500 or 0 ms. 
+We considered baseline-corrected accuracies with various pre-stimulus windows, focusing on a a 600ms-4000ms main window (although the results generalize to other main windows). We restricted ourselves to datasets with at least some data from 2000ms or more before stimulus onset (see Fig SYY for which datasets have data when). We also included a "no baseline" version which was just accuracy on 600-4000ms with no correction. Baseline windows started at -1000, -2000, -3000 and -4000ms and ended at stimulus onset.
 
 
 ```{r bc-lolli, fig.height=3, fig.width=6, fig.cap="Comparison between a baseline-corrected accuracy in red and accuracy in blue across datasets and measures. Both use an accuracy window of 600 - 4000ms, the baseline window was -2000 - 0ms.  " }
@@ -445,7 +444,9 @@ bc_include <- function(df) {
     b_start == "none" & b_end == "none" ~ "accuracy with no baseline correction",
     b_start == -2000 & b_end == 0 ~ "baseline-corrected accuracy",
     T ~ NA
-  ))
+  ) |> as.factor(),
+  combined = relevel(combined, "baseline-corrected accuracy")
+  )
 }
 
 set_of_lollis(bc_icc, bc_cdi, bc_test_retest, bc_include)
@@ -503,9 +504,11 @@ Baseline-corrected accuracy led to worse reliability and validity than accuracy.
 As an example, Figure \ref{fig:bc-lolli} shows per-dataset results for accuracy compared to a baseline-corrected accuracy using a -2000 - 0 baseline window. 
 All baseline correction options that we considered led to significantly worse reliability and validity measures compared to using normal accuracy without any correction. For a regular window of 600-4000, baseline correction is expected to make ICC worse by at least `r bc_icc_mod |> filter(estimate==max(estimate)) |> in_text_stats(sign_flip=T)`; test-retest worse by at least `r bc_trt_mod |> filter(estimate==max(estimate)) |> in_text_stats(sign_flip=T)`; correlation with comprehension worse by at least `r bc_comp_mod |> filter(estimate==max(estimate)) |> in_text_stats(sign_flip=T)` and correlation with production worse by at least `r bc_prod_mod |> filter(estimate==max(estimate)) |> in_text_stats(sign_flip=T)`. 
 
-Similar patterns hold for different accuracy windows (Fig SXX maybe) and across different age bins (Fig SYY). Even restricting to the datasets with the longest pre-windows, there are still not benefits to baseline correction (Figure SXX). 
+Similar patterns hold for different accuracy windows (Fig SXX maybe) and across different age bins (Fig SYY).
 
-Why would incorporating baseline information lead to worse metrics? There is a complex literature on the psychometrics of difference scores and when they result in lowered reliability [e.g., @lord1956measurement;@rogosa1983demonstrating; @tramifow2015defense]. The situation for looking while listening data is that children's looking behavior is noisy but the signal across baseline and critical portions of a trial is likely correlated (in part due to the very salience that the baseline correction is trying to remove). Unfortunately, it is under precisely these conditions -- low reliability and high correlation between components -- that difference scores exhibit the lowest reliability [@trafimow2015defense]. Thus, while baseline-correction may lead to less biased grand average accuracy scores (by removing item salience), it also leads to less individual-level measures.
+Why would incorporating baseline information lead to worse metrics? There is a complex literature on the psychometrics of difference scores and when they result in lowered reliability [e.g., @lord1956;@rogosa1983; @trafimow2015]. The situation for looking while listening data is that children's looking behavior is noisy but the signal across baseline and critical portions of a trial is likely correlated (in part due to the very salience that the baseline correction is trying to remove). Unfortunately, it is under precisely these conditions -- low reliability and high correlation between components -- that difference scores exhibit the lowest reliability [@trafimow2015]. Thus, while baseline-correction may lead to less biased grand average accuracy scores (by removing item salience), it also leads to less individual-level measures.
+
+[could also comment here that this is only a problem with baseline correction and not other anlaytic or model based ways of accounting for stimulus differences]
 
 
 ## Recommendation 3: Measure reaction times with a minimum reaction time of around 400 ms

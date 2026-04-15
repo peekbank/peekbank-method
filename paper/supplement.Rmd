@@ -132,8 +132,6 @@ Because of this, we do administration-level bootstrapping for the CDI and age co
 
 \FloatBarrier
 
-# Can we back out # of trials?
-
 
 
 # Accuracy 
@@ -160,6 +158,7 @@ ggplot(acc_icc_summary, aes(x = t_start, y = t_end, fill = mean_icc)) +
   scale_fill_viridis(name = "Mean ICC", option = "magma") +
   scale_x_continuous(breaks = c(-500, 0, 500, 1000, 1500)) +
   geom_rect(aes(xmin = 550, xmax = 850, ymin = 2750, ymax = 4050), linewidth = 1, color = "black", fill = alpha("grey", 0)) +
+      geom_rect(aes(xmin = 250, xmax = 450, ymin = 1750, ymax = 2050), linewidth = 1, color = "blue", fill = alpha("grey", 0))+
   xlab("Window Start Time (in ms)") +
   facet_wrap(~age_bin) +
   ylab("Window End Time (in ms)")
@@ -181,10 +180,11 @@ fix_acc_interact <- function(df) {
     mutate(
       t_start = str_replace(start, "t_start", "") |> as.numeric(),
       t_end = str_replace(end, "t_end", "") |> as.numeric()
-    )
+    ) |> 
+    filter(t_end %in% c(2000, 3000, 4000))
 }
 
-make_model_grid_plot(readRDS(here("cached_intermediates/1_acc_icc.rds")) |> filter(t_start %in% seq(0, 1000, 100) & t_end %in% c(2000, 3000, 4000)), readRDS(here("cached_intermediates/1_acc_cdi.rds")), readRDS(here("cached_intermediates/1_acc_test_retest.rds")), baseline_acc, "t_start * t_end", x = t_start, facet = t_end, fix_function = fix_acc_interact)
+make_model_grid_plot(readRDS(here("cached_intermediates/1_acc_icc.rds")) |> filter(t_start %in% seq(0, 1000, 100) & t_end %in% seq(1800, 4000, 200)), readRDS(here("cached_intermediates/1_acc_cdi.rds")) |> filter(t_start %in% seq(0, 1000, 100) & t_end %in% seq(1800, 4000, 200)), readRDS(here("cached_intermediates/1_acc_test_retest.rds")) |> filter(t_start %in% seq(0, 1000, 100) & t_end %in% seq(1800, 4000, 200)), baseline_acc, "t_start * t_end", x = t_start, facet = t_end, fix_function = fix_acc_interact)
 ```
 
 Figure \ref{fig:acc-mod-age} shows the model coefficients and 95% CIs for linear mixed effect models run separately for each age bin. While the degrees of different vary across ages, the overall patterns are the same. 
@@ -198,17 +198,8 @@ baseline_acc <- function(df) {
   )
 }
 
-fix_acc_interact <- function(df) {
-  df |>
-    separate(contrast, sep = " ", c("start", "end", NA, NA, NA)) |>
-    mutate(
-      t_start = str_replace(start, "t_start", "") |> as.numeric(),
-      t_end = str_replace(end, "t_end", "") |> as.numeric()
-    )
-}
 
-
-make_model_grid_plot_age(readRDS(here("cached_intermediates/1_acc_icc_byage.rds")) |> filter(t_start %in% seq(0, 1000, 100) & t_end %in% c(2000, 3000, 4000)), readRDS(here("cached_intermediates/1_acc_cdi_byage.rds")), baseline_acc, "t_start * t_end", x = t_start, facet = t_end, fix_function = fix_acc_interact, dodge = 50, limits = c(-.3, .2))
+make_model_grid_plot_age(readRDS(here("cached_intermediates/1_acc_icc_byage.rds")) |> filter(t_start %in% seq(0, 1000, 100) & t_end %in% seq(1800, 4000, 200)), readRDS(here("cached_intermediates/1_acc_cdi_byage.rds")) |> filter(t_start %in% seq(0, 1000, 100) & t_end %in% seq(1800, 4000, 200)), baseline_acc, "t_start * t_end", x = t_start, facet = t_end, fix_function = fix_acc_interact, dodge = 50, limits = c(-.3, .2))
 ```
 
 Figure \ref{fig:timecourse} shows the distribution of AOIs for different datasets and different timepoints. Some datasets have less data at the start or end due to varying length recordings, or being a mix of multiple experiments with different recording windows. Most (but not all) datasets had data before the point of disambiguation and up to 3000ms. Datasets varied dramatically in overall size. 
@@ -223,7 +214,7 @@ readRDS(here("cached_intermediates/0_d_aoi.rds")) |>
 ```
 
 
-```{r timecourse, fig.cap="Distribution of AOIs across timepoints and datasets. Solid vertical line at point if disambiguation, Dashed lines at 4000ms, and dotted line at 2000ms.", fig.width=10, fig.height=8}
+```{r timecourse, fig.cap="Distribution of AOIs across timepoints and datasets. Solid vertical line at point if disambiguation, Dashed lines at 4000ms, and dotted line at -2000ms and 2000ms.", fig.width=10, fig.height=8}
 readRDS(here("cached_intermediates/supplement_timecourse.rds")) |>
   group_by(dataset_name) |>
   mutate(aoi = ifelse(aoi %in% c("missing", "other"), "missing/other", aoi)) |>
@@ -231,6 +222,7 @@ readRDS(here("cached_intermediates/supplement_timecourse.rds")) |>
   geom_col(position = "stack") +
   facet_wrap(~dataset_name, scales = "free_y") +
   coord_cartesian(xlim = c(-4000, 4000)) +
+    geom_vline(xintercept = -2000, lty = "dotted") +
   geom_vline(xintercept = 0) +
   geom_vline(xintercept = 2000, lty = "dotted") +
     #geom_vline(xintercept = 200, lty = "dotted") +
@@ -245,14 +237,14 @@ readRDS(here("cached_intermediates/supplement_timecourse.rds")) |>
 
 # Baseline correction
 
-Figure \ref{fig:bc-lolli-200} shows how baseline corrected measures compare to normal accuracy measures for a 200-2000 window, as an example of generalization. 
+Figure \ref{fig:bc-lolli-200} shows how baseline corrected measures compare to normal accuracy measures for a 300-1800 window, as an example of generalization. 
 
 
-```{r bc-lolli-200, fig.height=3, fig.width=6, fig.cap="Comparison between a baseline-corrected accuracy in red and accuracy in blue across datasets and measures. Both use an accuracy window of 200 - 2000ms, the baseline window was -1000 - 0ms.  " }
-baseline_lengths <- readRDS(here("cached_intermediates", "2_baseline_lengths.rds"))
+```{r bc-lolli-200, fig.height=3, fig.width=6, fig.cap="Comparison between a baseline-corrected accuracy in red and accuracy in blue across datasets and measures. Both use an accuracy window of 300 - 1800ms, the baseline window was -1000 - 0ms.  " }
+baseline_lengths <- readRDS(here("cached_intermediates", "2_baseline_lengths.rds")) |> filter(t_min <=-2000)
 bc_icc_200 <- readRDS(here("cached_intermediates", "2_bc_icc.rds")) |>
-  bind_rows(readRDS(here("cached_intermediates", "1_acc_icc.rds"))) |> filter(t_start == 200) |>
-  filter(t_end == 2000) |>
+  bind_rows(readRDS(here("cached_intermediates", "1_acc_icc.rds"))) |> filter(t_start == 300) |>
+  filter(t_end == 1800) |>
   semi_join(baseline_lengths) |>
   mutate(
     b_start = ifelse(is.na(b_start), "none", as.character(b_start)),
@@ -260,8 +252,8 @@ bc_icc_200 <- readRDS(here("cached_intermediates", "2_bc_icc.rds")) |>
   )
 
 bc_cdi_200 <- readRDS(here("cached_intermediates", "2_bc_cdi.rds")) |>
-  bind_rows(readRDS(here("cached_intermediates", "1_acc_cdi.rds"))) |> filter(t_start == 200) |>
-  filter(t_end == 2000) |>
+  bind_rows(readRDS(here("cached_intermediates", "1_acc_cdi.rds"))) |> filter(t_start == 300) |>
+  filter(t_end == 1800) |>
   semi_join(baseline_lengths) |>
   mutate(
     b_start = ifelse(is.na(b_start), "none", as.character(b_start)),
@@ -270,8 +262,8 @@ bc_cdi_200 <- readRDS(here("cached_intermediates", "2_bc_cdi.rds")) |>
 
 bc_test_retest_200 <- readRDS(here("cached_intermediates", "2_bc_test_retest.rds")) |> 
   bind_rows(readRDS(here("cached_intermediates", "1_acc_test_retest.rds"))) |>
-  filter(t_start == 200) |>
-  filter(t_end == 2000) |> 
+  filter(t_start == 300) |>
+  filter(t_end == 1800) |> 
   semi_join(baseline_lengths) |> 
   mutate(
     b_start = ifelse(is.na(b_start), "none", as.character(b_start)),
@@ -282,7 +274,7 @@ bc_test_retest_200 <- readRDS(here("cached_intermediates", "2_bc_test_retest.rds
 bc_include <- function(df) {
   df |> mutate(combined = case_when(
     b_start == "none" & b_end == "none" ~ "accuracy with no baseline correction",
-    b_start == -1000 & b_end == 0 ~ "baseline-corrected accuracy",
+    b_start == -2000 & b_end == 0 ~ "baseline-corrected accuracy",
     T ~ NA
   ))
 }
@@ -339,6 +331,7 @@ fix_bc_interact <- function(df) {
 }
 make_model_grid_plot(bc_icc, bc_cdi, bc_test_retest, baseline_bc, "b_all", x = b_start, col = b_end, fix_function = fix_bc_interact, breaks = c(-.2, 0), limits = c(-.4, .1), dodge = .5)
 ```
+
 Figure \ref{fig:bc-mod-age} shows model results comparing baseline corrected accuracies to the index condition of normal accuracy for each of the age bins. Across age bins, baseline correction is often worse and in no case better than normal accuracy. 
 
 ```{r bc-mod-age, fig.height=7, fig.width=8, fig.cap="age split baseline correction"}
@@ -366,58 +359,6 @@ make_model_grid_plot_age(bc_icc_age, bc_cdi_age, baseline_bc, "b_all", x = b_sta
 
 As some datasets have much shorter pre-disambiguation windows than others, we also looked at baseline-corrected accuracy on the subset with data before 3000ms pre-disambiguation (Figure \ref{fig:bc-early}). Even on this subset, baseline-corrected accuracies have worse validity and no better reliablity than normal accuracy measures. 
 
-
-```{r bc-early, fig.height=7, fig.width=8, fig.cap="model of baseline correction, compared to no correction" }
-
-early_baseline <-  readRDS(here("cached_intermediates", "2_baseline_lengths.rds")) |> filter(t_min<=-3000)
-
-bc_icc_early <- readRDS(here("cached_intermediates", "2_bc_icc.rds")) |>
-  bind_rows(readRDS(here("cached_intermediates", "1_acc_icc.rds"))) |> filter(t_start == 600) |>
-  filter(t_end == 4000) |>
-  semi_join(early_baseline) |>
-  mutate(
-    b_start = ifelse(is.na(b_start), "none", as.character(b_start)),
-    b_end = ifelse(is.na(b_end), "none", as.character(b_end))
-  )
-
-bc_cdi_early <- readRDS(here("cached_intermediates", "2_bc_cdi.rds")) |>
-  bind_rows(readRDS(here("cached_intermediates", "1_acc_cdi.rds"))) |> filter(t_start == 600) |>
-  filter(t_end == 4000) |>
-  semi_join(early_baseline) |>
-  mutate(
-    b_start = ifelse(is.na(b_start), "none", as.character(b_start)),
-    b_end = ifelse(is.na(b_end), "none", as.character(b_end))
-  )
-
-bc_test_retest_early <- readRDS(here("cached_intermediates", "2_bc_test_retest.rds")) |> 
-  bind_rows(readRDS(here("cached_intermediates", "1_acc_test_retest.rds"))) |>
-  filter(t_start == 600) |>
-  filter(t_end == 4000) |> 
-  semi_join(early_baseline) |> 
-  mutate(
-    b_start = ifelse(is.na(b_start), "none", as.character(b_start)),
-    b_end = ifelse(is.na(b_end), "none", as.character(b_end))
-  )
-
-baseline_bc <- function(df) {
-  df |> mutate(
-    b_all = str_c(b_start, " -- ", b_end) |> as.factor(),
-    b_all = relevel(b_all, "none -- none")
-  )
-}
-
-
-fix_bc_interact <- function(df) {
-  df |>
-    mutate(contrast = str_replace_all(contrast, "\\)", "") |> str_replace_all("\\(", "")) |>
-    separate(contrast, sep = " ", c("start", NA, "end", NA, NA, NA)) |>
-    mutate(
-      b_start = str_replace(start, "b_start", ""),
-      b_end = str_replace(end, "b_end", "")
-    )
-}
-make_model_grid_plot(bc_icc_early, bc_cdi_early, bc_test_retest_early, baseline_bc, "b_all", x = b_start, col = b_end, fix_function = fix_bc_interact, breaks = c(-.2, 0), limits = c(-.5, .2), dodge = .5)
-```
 
 # Reaction Time
 

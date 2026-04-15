@@ -18,12 +18,21 @@ bc_params <- expand_grid(
 rt_params <- expand_grid(
   min_rt = seq(0, 1000, 100),
   max_rt = seq(1600, 4000, 200),
+  time_0 = c(TRUE),
+  time_end = c(TRUE),
+  during = TRUE,
+  frac = c(1)
+)
+
+
+rt_params_weird <- expand_grid(
+  min_rt = seq(0, 1000, 100),
+  max_rt = seq(1600, 4000, 200),
   time_0 = c(FALSE, TRUE),
   time_end = c(FALSE, TRUE),
   during = TRUE,
   frac = c(0, .5, .75, 1)
 )
-
 
 acc_params_trial <- expand_grid(
   t_start = c(300, 400, 600),
