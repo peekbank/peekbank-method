@@ -41,26 +41,8 @@ dataset_summary <- readRDS(here("cached_intermediates/paper_dataset_summary.rds"
 
 Figure \ref{fig:dist-age} shows the distribution of ages in the Peekbank data used in this paper. 
 
-```{r}
-dataset_summary |> summarize(mean = mean(age), median = median(age))
 
-dataset_summary |>
-  distinct(age, administration_id) |>
-  summarize(mean = mean(age), median = median(age))
-
-dataset_summary |>
-  make_test_retest_pairs() |>
-  mutate(age_bin = case_when(
-    mean_age < 18 ~ "<18",
-    mean_age < 24 ~ "18-24",
-    mean_age < 36 ~ "24-36",
-    mean_age >= 36 ~ ">=36"
-  )) |>
-  ggplot(aes(x = mean_age, fill = age_bin)) +
-  geom_histogram()
-```
-
-```{r dist-age, fig.cap="Age distribution for trials and administrations, with the age bins used for analysis.", fig.width=6, fig.height=3}
+```{r dist-age, fig.cap="Age distribution for trials and administrations, with the age bins used for analysis.", fig.width=6, fig.height=2.5}
 dataset_summary |>
   mutate(age_bin = case_when(
     age < 18 ~ "<18",
@@ -78,7 +60,7 @@ dataset_summary |>
       age >= 36 ~ ">=36"
     )) |> order_age() |> mutate(type = "Administrations")
   ) |>
-  ggplot(aes(x = age, fill = age_bin)) +
+  ggplot(aes(x = floor(age), fill = age_bin)) +
   geom_histogram(binwidth = 1) +
   scale_fill_viridis(discrete = T) +
   facet_wrap(~type, scales = "free_y") +
@@ -89,10 +71,24 @@ dataset_summary |>
 
 # Methods details
 
-TODO FIX 
 ## Criteria for inclusion 
+Vanillaness is coded in the peekbank dataset, but as part of the 2026.1 release, multiple coders went through the conditions to verify. Cases where there was potential ambiguity were discussed, to ensure that the criteria used was consistent and explainable. The vanillaness criteria used was as followed: 
 
-TODO long version of what makes a trial vanilla (if needed)
+Auditory Stimulus:
+* familiar words/ target word is a real noun (no part words)
+* target word is first point of disambiguation
+* no duplicated target words
+* well-formed/ grammatical carrier phrase (no restrictions on carrier vocabulary -- "examine the ..." ok; target word NP can appear anywhere: sentence-final, sentence-initial, medial)
+* no informative stuff prenominally or postnominally (informative verb or adjective; uninformative verb or adjective ok)
+* no nonsense words anywhere (including carrier phrase)
+* no language/ speaker/ accent/ etc. switching within trial
+* no intentional background noise or audio filtering
+* no additional restrictions on noun difficulty 
+
+Visual stimuli:
+* both target and distractor are familiar objects (i.e., each could be valid familiar targets; non-prototypical objects are OK, but unnatural/ artificially modified exemplars are not)
+* no novel objects are visible
+* target is the focal object of its image (dog on grass for dog is okay, apple on plate is okay,  apple and orange for orange is not)
 
 ## Details about ICC
 
@@ -140,7 +136,7 @@ Because of this, we do administration-level bootstrapping for the CDI and age co
 
 Fig \ref{fig:acc-heat-map-age} shows a version of Figure 1 split by age bin categories. Older children have overall higher ICC reliability, but different ages do not show different regions of high reliability. 
 
-```{r acc-heat-map-age, fig.cap="A heat map showing the average ICC across datasets for different start and end points for the accuracy window, split by age bins. A region with the cross-age highest ICC (best reliability) is outlined.", fig.width=5, fig.height=3}
+```{r acc-heat-map-age, fig.cap="A heat map showing the average ICC across datasets for different start and end points for the accuracy window, split by age bins. A region with the cross-age highest ICC (best reliability) is outlined.", fig.width=6, fig.height=3}
 acc_icc <- readRDS(here("cached_intermediates", "1_acc_icc_byage.rds"))
 
 acc_icc_summary <- acc_icc |>
@@ -166,7 +162,7 @@ ggplot(acc_icc_summary, aes(x = t_start, y = t_end, fill = mean_icc)) +
 
 Figure \ref{fig:acc-model} shows the model estimates and 95% CIs for the effect of different windowing options (comparing to 600-4000ms as the index condition). Negative numbers indicate that the value is lower in the given window than for the index condition; higher numbers indicate that the value is higher in the given window than in the index condition. 
 
-```{r acc-model, fig.height=7, fig.width=8, fig.cap="Model results comparing different window lengths to the index length of 600-4000ms. "}
+```{r acc-model, fig.height=5, fig.width=8, fig.cap="Model results comparing different window lengths to the index length of 600-4000ms. "}
 baseline_acc <- function(df) {
   df |> mutate(
     t_start = relevel(t_start, "600"),
@@ -190,7 +186,7 @@ make_model_grid_plot(readRDS(here("cached_intermediates/1_acc_icc.rds")) |> filt
 Figure \ref{fig:acc-mod-age} shows the model coefficients and 95% CIs for linear mixed effect models run separately for each age bin. While the degrees of different vary across ages, the overall patterns are the same. 
 
 
-```{r acc-mod-age, fig.height=7, fig.width=8, fig.cap = "age split models of accuracy, 600-4000 as baseline"}
+```{r acc-mod-age, fig.height=5, fig.width=8, fig.cap = "age split models of accuracy, 600-4000 as baseline"}
 baseline_acc <- function(df) {
   df |> mutate(
     t_start = relevel(t_start, "600"),
@@ -214,7 +210,7 @@ readRDS(here("cached_intermediates/0_d_aoi.rds")) |>
 ```
 
 
-```{r timecourse, fig.cap="Distribution of AOIs across timepoints and datasets. Solid vertical line at point if disambiguation, Dashed lines at 4000ms, and dotted line at -2000ms and 2000ms.", fig.width=10, fig.height=8}
+```{r timecourse, fig.cap="Distribution of AOIs across timepoints and datasets. Solid vertical line at point if disambiguation, Dashed lines at 4000ms, and dotted line at -2000ms and 2000ms.", fig.width=10, fig.height=10}
 readRDS(here("cached_intermediates/supplement_timecourse.rds")) |>
   group_by(dataset_name) |>
   mutate(aoi = ifelse(aoi %in% c("missing", "other"), "missing/other", aoi)) |>
@@ -237,10 +233,10 @@ readRDS(here("cached_intermediates/supplement_timecourse.rds")) |>
 
 # Baseline correction
 
-Figure \ref{fig:bc-lolli-200} shows how baseline corrected measures compare to normal accuracy measures for a 300-1800 window, as an example of generalization. 
+Figure \ref{fig:bc-lolli-short} shows how baseline corrected measures compare to normal accuracy measures for a 300-1800 window, as an example of generalization. 
 
 
-```{r bc-lolli-200, fig.height=3, fig.width=6, fig.cap="Comparison between a baseline-corrected accuracy in red and accuracy in blue across datasets and measures. Both use an accuracy window of 300 - 1800ms, the baseline window was -1000 - 0ms.  " }
+```{r bc-lolli-short, fig.height=3, fig.width=6, fig.cap="Comparison between a baseline-corrected accuracy in red and accuracy in blue across datasets and measures. Both use an accuracy window of 300 - 1800ms, the baseline window was -1000 - 0ms.  " }
 baseline_lengths <- readRDS(here("cached_intermediates", "2_baseline_lengths.rds")) |> filter(t_min <=-2000)
 bc_icc_200 <- readRDS(here("cached_intermediates", "2_bc_icc.rds")) |>
   bind_rows(readRDS(here("cached_intermediates", "1_acc_icc.rds"))) |> filter(t_start == 300) |>
@@ -281,9 +277,10 @@ bc_include <- function(df) {
 
 set_of_lollis(bc_icc_200, bc_cdi_200, bc_test_retest_200, bc_include)
 ```
+
 Figure \ref{fig:bc-model} shows model results comparing different baseline correction options to a plain accuracy measure. Baseline correction is substantially worse. 
 
-```{r bc-model, fig.height=7, fig.width=8, fig.cap="model of baseline correction, compared to no correction" }
+```{r bc-model, fig.height=4, fig.width=8, fig.cap="model of baseline correction, compared to no correction" }
 bc_icc <- readRDS(here("cached_intermediates", "2_bc_icc.rds")) |>
   bind_rows(readRDS(here("cached_intermediates", "1_acc_icc.rds"))) |> filter(t_start == 600) |>
   filter(t_end == 4000) |>
@@ -329,12 +326,12 @@ fix_bc_interact <- function(df) {
       b_end = str_replace(end, "b_end", "")
     )
 }
-make_model_grid_plot(bc_icc, bc_cdi, bc_test_retest, baseline_bc, "b_all", x = b_start, col = b_end, fix_function = fix_bc_interact, breaks = c(-.2, 0), limits = c(-.4, .1), dodge = .5)
+make_model_grid_plot(bc_icc, bc_cdi, bc_test_retest, baseline_bc, "b_all", x = b_start, fix_function = fix_bc_interact, breaks = c(-.2, 0), limits = c(-.4, .1), dodge = .5)
 ```
 
 Figure \ref{fig:bc-mod-age} shows model results comparing baseline corrected accuracies to the index condition of normal accuracy for each of the age bins. Across age bins, baseline correction is often worse and in no case better than normal accuracy. 
 
-```{r bc-mod-age, fig.height=7, fig.width=8, fig.cap="age split baseline correction"}
+```{r bc-mod-age, fig.height=4, fig.width=8, fig.cap="age split baseline correction"}
 baseline_lengths <- readRDS(here("cached_intermediates", "2_baseline_lengths.rds"))
 bc_icc_age <- readRDS(here("cached_intermediates", "2_bc_icc_byage.rds")) |>
   bind_rows(readRDS(here("cached_intermediates", "1_acc_icc_byage.rds")) |> filter(t_start == 600)) |>
@@ -354,7 +351,7 @@ bc_cdi_age <- readRDS(here("cached_intermediates", "2_bc_cdi_byage.rds")) |>
     b_end = ifelse(is.na(b_end), "none", as.character(b_end))
   )
 
-make_model_grid_plot_age(bc_icc_age, bc_cdi_age, baseline_bc, "b_all", x = b_start, facet = b_end, fix_function = fix_bc_interact, breaks = c(-.2, 0), limits = c(-.4, .1))
+make_model_grid_plot_age(bc_icc_age, bc_cdi_age, baseline_bc, "b_all", x = b_start, fix_function = fix_bc_interact, breaks = c(-.2, 0), limits = c(-.4, .1))
 ```
 
 As some datasets have much shorter pre-disambiguation windows than others, we also looked at baseline-corrected accuracy on the subset with data before 3000ms pre-disambiguation (Figure \ref{fig:bc-early}). Even on this subset, baseline-corrected accuracies have worse validity and no better reliablity than normal accuracy measures. 

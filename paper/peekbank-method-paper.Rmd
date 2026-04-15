@@ -31,21 +31,21 @@ author:
     affiliation: a
   - name: Martin Zettersten
     affiliation: g
-address:
-  - code: a
-    address: Department of Psychology, Stanford University, Stanford, CA, USA
-  - code: b
-    address: Department of Linguistics, Stanford University, Stanford, CA, USA
-  - code: c
-    address: Department of Psychology, University of Wisconsin, Madison, WI, USA
-  - code: d
-    address: Department of Linguistics, University of California, Berkeley, CA, USA
-  - code: e
-    address: Department of Psychology, Ludwig Maximilian University, Munich, Germany
-  - code: f
-    address: Department of Psychology, Indiana University, Bloomington, IA, USA
-  - code: g
-    address: Department of Cognitive Science, University of California, San Diego, CA, USA
+affiliation:
+  - id: a
+    institution: Department of Psychology, Stanford University, Stanford, CA, USA
+  - id: b
+    institution: Department of Linguistics, Stanford University, Stanford, CA, USA
+  - id: c
+    institution: Department of Psychology, University of Wisconsin, Madison, WI, USA
+  - id: d
+    institution: Department of Linguistics, University of California, Berkeley, CA, USA
+  - id: e
+    institution: Department of Psychology, Ludwig Maximilian University, Munich, Germany
+  - id: f
+    institution: Department of Psychology, Indiana University, Bloomington, IA, USA
+  - id: g
+    institution: Department of Cognitive Science, University of California, San Diego, CA, USA
 
 authornote: |
   Enter author note here.
@@ -154,10 +154,11 @@ Peekbank is an aggregation of datasets from a number of LWL studies. This work i
 ## Inclusion criteria
 
 We focus our exploration of data processing choices on a set of items where we have the clearest expectations around what we are trying to measure. While LWL is also used to study a variety of experimental effects, such as the effects of noise, novel word learning, and expectations of mutual exclusivity, these items may index different constructs. 
-We limit our analyses to trials where both the target and distractor are real nouns, the carrier phrase is neutral, and the name of the target noun is said only once.  
-TODO list out full vanilla criteria
+We limit our analyses to "vanilla" trials, where both the target and distractor images are of familiar objects. For the auditory stimulus, the target word must be a real word that occurs once and is the first and only source of information about the target. The carrier phrase must be a well-formed, grammatical phrase, without any switches in language, and without any intentionally added noise or audio filtering. 
+Vanilla trials could come from studies with only vanilla trials, from the fillers or baselines of experimental studies, or even from studies where the experimental conditions met the vanilla criteria. (See Supplement ZZ for more detailed criteria for vanillaness used to handle borderline situations.)
 While still heterogenous, these "vanilla" trials have a shared interpretation for how looking behavior is expected to relate to underlying language knowledge and processing. 
 We only include trials from childen 60 months or younger. We do not place restrictions on the language of the trials or children's language background. 
+
 
 ## Descriptives 
 
@@ -255,16 +256,16 @@ dataset_table |>
 
 Throughout we use two reliability metrics and two validity metrics. 
 
-Reliability refers to how consistently measurements are measuring the same thing. One of our measures of reliability is an intra-class correlation (ICC). Specifically, we use a measure of inter-rater reliability that measures (within a dataset) how much different items (target labels) are consistent with each other in "rating" the subjects (kid-administrations). CITATION
+Reliability refers to how consistently measurements are measuring the same thing. One of our measures of reliability is an intra-class correlation (ICC). Specifically, we use a measure of inter-rater reliability that measures (within a dataset) how much different items (target labels) are consistent with each other in "rating" the subjects (kid-administrations). CITATION  
 
-Another measure of reliability is test-retest reliability which measures the correlation for for measures on the same child at two different administrations within 1.5 months of each other. This measure is only possible on a subset of the datasets that closely spaced repeat administrations. While we are limited in how much data we have for test-retest reliability, this is the metric that is most important for measuring stable individual differences. 
+Another measure of reliability is test-retest reliability which measures the correlation for measures on the same child at two different administrations within 1.5 months of each other. This measure is only possible on a subset of the datasets that closely spaced repeat administrations. While we are limited in how much data we have for test-retest reliability, this is the metric that is most important for measuring stable individual differences. 
 
 In addition to having reliable measures, we also care that our measurements correspond to the construct of interest (vocabulary and language processing speed). For validity, we correlate with CDI production measures and CDI comprehension measures, from the datasets where we have CDI administrations. We use both short and long form CDIs, using the fraction of items a child was marked as knowing as our measure. 
 In general, correlating with production and comprehension in the expected directions is desirable, although we also may expect that LWL measures are picking up on slightly different aspects of language learning than is represented in CDI. 
 
 Additional details about how these were calculated are in Supplement XX.
 
-All our code etc etc is available at somewhere. 
+All our code etc etc is available at TODO somewhere. 
 
 # Data processing recommendations
 
@@ -854,7 +855,7 @@ kid_rt_trt_mod <- do_model(
 "min_trial"  ) |> fix_kid_rt_interact()
 
 
-rt_data_loss <- readRDS(here("cached_intermediates", "3_rts.rds")) |> filter(window==400, time_0==T, time_end==T, frac==1) |> filter(!is.na(rt)) |> 
+rt_data_loss <- readRDS(here("cached_intermediates", "3_rts.rds")) |> filter(min_rt==400, time_0==T, time_end==T, frac==1) |> filter(!is.na(rt)) |> 
   group_by(dataset_name, administration_id) |> summarize(rt_trials=n()) |> 
   group_by(dataset_name) |> summarize(at_least_5=sum(rt_trials>4)/n()) |> summarize(mid=mean(at_least_5*100), lower=min(at_least_5*100), upper=max(at_least_5*100))
 ```
@@ -935,7 +936,7 @@ plot_grid(plot_grid(icc_plot, trt_plot, comp_plot, prod_plot, nrow=1), leg, nrow
 
 ```{r downsample-rt, fig.cap="Simulations of measurement properties for different trial counts, created by downsampling trials for all children with different trial minimums. Shown for log landing RT with a minimum RT of 400ms.", fig.height=3}
 
-rt_trials <- readRDS(here("cached_intermediates", "3_rts.rds")) |> filter(window==400, time_0==T, time_end==T, frac==1) |> filter(!is.na(rt)) |> 
+rt_trials <- readRDS(here("cached_intermediates", "3_rts.rds")) |> filter(min_rt==400, time_0==T, time_end==T, frac==1) |> filter(!is.na(rt)) |> 
   group_by(dataset_name, administration_id) |> summarize(rt_trials=n()) |> left_join(dataset_summ |> select(administration_id, dataset_name, prod, comp, age, subject_id))
 
 has_at_least_rt <- rt_trials |>  expand_grid(start_point=c(3, 5, 7, 10, 15)) |> 
