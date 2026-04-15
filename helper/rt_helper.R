@@ -176,5 +176,5 @@ preprocess_rt_dt <- function(rts) {
       )
     ) |>
     select(-rt, -shift_start_rt, -last_shift_rt) |>
-    pivot_longer(ends_with("rt"), names_to = "measure", values_to = "rt")
+    pivot_longer(ends_with("land_rt") | ends_with("launch_rt"), names_to = "measure", values_to = "rt")
 }

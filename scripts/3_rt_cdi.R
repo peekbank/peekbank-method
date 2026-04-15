@@ -1,11 +1,12 @@
 source("../helper/common.R")
 source("../helper/rt_helper.R")
+source("../helper/params.R")
 
 d_aoi <- readRDS("../cached_intermediates/0_d_aoi.rds")
 
 age_bin_cutoff <- get_age_bin_cutoff(d_aoi)
 
-rts <- readRDS("../cached_intermediates/3_rts.rds") |> filter(time_0, time_end, frac == 1)
+rts <- readRDS("../cached_intermediates/3_rts.rds") |> left_join(rt_params)
 
 # rts_weird <- readRDS("../cached_intermediates/3_rts.rds") |> filter(min_rt == 400)
 
