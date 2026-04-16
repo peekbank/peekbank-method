@@ -49,7 +49,7 @@ acc_params_kid <- expand_grid(
   exclude_less_than = c(0, .2, .5, .7),
   look_at_start = c("no"),
   min_trial = c(1, 2, 3, 4, 6, 8, 10, 12, 14, 16),
-  min_frac = c(0, .2, .4, .6, .8)
+  min_frac = c(0, .2, .4, .5, .6, .8)
 ) |> filter(!(min_trial > 1 & min_frac > 0)) # only use one at a time
 
 
@@ -77,20 +77,22 @@ acc_params_summary_recommended <- expand_grid(
   t_start = c(600),
   t_end = c(4000),
   exclude_less_than = c(0),
-  look_both = c("no_need"),
-  min_trial = c(1)
+  look_at_start = c("no"),
+  min_trial = c(1),
+  min_frac = c(0)
 )
 
 
 bc_params_summary_alternative <- expand_grid(
   option = "alternative",
-  t_start = c(200),
-  t_end = c(2000),
-  b_start = c(-1000),
+  t_start = c(300),
+  t_end = c(1800),
+  b_start = c(-2000),
   b_end = c(0),
-  exclude_less_than = c(.5),
-  look_both = c("ever"),
-  min_trial = c(5)
+  exclude_less_than = c(.6),
+  look_at_start = c("yes"),
+  min_trial = c(1),
+  min_frac = c(.5)
 )
 
 rt_params_summary_options <- expand_grid(
@@ -102,8 +104,8 @@ rt_params_summary_options <- expand_grid(
 ) |>
   bind_rows(expand_grid(
     option = c("alternative"),
-    min_rt = c(200),
-    max_rt = c(2000),
+    min_rt = c(300),
+    max_rt = c(1800),
     measure = c("first_launch_rt"),
-    min_trial = c(5)
+    min_trial = c(2)
   ))

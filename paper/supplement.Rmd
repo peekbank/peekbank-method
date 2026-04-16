@@ -540,6 +540,7 @@ fix_trial_acc_interact <- function(df) {
     left_join(num_trials)
 }
 make_model_grid_plot(trial_icc, trial_cdi, trial_trt, baseline_trial_acc, "exclude_less_than * look_at_start", x = exclude_less_than, facet = look_at_start, col = pct, fix_function = fix_trial_acc_interact, limits = c(-.4, .1))
+
 ```
 Figure \ref{fig:acc-trial-age} shows age splits of the same. TODO HOW TO SHOW DATA LOSS & WHAT ARE REASONABLE BOUNDS
 
@@ -552,15 +553,16 @@ trial_cdi_age <- readRDS(here("cached_intermediates/4_acc_trial_cdi_byage.rds"))
 make_model_grid_plot_age(trial_icc_age, trial_cdi_age, baseline_trial_acc, "exclude_less_than * look_both", x = exclude_less_than, facet = look_both, fix_function = fix_trial_acc_interact, limits = c(-.4, .4))
 ```
 
-TODO IF NEEDED COULD ADD FOR OTHER ACC WINDOWS
 
 ## kid-level accuracy 
 
+TODO COLOR BY DATA LOSS
 
 ```{r,  eval=F, fig.height=7, fig.width=8, fig.cap="admin level accuracy exclusions"}
 baseline_kid_acc <- function(df) {
   df |> mutate(
-    min_trial = relevel(min_trial, "1")
+    min_trial = relevel(min_trial, "1"),
+    min_frac = relevel(min_frac, "0")
   )
 }
 
@@ -568,10 +570,23 @@ baseline_kid_acc <- function(df) {
 fix_kid_acc_interact <- function(df) {
   df |>
     mutate(contrast = str_replace_all(contrast, "\\)", "") |> str_replace_all("\\(", "")) |>
-    separate(contrast, sep = " ", c("min_trial", NA)) |>
-    mutate(min_trial = str_replace(min_trial, "min_trial", "") |> as.numeric(), )
+    separate(contrast, sep = " ", c("min_trial", "min_frac", NA, NA, NA)) |>
+    mutate(min_trial = str_replace(min_trial, "min_trial", "") |> as.numeric(), 
+           min_frac = str_replace(min_frac, "min_frac", "") |> as.numeric()) |> 
+    filter(min_frac==0)
 }
-make_model_grid_plot(kid_icc, kid_cdi, kid_trt, baseline_kid_acc, "min_trial", x = min_trial, fix_function = fix_kid_acc_interact)
+
+fix_kid_acc_interact_2<- function(df) {
+  df |>
+    mutate(contrast = str_replace_all(contrast, "\\)", "") |> str_replace_all("\\(", "")) |>
+    separate(contrast, sep = " ", c("min_trial", "min_frac", NA, NA, NA)) |>
+    mutate(min_trial = str_replace(min_trial, "min_trial", "") |> as.numeric(), 
+           min_frac = str_replace(min_frac, "min_frac", "") |> as.numeric()) |> 
+    filter(min_trial==1)
+}
+make_model_grid_plot(kid_icc, kid_cdi, kid_trt, baseline_kid_acc, "min_trial + min_frac", x = min_trial, fix_function = fix_kid_acc_interact)
+
+make_model_grid_plot(kid_icc, kid_cdi, kid_trt, baseline_kid_acc, "min_trial + min_frac", x = min_frac, fix_function = fix_kid_acc_interact_2)
 ```
 
 # kid-level rt

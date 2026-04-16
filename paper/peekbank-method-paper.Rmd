@@ -526,8 +526,6 @@ TODO do we mention that you can also exclude for long shift length, and also be 
 
 <!-- In the literature, common cutoffs are ... based on what minimum times to initiate eye movements are. We explore a range of different potential cutoffs in at attempt to maximize reliability. This can be thought of as the point at what point RTs shift from mostly being random (not driven by the stimulus) to mostly being stimulus driven.  -->
 
-commonly filtered to 300-1800 (following fernald2008)
-
 ### Analytic approach
 
 ```{r rt-heat,  fig.width=7, fig.height=4, fig.cap="Heat map of different parameter options for measuring RT and how they on average affected ICC."}
@@ -556,10 +554,8 @@ rt_icc <- readRDS(here("cached_intermediates/3_rt_icc.rds"))
 ```
 
 
-In our initial exploration, we considered a wide range of options for measuring RT, fulling crossing a) launch or land based, b) removing RTs with a shift-length greater than 600 ms (or not), c) using a log or raw scale, and d) minimum RTs between 0 and 1000 ms. (note: fuller range still needs to run) 
+We considered a wide range of options for measuring RT, fulling crossing a) launch or land based, b) minimum RTs between 0 and 1000 ms, c) maximum RTs between 1600 and 4000, and d) raw or log scale. [^ In supplementary analyses, we also looked at using a shift-length cutoff and considerations about how exactly to define the shift. TODO ]
 
-
-For the main validity and reliability measures, we compare a launch-based RT with a 600ms shift-length cutoff (as used in ...TODO) and a land-based RT without a shift-length cutoff (as used in ...TODO). We vary the minimum RT and whether the RTs are on a log or raw scale. 
 
 ```{r rt-lolli, fig.height=3, fig.width=6, fig.cap="Dataset differences in RT measurement "}
 rt_icc <- readRDS(here("cached_intermediates/3_rt_icc.rds")) |>
@@ -579,8 +575,8 @@ rt_trt <- readRDS(here("cached_intermediates/3_rt_test_retest.rds")) |>
 
 rt_include <- function(df) {
   df |> mutate(combined = case_when(
-    min_rt== 400 & trimming == "untrimmed" & logged == "log" & max_rt==4000 &type == "land" ~ "400 untrimmed land, log",
-    min_rt == 300 & trimming=="untrimmed" & max_rt==1800 & logged == "raw" & type == "first_launch" ~ "200 trimmed launch, raw",
+    min_rt== 400 & trimming == "untrimmed" & logged == "log" & max_rt==4000 &type == "land" ~ "land RT log-scale, 400 - 4000ms range",
+    min_rt == 300 & trimming=="untrimmed" & max_rt==1800 & logged == "raw" & type == "first_launch" ~ "launch RT, raw-scale, 300-1800ms range",
     T ~ NA
   ))
 }
@@ -638,18 +634,15 @@ rt_trt_mod <- do_model(
 
 ### Results
 
-An initial exploration of ICC reliability (Figure \ref{fig:rt-heat}) indicated that  ICC reliability was maximized for log-scale landing-based RT without any shift-length cutoff with minimum RTs around 400 ms. For launch-based RT, trimming for only shifts that landed within 600ms of launch had higher ICC than when they were not trimmed (and this is the common practice for launch based CITATION). 
+An initial exploration of ICC reliability (Figure \ref{fig:rt-heat}) indicated that ICC reliability was maximized for minimum RTs around 400 ms, with longer max RTs, and with land based RT.
 
-A comparison between two different ways of calculating RT is shown in Fig \ref{fig:rt-lolli}. 
+A comparison between the a typical way of calculating RT and an alternative that maximizes ICC are shown in Fig \ref{fig:rt-lolli}. 
 
-Compared to a minimum of 300 ms launch-based RT raw-scale restricted to 300-1800ms, a land-based minimum of 400 -4000 RT (logged) is expected to increase ICC by `r rt_icc_mod |> filter(type=="first_launch", min_rt==300, max_rt==1800, trimming=="untrimmed", logged=="raw") |> in_text_stats(sign_flip=T)` and possibly increase test-retest reliability by `r rt_trt_mod |> filter(type=="first_launch", min_rt==300, max_rt==1800, trimming=="untrimmed", logged=="raw") |> in_text_stats(sign_flip=T)`. Differences in CDI correlation are not substantive (`r rt_comp_mod |> filter(type=="first_launch", trimming=="untrimmed", min_rt==300, max_rt==1800, logged=="raw") |> in_text_stats()` for comprehension, and `r rt_prod_mod |> filter(type=="first_launch", min_rt==300, max_rt==1800, trimming=="untrimmed", logged=="raw") |> in_text_stats() ` for production). 
+Compared to the "standard" launch-based RT restricted to 300-1800ms, a land-based minimum of 400 -4000 RT (logged) is expected to increase ICC by `r rt_icc_mod |> filter(type=="first_launch", min_rt==300, max_rt==1800, trimming=="untrimmed", logged=="raw") |> in_text_stats(sign_flip=T)` with little change in  test-retest reliability (`r rt_trt_mod |> filter(type=="first_launch", min_rt==300, max_rt==1800, trimming=="untrimmed", logged=="raw") |> in_text_stats(sign_flip=T)`). Differences in CDI correlation are not substantive (`r rt_comp_mod |> filter(type=="first_launch", trimming=="untrimmed", min_rt==300, max_rt==1800, logged=="raw") |> in_text_stats()` for comprehension, and `r rt_prod_mod |> filter(type=="first_launch", min_rt==300, max_rt==1800, trimming=="untrimmed", logged=="raw") |> in_text_stats() ` for production). 
 
 These patterns generally hold for children of different ages (Figure SXX). 
 
-
-We recommend that researchers use minimum RT cutoffs around 400 ms as these increase reliability compared to shorter cutoffs ms. There's no reason to cut off RTs too early. While the differences between different methods are small, we recommend using landing-based RT on the log scale to maximize overall reliability. 
-
-Overall RT measures complement accuracy measures and capture substantial signal; the exact details don't matter that much.
+Overall RT measures complement accuracy measures and capture substantial signal. A wide range of parameter options have similar properties (see Supplement SQQ), but a land-based RT on 400 - 4000ms maximizes reliability without negatively impacting validity. Log-scale transformations should be considered, but may depend on modelling and theoretical considerations. 
 
 
 
@@ -658,32 +651,20 @@ Overall RT measures complement accuracy measures and capture substantial signal;
 
 [why people exclude, range of practice] A common issue with developmental research is when to exclude trials for behavioral patterns that don't seem to match the task and when to exclude children for contributing too few valid trials. 
 
-For LWL studies, trial-level exclusions tend to be either for contributing too few time points (ex. too much tracker loss or a child looking away from the screen too much) [citations] or for "zoning" where a child only looks at one image and not the other. Zoning exclusions are sometimes done for trials where one image was not fixated at all in the entire trial, but can also be done for trials where one image was not fixated prior to the start of the accuracy window. 
+For LWL studies, trial-level exclusions tend to be either for contributing too few time points (ex. too much tracker loss or a child looking away from the screen too much). Some papers use heuristic exclusions for inattention prior to coding looking behavior [@fernaldpapers], while others exclude trials that have too much looking away from the target and distractor. Cutoffs vary, with different experiments requiring minimum looking at the images at least 20%, 50% or 66% of the time [@which one was 20%; @weaver2024; @pompersaffran]. Studies also occassionally filter for looking at the target or distractor specifically at the point of disambiguation [@TODO].  
 
-If trials with zoning or with few valid looking points still provide signal of the child-level language behavior, excluding them will decrease reliability and validity. On the other side, if these trials are not representing the construct and are just noise, excluding them will increase reliability and validity. 
+If trials with fewer valid looking points still provide signal of the child-level language behavior, excluding them will decrease reliability and validity. On the other side, if these trials are not representing the construct and are just noise, excluding them will increase reliability and validity. 
 
-
-trial level exclusions:
-* pomper saffran is clearest for 2/3 on target requirement
-* some do 500ms continuous instead 
-* or generic inattentive
-* or .5 weaver zettersten
-
-* some require looking to T and/or D at t=0
-
-* kid level -- often requirement for up to half of trials (varies by unit) 
-
-* but for RT often does as min # of RTs -- usually 2 (cf various marchman papers all do this), but (distinctly unclear if accuracy/kid metrics also affect RT or not)
+In addition to trial level exclusions, studies also do child-level exclusions based on the minimum number of valid trials. For accuracy measures, children are often excluded if they had fewer than 25% or 50% of the total trials, either within a condition, or overall [@citations]. For RT, it is instead standard to require a certain number of trials, often 2 [@citations]. 
 
 ## Analytic approach
 
 For accuracy measures, we consider both trial-level and administration-level exclusions. 
-We first explored trial-level exclusions, both on the basis of amount of missing or away looks and on the basis of when both target and distractor were looked at (Figure \ref{fig:trial-acc}). 
+We first explored trial-level exclusions, both on the basis of amount of off-target looks and on the basis of where the child was looking at target onset (Figure \ref{fig:trial-acc}). 
 
-We tested exclusions for what portion of the time 
+For accuracy, we then considered per-child minimums either based on number of valid trials, or based on fraction of valid trials in an administration. 
 
-
-TODO check what the window was for each of these and possibly adjust to match the window we're using!
+For RT, we considered different cutoffs for minimum numbers of valid trials. 
 
 ```{r}
 trial_icc <- readRDS(here("cached_intermediates/4_acc_trial_icc.rds")) |>
@@ -744,27 +725,25 @@ trials_retained <- num_trials |> filter(look_at_start=="no", exclude_less_than %
 
 ## Results 
 
-Compared to not setting any limits on the amount of missing data or looking away, a requirement to look at the target and distractor at least 50% of the time results in `r str_c(round(trials_retained$mid[1], 2), " % (range:", round(trials_retained$lower[1], 2), "% - ", round(trials_retained$upper[1], 2), "%)")` trials being retained. These exclusions lead to an expected increase in ICC by `r trial_acc_icc_mod |> filter(look_both=="no_need", exclude_less_than==.5) |> in_text_stats()` and increase in test-retest reliability by `r trial_acc_trt_mod |> filter(look_both=="no_need", exclude_less_than==.5)|> in_text_stats()`. Differences in CDI correlation are not substantive (`r trial_acc_comp_mod |> filter(look_both=="no_need", exclude_less_than==.5) |> in_text_stats()` for comprehension, and `r trial_acc_prod_mod |> filter(look_both=="no_need", exclude_less_than==.5) |> in_text_stats() ` for production). CHECK TEXT 
+Compared to not setting any limits on the amount of missing data, a requirement to look at the target and distractor at least 50% of the time results in `r str_c(round(trials_retained$mid[1], 2), " % (range:", round(trials_retained$lower[1], 2), "% - ", round(trials_retained$upper[1], 2), "%)")` trials being retained. These exclusions lead to an expected increase in ICC by `r trial_acc_icc_mod |> filter(look_at_start=="no", exclude_less_than==.5) |> in_text_stats()` and no substantial change in test-retest reliability (`r trial_acc_trt_mod |> filter(look_at_start=="no", exclude_less_than==.5)|> in_text_stats()`). Differences in CDI correlation are not substantive (`r trial_acc_comp_mod |> filter(look_at_start=="no", exclude_less_than==.5) |> in_text_stats()` for comprehension, and `r trial_acc_prod_mod |> filter(look_at_start=="no", exclude_less_than==.5) |> in_text_stats() ` for production). 
 
-TODO what is the actual range of practice with regard to exclusion rates and types of zoner exclusions? 
-On a trial by trial basis, ICC tends to slightly increase the more noisy trials are excluded, but this comes at the cost of fewer trials. CDI correlations are higher when there are no zoner exclusions; test-retest is highest if there are no zoner exclusions or if exclusions are only done for the whole window (not just pre-window). Overall, based on these different trade-offs, we recommend making light trial-level exclusions if any. It is reasonable to not filter trials at all and include those with any looking, but is also to set a minimum proportion data for up to 50%. More stringent looking requirements will mostly reduce the amount of useable data without validity gains to justify it. 
+Overall, there is a trade-off between reducing the amount of data and increasing the reliability of the remaining data. Filtering based on initial looking position, or having requirements for looking above .5 start to diminish the amount of data, and potentially negatively effect test-retest reliability and CDI measures (supplement TODO). Requirements for on-image looking rates between 0 (no exclusions) and .5 are reasonable. 
 
-
-We then explored the effects of excluding children for too few trials. Because datasets vary in the number of trials, and within datasets there may be variation in the max number of trials in a session (for different ages or different sub-experiments), we set thresholds for the total trials rather than the fraction of useable trials. 
-
-Some datasets also exclude children for predominantly look at one side of the screen across trials ("side-bias"). Across our dataset, only 1.5% of administrations (contributing less than 1% of trials) looked at one side (right or left) more than 90% of the time across more than 75% of trials. Since this behavior is rare, excluding it or not probably won't make much of a difference. [I'm confused by this -- side bias is really not equally distributed across datasets and it doesn't seem to always be a low trial/low data/trial issue. so maybe it matters for some datasets? by why?; are we sure it's not a hand-coding/data-processing/import error???] 
+We then explored the effects of excluding children for too few trials. These are typically set as a fraction, but we also try with total number of trials because the number of trials in different datasets differs. Target number of total trials is not a peekbank field, so we guessed it by the largest number of trials any child in that dataset had, and adjusted for datasets where it was clear from the distributions there were different numbers of vanilla trials at different ages or administrations. 
 
 ```{r}
 kid_icc <- readRDS(here("cached_intermediates/4_acc_kid_icc.rds")) |>
-  filter(t_start == 400, t_end == 3000, exclude_less_than == 0, look_both == "no_need") |>
+  filter(t_start == 600, t_end == 4000, exclude_less_than == 0, look_at_start == "no") |>
   select(-num_trials)
-kid_cdi <- readRDS(here("cached_intermediates/4_acc_kid_cdi.rds")) |> filter(t_start == 400, t_end == 3000, exclude_less_than == 0, look_both == "no_need")
 
-kid_trt <- readRDS(here("cached_intermediates/4_acc_kid_test_retest.rds")) |> filter(t_start == 400, t_end == 3000, exclude_less_than == 0, look_both == "no_need")
+kid_cdi <- readRDS(here("cached_intermediates/4_acc_kid_cdi.rds")) |> filter(t_start == 600, t_end == 4000, exclude_less_than == 0, look_at_start == "no")
+
+kid_trt <- readRDS(here("cached_intermediates/4_acc_kid_test_retest.rds")) |> filter(t_start == 600, t_end == 4000, exclude_less_than == 0, look_at_start == "no")
 
 baseline_kid_acc <- function(df) {
   df |> mutate(
-    min_trial = relevel(min_trial, "1")
+    min_trial = relevel(min_trial, "1"),
+    min_frac = relevel(min_frac, "0")
   )
 }
 
@@ -772,60 +751,57 @@ baseline_kid_acc <- function(df) {
 fix_kid_acc_interact <- function(df) {
   df |>
     mutate(contrast = str_replace_all(contrast, "\\)", "") |> str_replace_all("\\(", "")) |>
-    separate(contrast, sep = " ", c("min_trial", NA)) |>
-    mutate(min_trial = str_replace(min_trial, "min_trial", "") |> as.numeric(), )
+    separate(contrast, sep = " ", c("min_trial", "min_frac",NA, NA, NA)) |>
+    mutate(min_trial = str_replace(min_trial, "min_trial", "") |> as.numeric(), 
+           min_frac = str_replace(min_frac, "min_frac", "") |> as.numeric(), )
 }
 
 kid_acc_icc_mod <- do_model(
     kid_icc |> filter_icc("est"), baseline_kid_acc,
     dataset_summ |> group_by(dataset_name) |> summarize(n_admins = n_distinct(administration_id)),
-"min_trial"  ) |> fix_kid_acc_interact()
+"min_trial + min_frac"  ) |> fix_kid_acc_interact()
 
 kid_acc_comp_mod <- do_model(
    kid_cdi |> filter(!is.na(comp_est)) |> rename(est = comp_est), baseline_kid_acc,
     dataset_summ |> group_by(dataset_name) |> filter(!is.na(comp)) |> summarize(n_admins = n_distinct(administration_id)),
-"min_trial"  ) |> fix_kid_acc_interact()
+"min_trial + min_frac"   ) |> fix_kid_acc_interact()
 
   kid_acc_prod_mod <- do_model(
    kid_cdi |> filter(!is.na(prod_est)) |> rename(est = prod_est), baseline_kid_acc,
     dataset_summ |> group_by(dataset_name) |> filter(!is.na(prod)) |> summarize(n_admins = n_distinct(administration_id)),
-"min_trial"  ) |> fix_kid_acc_interact()
+"min_trial + min_frac"  ) |> fix_kid_acc_interact()
   
 kid_acc_trt_mod <- do_model(
     kid_trt |> filter(!is.na(est)), baseline_kid_acc,
     dataset_summ |> make_test_retest_pairs() |> group_by(dataset_name) |>
       summarize(n_admins = n_distinct(pair_number)),
-"min_trial"  ) |> fix_kid_acc_interact()
+"min_trial + min_frac") |> fix_kid_acc_interact()
 
-kid_level_exclusion <- dataset_summ |> group_by(administration_id, dataset_name) |> summarize(trials=n()) |> group_by(dataset_name) |> summarize(at_least_5=sum(trials>4)/n()) |> summarize(mid=mean(at_least_5*100), lower=min(at_least_5*100), upper=max(at_least_5*100))
+kid_level_exclusion <- dataset_summ  |> group_by(administration_id, dataset_name) |> summarize(trials=n())|> group_by(dataset_name) |> summarize(at_least_8=sum(trials>=8)/n())|> summarize(mid=mean(at_least_8*100), lower=min(at_least_8*100), upper=max(at_least_8*100))
 ```
 
-Only including administrations that contribute at least 5 trials, results in `r str_c(round(trials_retained$mid[1], 2), " % (range:", round(trials_retained$lower[1], 2), "% - ", round(trials_retained$upper[1], 2), "%)")` of admins remaining. 
+Only including administrations with at least 8 trials results in `r str_c(round(trials_retained$mid[1], 2), " % (range:", round(trials_retained$lower[1], 2), "% - ", round(trials_retained$upper[1], 2), "%)")` of admins remaining. 
 
-These exclusions lead to an expected increase in ICC by `r kid_acc_icc_mod |> filter(min_trial==5) |> in_text_stats()` and increase in test-retest reliability by `r kid_acc_trt_mod |> filter(min_trial==5)|> in_text_stats()`. Differences in CDI correlation are not substantive (`r kid_acc_comp_mod |> filter(min_trial==5) |> in_text_stats()` for comprehension, and `r kid_acc_prod_mod |> filter(min_trial==5) |> in_text_stats() ` for production). CHECK TEXT 
-
-Excluding children for contributing too few trials is generally not necessary (Figure \ref{fig:kid-acc}). There is little difference in ICC reliability or CDI validity for 1-5 trials. For test-retest relability, the reliability is higher if there are at least a few trials from each test, although there are concerns that children who contribute fewer than 5 trials may be different in some way than children who contribute more, so the population generalizability may have issues. 
+These exclusions lead to an expected increase in ICC by `r kid_acc_icc_mod |> filter(min_trial==8) |> in_text_stats()` and increase in test-retest reliability by `r kid_acc_trt_mod |> filter(min_trial==8)|> in_text_stats()`. Differences in CDI correlation are not substantive (`r kid_acc_comp_mod |> filter(min_trial==8) |> in_text_stats()` for comprehension, and `r kid_acc_prod_mod |> filter(min_trial==8) |> in_text_stats() ` for production). Again, there are trade-offs between number of administrations included and properties of these administrations, but we do not observe significant differences based on minimum trials below 10 or minimum fractions.  
 
 It's acceptable, but probably not necessary, to exclude children for too few trials. 
 
 ```{r, fig.height=7, fig.width=8, fig.cap="rt kid level exclusions"}
 kid_rt_icc <- readRDS(here("cached_intermediates/4_rt_icc.rds")) |>
   regroup_rt() |>
-  name_rt() |>
-  filter(window == 400, trimming == "untrimmed", logged == "log", type == "land")
+  filter(min_rt == 400, max_rt==4000, trimming == "untrimmed", logged == "log", type == "land")
 
-kid_rt_cdi <- readRDS(here("cached_intermediates/4_rt_cdi_boot.rds")) |>
+kid_rt_cdi <- readRDS(here("cached_intermediates/4_rt_cdi.rds")) |>
   regroup_rt() |>
-  name_rt() |>
-  filter(window == 400, trimming == "untrimmed", logged == "log", type == "land") |> 
+  filter(min_rt == 400, max_rt==4000, trimming == "untrimmed", logged == "log", type == "land") |> 
   mutate(comp_est=-comp_est, prod_est=-prod_est)
 
 
 kid_rt_trt <- readRDS(here("cached_intermediates/4_rt_test_retest.rds")) |>
   filter(dataset_name != "potter_remix") |>
   regroup_rt() |>
-  name_rt() |>
-  filter(window == 400, trimming == "untrimmed", logged == "log", type == "land")
+   filter(min_rt == 400, max_rt==4000, trimming == "untrimmed", logged == "log", type == "land")
+
 
 
 baseline_kid_rt <- function(df) {
@@ -864,15 +840,14 @@ kid_rt_trt_mod <- do_model(
 "min_trial"  ) |> fix_kid_rt_interact()
 
 
-rt_data_loss <- readRDS(here("cached_intermediates", "3_rts.rds")) |> filter(min_rt==400, time_0==T, time_end==T, frac==1) |> filter(!is.na(rt)) |> 
+rt_data_loss <- readRDS(here("cached_intermediates", "3_rts.rds")) |> filter(min_rt==400,  time_0==T, time_end==T, frac==1) |> filter(!is.na(rt)) |> 
   group_by(dataset_name, administration_id) |> summarize(rt_trials=n()) |> 
-  group_by(dataset_name) |> summarize(at_least_5=sum(rt_trials>4)/n()) |> summarize(mid=mean(at_least_5*100), lower=min(at_least_5*100), upper=max(at_least_5*100))
+  group_by(dataset_name) |> summarize(at_least_2=sum(rt_trials>1)/n()) |> summarize(mid=mean(at_least_2*100), lower=min(at_least_2*100), upper=max(at_least_2*100))
 ```
 
-We also considered the effects of minimum trial requirements on RT data (Figure \ref{fig:kid-rt}). Only including administrations that contribute at least 5 trials, results in `r str_c(round(rt_data_loss$mid[1], 2), " % (range:", round(rt_data_loss$lower[1], 2), "% - ", round(rt_data_loss$upper[1], 2), "%)")` of admins remaining. TODO idk what a "reasonable" min RTs is -- it might be lower
+We also considered the effects of minimum trial requirements on RT data. Only including administrations that contribute at least 2 trials, results in `r str_c(round(rt_data_loss$mid[1], 2), " % (range:", round(rt_data_loss$lower[1], 2), "% - ", round(rt_data_loss$upper[1], 2), "%)")` of admins remaining. 
 
-This is min of 5 trials!
-These exclusions lead to an expected increase in ICC by `r kid_rt_icc_mod |> filter(min_trial==5) |> in_text_stats()` and increase in test-retest reliability by `r kid_rt_trt_mod |> filter(min_trial==5)|> in_text_stats()`. Differences in CDI correlation are not substantive (`r kid_rt_comp_mod |> filter(min_trial==5) |> in_text_stats()` for comprehension, and `r kid_rt_prod_mod |> filter(min_trial==5) |> in_text_stats() ` for production). CHECK TEXT 
+These exclusions lead to an expected increase in ICC by `r kid_rt_icc_mod |> filter(min_trial==2) |> in_text_stats()` and increase in test-retest reliability by `r kid_rt_trt_mod |> filter(min_trial==2)|> in_text_stats()`. Differences in CDI correlation are not substantive (`r kid_rt_comp_mod |> filter(min_trial==2) |> in_text_stats()` for comprehension, and `r kid_rt_prod_mod |> filter(min_trial==2) |> in_text_stats() ` for production). CHECK TEXT 
 
 
 For RT, it's reasonable to set low minimums for number of trials (like 2 trials) which does make for stronger correlations with CDI production. There are much stronger tradeoffs between test-retest reliability and number of children included. It's also reasonable to not exclude. 

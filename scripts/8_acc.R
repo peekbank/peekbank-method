@@ -2,6 +2,8 @@ source("../helper/common.R")
 source("../helper/params.R")
 
 d_aoi <- readRDS("../cached_intermediates/0_d_aoi.rds")
+trial_totals <- get_total_trials(d_aoi) |>
+  distinct(dataset_name, administration_id, max_trials)
 
 cdi_data <- readRDS("../cached_intermediates/0_cdi_subjects.rds")
 
@@ -14,26 +16,20 @@ pairs_sim <- pairs_aoi_data |>
     target_label, pair_number, session_num
   ) |>
   summarise(
-    total_target_prop = mean(correct, na.rm = TRUE),
-    pre_looking = mean(correct[t_norm < 400], na.rm = TRUE)
+    has_correct_at_0 = any(t_norm == 0 & !is.na(correct)),
+    .groups = "drop"
   ) |>
   left_join(pairs_aoi_data)
 trial_flags <- d_aoi |>
-  group_by(
-    dataset_name, trial_id, dataset_id, subject_id, administration_id,
-    target_label
-  ) |>
+  group_by(dataset_name, trial_id, dataset_id, subject_id, administration_id, target_label) |>
   summarise(
-    total_target_prop = mean(correct, na.rm = TRUE),
-    pre_looking = mean(correct[t_norm < 400], na.rm = TRUE),
+    has_correct_at_0 = any(t_norm == 0 & !is.na(correct)),
     .groups = "drop"
   )
 
-prep_accuracy <- function(d, flags, t_start, t_end, exclude_less_than, look_both, min_trial) {
-  if (look_both == "ever") {
-    flags <- filter(flags, total_target_prop > 0, total_target_prop < 1)
-  } else if (look_both == "before") {
-    flags <- filter(flags, pre_looking > 0, pre_looking < 1)
+prep_accuracy <- function(d, flags, t_start, t_end, exclude_less_than, look_at_start, min_trial, min_frac) {
+  if (look_at_start == "yes") {
+    flags <- filter(flags, has_correct_at_0)
   }
 
   join_cols <- c("dataset_name", "trial_id", "dataset_id", "administration_id", "target_label")
@@ -52,19 +48,21 @@ prep_accuracy <- function(d, flags, t_start, t_end, exclude_less_than, look_both
     filter(prop_data >= exclude_less_than) |>
     filter(!is.na(accuracy)) |>
     group_by(administration_id, dataset_name, across(any_of(c("age_bin", "subject_id", "pair_number", "session_num")))) |>
-    mutate(
-      count = n(),
-    ) |>
+    mutate(valid_n = n()) |>
+    left_join(trial_totals, by = c("dataset_name", "administration_id")) |>
+    mutate(frac_valid = valid_n / max_trials) |>
+    filter(!is.na(max_trials), frac_valid >= min_frac) |>
+    select(-valid_n, -max_trials, -frac_valid) |>
+    mutate(count = n()) |>
     filter(count >= min_trial) |>
     select(-count)
 }
 
-prep_bc <- function(d, flags, t_start, t_end, b_start, b_end, exclude_less_than, look_both, min_trial) {
-  if (look_both == "ever") {
-    flags <- filter(flags, total_target_prop > 0, total_target_prop < 1)
-  } else if (look_both == "before") {
-    flags <- filter(flags, pre_looking > 0, pre_looking < 1)
+prep_bc <- function(d, flags, t_start, t_end, b_start, b_end, exclude_less_than, look_at_start, min_trial, min_frac) {
+  if (look_at_start == "yes") {
+    flags <- filter(flags, has_correct_at_0)
   }
+
 
   join_cols <- c("dataset_name", "trial_id", "dataset_id", "administration_id", "target_label")
 
@@ -83,9 +81,12 @@ prep_bc <- function(d, flags, t_start, t_end, b_start, b_end, exclude_less_than,
     filter(!is.na(bc_accuracy)) |>
     filter(prop_data >= exclude_less_than) |>
     group_by(administration_id, dataset_name, across(any_of(c("age_bin", "subject_id", "pair_number", "session_num")))) |>
-    mutate(
-      count = n(),
-    ) |>
+    mutate(valid_n = n()) |>
+    left_join(trial_totals, by = c("dataset_name", "administration_id")) |>
+    mutate(frac_valid = valid_n / max_trials) |>
+    filter(!is.na(max_trials), frac_valid >= min_frac) |>
+    select(-valid_n, -max_trials, -frac_valid) |>
+    mutate(count = n()) |>
     filter(count >= min_trial) |>
     select(-count) |>
     rename(accuracy = bc_accuracy)
@@ -140,8 +141,8 @@ bc_params <- bc_params_summary_alternative
 
 accs_icc <- acc_params |>
   mutate(summary_data = pmap(
-    list(t_start, t_end, exclude_less_than, look_both, min_trial),
-    \(t_s, t_e, e, l, m) prep_accuracy(d_aoi, trial_flags, t_s, t_e, e, l, m) |> for_icc()
+    list(t_start, t_end, exclude_less_than, look_at_start, min_trial, min_frac),
+    \(t_s, t_e, e, las, m, mf) prep_accuracy(d_aoi, trial_flags, t_s, t_e, e, las, m, mf) |> for_icc()
   )) |>
   mutate(icc = map(summary_data, run_icc)) |>
   select(-summary_data) |>
@@ -152,8 +153,8 @@ saveRDS(accs_icc, "../cached_intermediates/8_acc_icc.rds")
 
 accs_cdi_summarized <- acc_params |>
   mutate(summary_data = pmap(
-    list(t_start, t_end, exclude_less_than, look_both, min_trial),
-    \(t_s, t_e, e, l, m) prep_accuracy(d_aoi, trial_flags, t_s, t_e, e, l, m) |> cdi_summarize()
+    list(t_start, t_end, exclude_less_than, look_at_start, min_trial, min_frac),
+    \(t_s, t_e, e, las, m, mf) prep_accuracy(d_aoi, trial_flags, t_s, t_e, e, las, m, mf) |> cdi_summarize()
   )) |>
   mutate(cdi = map(summary_data, calc_cdi)) |>
   select(-summary_data) |>
@@ -163,8 +164,8 @@ saveRDS(accs_cdi_summarized, "../cached_intermediates/8_acc_cdi.rds")
 
 accs_boot_test_retest <- acc_params |>
   mutate(corr = pmap(
-    list(t_start, t_end, exclude_less_than, look_both, min_trial),
-    \(t_s, t_e, e, l, m) prep_accuracy(pairs_sim, trial_flags, t_s, t_e, e, l, m) |> do_test_retest()
+    list(t_start, t_end, exclude_less_than, look_at_start, min_trial, min_frac),
+    \(t_s, t_e, e, las, m, mf) prep_accuracy(pairs_sim, trial_flags, t_s, t_e, e, las, m, mf) |> do_test_retest()
   )) |>
   unnest(corr)
 
@@ -173,8 +174,8 @@ saveRDS(accs_boot_test_retest, "../cached_intermediates/8_acc_test_retest.rds")
 
 bc_icc_summarized <- bc_params |>
   mutate(summary_data = pmap(
-    list(t_start, t_end, b_start, b_end, exclude_less_than, look_both, min_trial),
-    \(t_s, t_e, b_s, b_e, e, l, m) prep_bc(d_aoi, trial_flags, t_s, t_e, b_s, b_e, e, l, m) |> for_icc()
+    list(t_start, t_end, b_start, b_end, exclude_less_than, look_at_start, min_trial, min_frac),
+    \(t_s, t_e, b_s, b_e, e, las, m, mf) prep_bc(d_aoi, trial_flags, t_s, t_e, b_s, b_e, e, las, m, mf) |> for_icc()
   )) |>
   mutate(icc = map(summary_data, run_icc)) |>
   select(-summary_data) |>
@@ -185,8 +186,8 @@ saveRDS(bc_icc_summarized, "../cached_intermediates/8_bc_icc.rds")
 
 bc_cdi_summarized <- bc_params |>
   mutate(summary_data = pmap(
-    list(t_start, t_end, b_start, b_end, exclude_less_than, look_both, min_trial),
-    \(t_s, t_e, b_s, b_e, e, l, m) prep_bc(d_aoi, trial_flags, t_s, t_e, b_s, b_e, e, l, m) |> cdi_summarize()
+    list(t_start, t_end, b_start, b_end, exclude_less_than, look_at_start, min_trial, min_frac),
+    \(t_s, t_e, b_s, b_e, e, las, m, mf) prep_bc(d_aoi, trial_flags, t_s, t_e, b_s, b_e, e, las, m, mf) |> cdi_summarize()
   )) |>
   mutate(cdi = map(summary_data, calc_cdi)) |>
   select(-summary_data) |>
@@ -196,8 +197,8 @@ saveRDS(bc_cdi_summarized, "../cached_intermediates/8_bc_cdi.rds")
 
 bc_boot_test_retest <- bc_params |>
   mutate(corr = pmap(
-    list(t_start, t_end, b_start, b_end, exclude_less_than, look_both, min_trial),
-    \(t_s, t_e, b_s, b_e, e, l, m) prep_bc(pairs_sim, trial_flags, t_s, t_e, b_s, b_e, e, l, m) |> do_test_retest()
+    list(t_start, t_end, b_start, b_end, exclude_less_than, look_at_start, min_trial, min_frac),
+    \(t_s, t_e, b_s, b_e, e, las, m, mf) prep_bc(pairs_sim, trial_flags, t_s, t_e, b_s, b_e, e, las, m, mf) |> do_test_retest()
   )) |>
   unnest(corr)
 

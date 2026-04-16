@@ -150,8 +150,10 @@ make_model_plot <- function(df, x, col = NULL, facet = NULL, fix_function, lab, 
   facet_quo <- rlang::enquo(facet)
   col_quo <- rlang::enquo(col)
 
-  p <- df |>
-    {{ fix_function }}() |>
+  d <- df |>
+    {{ fix_function }}()
+
+  p <- d |>
     ggplot(aes(x = {{ x }}, col = {{ col }}, y = estimate, ymin = conf.low, ymax = conf.high)) +
     geom_pointrange(position = position_dodge2(width = dodge)) +
     coord_flip() +
@@ -165,7 +167,13 @@ make_model_plot <- function(df, x, col = NULL, facet = NULL, fix_function, lab, 
   }
 
   if (!rlang::quo_is_null(col_quo)) {
-    v <- rlang::eval_tidy(rlang::expr(`$`(!!sym("df"), !!col_quo)), env = parent.frame())
+    ex <- rlang::get_expr(col_quo)
+    col_name <- if (rlang::is_formula(ex)) {
+      rlang::as_name(rlang::f_rhs(ex))
+    } else {
+      rlang::as_name(ex)
+    }
+    v <- d[[col_name]]
 
     if (is.factor(v) || is.character(v) || is.logical(v)) {
       p <- p + scale_color_solarized()
@@ -174,7 +182,6 @@ make_model_plot <- function(df, x, col = NULL, facet = NULL, fix_function, lab, 
     } else {
       stop("Unsupported color column type")
     }
-    p <- p + scale_color_viridis()
   }
   p
 }

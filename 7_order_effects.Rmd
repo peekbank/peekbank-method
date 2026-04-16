@@ -43,8 +43,8 @@ library(broom.mixed)
 
 ```{r, eval=T}
 # set up dvs
-window_0_400 <- d_aoi |>
-  filter(t_norm >= 0, t_norm <= 400) |>
+window_0_600 <- d_aoi |>
+  filter(t_norm >= 0, t_norm <= 600) |>
   group_by(trial_order, trial_id, administration_id, dataset_name, target_id, target_label, distractor_id, distractor_label) |>
   summarize(
     correct_late = mean(correct, na.rm = T),
@@ -56,10 +56,10 @@ window_0_400 <- d_aoi |>
   ungroup() |>
   select(dataset_name, administration_id, trial_id, correct_late)
 
-window_500_0 <- d_aoi |>
+window_2000_0 <- d_aoi |>
   group_by(trial_id, trial_order, administration_id, age, dataset_name, target_id, target_label, distractor_id, distractor_label) |>
-  filter(min(t_norm) <= -500) |>
-  filter(t_norm >= -500, t_norm < 0) |>
+  filter(min(t_norm) <= -2000) |>
+  filter(t_norm >= -2000, t_norm < 0) |>
   group_by(trial_id, trial_order, administration_id, dataset_name, target_id, target_label, distractor_id, distractor_label) |>
   summarize(
     correct_early = mean(correct, na.rm = T),
@@ -73,19 +73,19 @@ window_500_0 <- d_aoi |>
 
 rts <- readRDS(here("cached_intermediates", "3_rts.rds")) |>
   filter(shift_type == "D-T") |>
-  filter(window == 400, time_0, time_end, frac == 1) |>
+  filter(min_rt == 400, time_0, time_end, frac == 1) |>
   mutate(log_rt = log(rt)) |>
   ungroup() |>
   select(dataset_name, administration_id, trial_id, log_rt)
 
 accuracy <- d_aoi |>
-  filter(t_norm >= 400, t_norm <= 3000) |>
+  filter(t_norm >= 600, t_norm <= 4000) |>
   group_by(dataset_name, trial_id, administration_id) |>
   summarize(accuracy = mean(correct, na.rm = T)) |>
   filter(!is.na(accuracy))
 
-dvs <- window_0_400 |>
-  full_join(window_500_0) |>
+dvs <- window_0_600 |>
+  full_join(window_2000_0) |>
   full_join(rts) |>
   full_join(accuracy) |>
   mutate(has_rt = ifelse(is.na(log_rt), 0, 1))
