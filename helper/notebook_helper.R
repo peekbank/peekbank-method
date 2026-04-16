@@ -126,7 +126,7 @@ set_of_lollis <- function(icc, cdi, trt, include_func, is_rt = F) {
       summarize(n_admins = n_distinct(pair_number))
   )
 
-  g <- ggplotGrob(a + theme(legend.position = "bottom"))
+  g <- ggplotGrob(a + theme(legend.position = "bottom", legend.title = element_blank()))
   leg <- g$grobs[[which(g$layout$name == "guide-box-bottom")]]
 
   # plot_grid(plot_grid(a, d), plot_grid(b, c), leg, nrow = 3, rel_heights = c(1, 1, .1))
@@ -137,7 +137,7 @@ do_model <- function(df, make_baseline, weight_df, form) {
   data <- df |>
     filter(!is.na(est)) |>
     left_join(weight_df) |>
-    mutate(across(!est & !n_admins, as.factor)) |>
+    mutate(across(-c(est, n_admins), as.factor)) |>
     {{ make_baseline }}()
 
   mod <- lmer(str_c("est ~", form, "+ (1 | dataset_name)"), data = data, weights = n_admins)
@@ -186,7 +186,7 @@ make_model_plot <- function(df, x, col = NULL, facet = NULL, fix_function, lab, 
   p
 }
 
-make_model_grid_plot <- function(icc, cdi, trt, make_baseline, form, x, col = NULL, facet = NULL, fix_function, breaks = c(-.1, 0, .1), limits = c(-.2, .2), dodge = 0) {
+make_model_grid_plot <- function(icc, cdi, trt, make_baseline, form, x, col = NULL, facet = NULL, fix_function, breaks = c(-.1, 0, .1), limits = c(-.2, .2), dodge = 0, legend_height = .1) {
   icc_plot <- do_model(
     icc |> filter_icc("est"), {{ make_baseline }},
     dataset_summ |> group_by(dataset_name) |> summarize(n_admins = n_distinct(administration_id)),
@@ -201,7 +201,7 @@ make_model_grid_plot <- function(icc, cdi, trt, make_baseline, form, x, col = NU
     form
   ) |> make_model_plot({{ x }},
     col = {{ col }}, facet = {{ facet }}, fix_function = {{ fix_function }},
-    lab = "CDI Comp", breaks = breaks, limits = limits, dodge = dodge
+    lab = "Corr. w/ CDI Comprehension", breaks = breaks, limits = limits, dodge = dodge
   )
   prod_plot <- do_model(
     cdi |> filter(!is.na(prod_est)) |> rename(est = prod_est), {{ make_baseline }},
@@ -209,7 +209,7 @@ make_model_grid_plot <- function(icc, cdi, trt, make_baseline, form, x, col = NU
     form
   ) |> make_model_plot({{ x }},
     col = {{ col }}, facet = {{ facet }}, fix_function = {{ fix_function }},
-    lab = "CDI Prod", breaks = breaks, limits = limits, dodge = dodge
+    lab = "Corr. w/ CDI Production", breaks = breaks, limits = limits, dodge = dodge
   )
   trt_plot <- do_model(
     trt |> filter(!is.na(est)), {{ make_baseline }},
@@ -218,13 +218,13 @@ make_model_grid_plot <- function(icc, cdi, trt, make_baseline, form, x, col = NU
     form
   ) |> make_model_plot({{ x }},
     col = {{ col }}, facet = {{ facet }}, fix_function = {{ fix_function }},
-    lab = "TRT", breaks = breaks, limits = limits, dodge = dodge
+    lab = "Test-retest reliability", breaks = breaks, limits = limits, dodge = dodge
   )
 
-  g <- ggplotGrob(icc_plot + theme(legend.position = "bottom"))
+  g <- ggplotGrob(icc_plot + theme(legend.position = "bottom", legend.title = element_blank()))
   leg <- g$grobs[[which(g$layout$name == "guide-box-bottom")]]
 
-  plot_grid(plot_grid(icc_plot, trt_plot), plot_grid(comp_plot, prod_plot), leg, nrow = 3, rel_heights = c(1, 1, .1))
+  plot_grid(plot_grid(icc_plot, trt_plot), plot_grid(comp_plot, prod_plot), leg, nrow = 3, rel_heights = c(1, 1, legend_height))
 }
 
 
@@ -284,8 +284,8 @@ make_model_plot_age <- function(df, x, col = NULL, facet = NULL, fix_function, l
   facet_quo <- rlang::enquo(facet)
   p <- df |>
     {{ fix_function }}() |>
-    mutate(age_bin = factor(age_bin, levels = c("<18", "18-24", "24-36", ">=36"))) |>
-    ggplot(aes(x = {{ x }}, col = age_bin, y = estimate, ymin = conf.low, ymax = conf.high)) +
+    mutate(Ages = factor(age_bin, levels = c("<18", "18-24", "24-36", ">=36"))) |>
+    ggplot(aes(x = {{ x }}, col = Ages, y = estimate, ymin = conf.low, ymax = conf.high)) +
     geom_pointrange(position = position_dodge2(width = dodge)) +
     coord_flip() +
     labs(y = lab) +
@@ -318,7 +318,7 @@ make_model_grid_plot_age <- function(icc, cdi, make_baseline, form, x, facet = N
     form
   ) |> make_model_plot_age({{ x }},
     facet = {{ facet }}, fix_function = {{ fix_function }},
-    lab = "CDI Comp", breaks = breaks, limits = limits, dodge = dodge
+    lab = "Corr. w/ CDI Comprehension", breaks = breaks, limits = limits, dodge = dodge
   )
   prod_plot <- do_model_age(
     cdi |> filter(!is.na(prod_est)) |> rename(est = prod_est), {{ make_baseline }},
@@ -326,7 +326,7 @@ make_model_grid_plot_age <- function(icc, cdi, make_baseline, form, x, facet = N
     form
   ) |> make_model_plot_age({{ x }},
     facet = {{ facet }}, fix_function = {{ fix_function }},
-    lab = "CDI Prod", breaks = breaks, limits = limits, dodge = dodge
+    lab = "Corr. w/ CDI Production", breaks = breaks, limits = limits, dodge = dodge
   )
 
   g <- ggplotGrob(icc_plot + theme(legend.position = "right"))
