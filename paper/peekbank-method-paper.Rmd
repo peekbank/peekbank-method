@@ -899,16 +899,16 @@ rg <- ref_grid(mod, at = as.list(new_dat))
 summary(rg, infer = c(TRUE, TRUE), level = 0.95) |> tidy()
 }
 
-do_downsample_plot <- function(df){
+do_downsample_plot <- function(df, lab){
   df |> mutate(sample_down=as.numeric(sample_down), start_point=as.numeric(start_point)) |> 
     ggplot(aes(x = sample_down, col = as.factor(start_point), y = estimate, ymin=conf.low, ymax=conf.high))+
-    geom_point()+geom_line()+coord_flip()+theme(legend.position="none")
+    geom_point()+geom_line()+theme(legend.position="none")+scale_color_viridis(discrete=T)+labs(x="Sampled Trials", y=lab, color="Minimum trials to sample from")
 }
 
-icc_plot <- do_downsample_model(downsample_icc_acc, has_at_least, "start_point * sample_down") |> do_downsample_plot()
-comp_plot <- do_downsample_model(downsample_cdi_acc |> mutate(est=comp_est), has_at_least_comp, "start_point * sample_down") |> do_downsample_plot()
-prod_plot <- do_downsample_model(downsample_cdi_acc |> mutate(est=prod_est), has_at_least_prod, "start_point * sample_down") |> do_downsample_plot()
-trt_plot <- do_downsample_model(downsample_trt_acc, has_at_least_pairs, "start_point * sample_down") |> do_downsample_plot()
+icc_plot <- do_downsample_model(downsample_icc_acc, has_at_least, "start_point * sample_down") |> do_downsample_plot("ICC")+coord_cartesian(ylim=c(0,.5))
+comp_plot <- do_downsample_model(downsample_cdi_acc |> mutate(est=comp_est), has_at_least_comp, "start_point * sample_down") |> do_downsample_plot("CDI Comp")+coord_cartesian(ylim=c(0,.5))
+prod_plot <- do_downsample_model(downsample_cdi_acc |> mutate(est=prod_est), has_at_least_prod, "start_point * sample_down") |> do_downsample_plot("CDI Prod")+coord_cartesian(ylim=c(0,.5))
+trt_plot <- do_downsample_model(downsample_trt_acc, has_at_least_pairs, "start_point * sample_down") |> do_downsample_plot("Test Retest")+coord_cartesian(ylim=c(0,.5))
 
 g <- ggplotGrob(icc_plot + theme(legend.position = "bottom"))
   leg <- g$grobs[[which(g$layout$name == "guide-box-bottom")]]
@@ -923,18 +923,18 @@ plot_grid(plot_grid(icc_plot, trt_plot, comp_plot, prod_plot, nrow=1), leg, nrow
 rt_trials <- readRDS(here("cached_intermediates", "3_rts.rds")) |> filter(min_rt==400, time_0==T, time_end==T, frac==1) |> filter(!is.na(rt)) |> 
   group_by(dataset_name, administration_id) |> summarize(rt_trials=n()) |> left_join(dataset_summ |> select(administration_id, dataset_name, prod, comp, age, subject_id))
 
-has_at_least_rt <- rt_trials |>  expand_grid(start_point=c(3, 5, 7, 10, 15)) |> 
+has_at_least_rt <- rt_trials |>  expand_grid(start_point=c(3, 5, 7, 10,15)) |> 
   group_by(dataset_name, start_point) |> summarize(n_admins=sum(rt_trials>=start_point))
 
 has_at_least_comp_rt <-rt_trials |> group_by(administration_id, dataset_name) |> filter(!is.na(comp)) |> 
-  expand_grid(start_point=c(3, 5, 7, 10, 15)) |> 
+  expand_grid(start_point=c(3, 5, 7, 10,15)) |> 
   group_by(dataset_name, start_point) |> summarize(n_admins=sum(rt_trials>=start_point))
 
 has_at_least_prod_rt <-rt_trials |> group_by(administration_id, dataset_name) |> filter(!is.na(prod)) |> 
-  expand_grid(start_point=c(3, 5, 7, 10, 15)) |> 
+  expand_grid(start_point=c(3, 5, 7, 10,15)) |> 
   group_by(dataset_name, start_point) |> summarize(n_admins=sum(rt_trials>=start_point))
 
-has_at_least_pairs_rt <-rt_trials |> expand_grid(start_point=c(3, 5, 7, 10, 15)) |> filter(rt_trials>=start_point) |> group_by(start_point) |> nest() |> mutate(relevant_admins=map(data, \(d) {make_test_retest_pairs(d) |> group_by(dataset_name) |> summarize(n_admins=n())})) |> select(-data) |> unnest(relevant_admins)
+has_at_least_pairs_rt <-rt_trials |> expand_grid(start_point=c(3, 5, 7, 10,15)) |> filter(rt_trials>=start_point) |> group_by(start_point) |> nest() |> mutate(relevant_admins=map(data, \(d) {make_test_retest_pairs(d) |> group_by(dataset_name) |> summarize(n_admins=n())})) |> select(-data) |> unnest(relevant_admins)
   
 
 
@@ -942,10 +942,10 @@ downsample_icc_rt <- readRDS(here("cached_intermediates/5_rt_icc_boot.rds"))
 downsample_cdi_rt <- readRDS(here("cached_intermediates/5_rt_cdi_boot.rds")) 
 downsample_trt_rt <- readRDS(here("cached_intermediates/5_rt_test_retest_boot.rds"))
 
-icc_plot <- do_downsample_model(downsample_icc_rt, has_at_least_rt, "start_point * sample_down") |> do_downsample_plot()
-comp_plot <- do_downsample_model(downsample_cdi_rt |> mutate(est=comp_est), has_at_least_comp_rt, "start_point * sample_down") |> do_downsample_plot()
-prod_plot <- do_downsample_model(downsample_cdi_rt |> mutate(est=prod_est), has_at_least_prod_rt, "start_point * sample_down") |> do_downsample_plot()
-trt_plot <- do_downsample_model(downsample_trt_rt, has_at_least_pairs_rt, "start_point * sample_down") |> do_downsample_plot()
+icc_plot <- do_downsample_model(downsample_icc_rt, has_at_least_rt, "start_point * sample_down") |> do_downsample_plot("ICC")
+comp_plot <- do_downsample_model(downsample_cdi_rt |> mutate(est=comp_est), has_at_least_comp_rt, "start_point * sample_down") |> do_downsample_plot("CDI Comp")
+prod_plot <- do_downsample_model(downsample_cdi_rt |> mutate(est=prod_est), has_at_least_prod_rt, "start_point * sample_down") |> do_downsample_plot("CDI Prod")
+trt_plot <- do_downsample_model(downsample_trt_rt, has_at_least_pairs_rt, "start_point * sample_down") |> do_downsample_plot("Test retest")
 
 g <- ggplotGrob(icc_plot + theme(legend.position = "bottom"))
   leg <- g$grobs[[which(g$layout$name == "guide-box-bottom")]]
