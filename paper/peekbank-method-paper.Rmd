@@ -13,38 +13,42 @@ author:
     affiliation: a
   - name: George Kachergis
     affiliation: a
-  - name: Jess Mankewitz
+  - name: Federico Giovannetti
     affiliation: c
-  - name: Stephan Meylan
+  - name: Jess Mankewitz
     affiliation: d
+  - name: Stephan Meylan
+    affiliation: e
   - name: Ben Prystawski
     affiliation: a
   - name: Robert Z. Sparks
     affiliation: a
   - name: Adrian Steffan
-    affiliation: e
+    affiliation: f
   - name: Alvin Wei Ming Tan
     affiliation: a
   - name: Tian Linger Xu
-    affiliation: f
+    affiliation: g
   - name: Michael C. Frank
     affiliation: a
   - name: Martin Zettersten
-    affiliation: g
+    affiliation: h
 affiliation:
   - id: a
     institution: Department of Psychology, Stanford University, Stanford, CA, USA
   - id: b
     institution: Department of Linguistics, Stanford University, Stanford, CA, USA
   - id: c
-    institution: Department of Psychology, University of Wisconsin, Madison, WI, USA
+    institution: Unidad de Neurobiología Aplicada (UNA, CEMIC-CONICET), Buenos Aires, Argentina
   - id: d
-    institution: Department of Linguistics, University of California, Berkeley, CA, USA
+    institution: Department of Psychology, University of Wisconsin, Madison, WI, USA
   - id: e
-    institution: Department of Psychology, Ludwig Maximilian University, Munich, Germany
+    institution: Department of Linguistics, University of California, Berkeley, CA, USA
   - id: f
-    institution: Department of Psychology, Indiana University, Bloomington, IA, USA
+    institution: Department of Psychology, Ludwig Maximilian University, Munich, Germany
   - id: g
+    institution: Department of Psychology, Indiana University, Bloomington, IA, USA
+  - id: h
     institution: Department of Cognitive Science, University of California, San Diego, CA, USA
 
 authornote: |
