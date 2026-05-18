@@ -185,9 +185,9 @@ Peekbank is an aggregation of datasets from a number of LWL studies. This work i
 
 ## Inclusion criteria
 
-We focus our exploration of data processing choices on a set of items where we have the clearest expectations around what we are trying to measure. While LWL is also used to study a variety of experimental effects, such as the effects of noise, novel word learning, and expectations of mutual exclusivity, these items may index different constructs. 
-We limit our analyses to "vanilla" trials, where both the target and distractor images are of familiar objects. For the auditory stimulus, the target word must be a real word that occurs once and is the first and only source of information about the target. The carrier phrase must be a well-formed, grammatical phrase, without any switches in language, and without any intentionally added noise or audio filtering. 
-Vanilla trials could come from studies with only vanilla trials, from the fillers or baselines of experimental studies, or even from studies where the experimental conditions met the vanilla criteria. (See SI: Criteria for Incluson for more detailed criteria for vanillaness used to handle borderline situations.)
+We focus our exploration of data processing choices on a set of items where we have the clearest expectations around what we are trying to measure. While LWL is also used to study a variety of experimental effects, such as the effects of noise, mispronunciations, novel word learning, and expectations of mutual exclusivity, these items may index different constructs. 
+We limit our analyses to what we term "vanilla" trials: trials that represent standard LWL trials testing familiar words without additional experimental manipulations. For a trial to be considered "vanilla", both the target and the distractor images must be of familiar objects. For the auditory stimulus, the target word must be a real word that occurs once and is the first and only source of information about the target. The carrier phrase must be a well-formed, grammatical phrase, without any switches in language, and without any intentionally added noise or audio filtering. 
+Vanilla trials could come from studies with only vanilla trials, from the fillers or baselines of experimental studies, or even from studies where the experimental conditions met the vanilla criteria. (See SI: Criteria for Inclusion for more detailed criteria used to handle borderline situations.)
 While still heterogenous, these "vanilla" trials have a shared interpretation for how looking behavior is expected to relate to underlying language knowledge and processing. We call the start of the target word in the audio as the stimulus onset and label this as the zero point for timing. 
 We only include trials from children 60 months or younger (see Figure S1 for age distributions). We do not place restrictions on the language of the trials or children's language background. 
 
@@ -295,7 +295,7 @@ Another measure of reliability is test-retest reliability which measures the cor
 In addition to having reliable measures, we also care that our measurements correspond to the construct of interest (vocabulary and language processing speed). For validity, we correlate with CDI production measures and CDI comprehension measures, from the datasets where we have CDI administrations. We use both short and long form CDIs, using the fraction of items a child was marked as knowing as our measure. 
 In general, correlating with production and comprehension in the expected directions is desirable, although we also may expect that LWL measures are picking up on slightly different aspects of language learning than is represented in CDI. 
 
-All our code etc is available at TODO somewhere. 
+All the code and data to reproduce the analyses is available at https://github.com/peekbank/peekbank-method [TODO: anonymize for review if needed].
 
 # Data processing recommendations
 

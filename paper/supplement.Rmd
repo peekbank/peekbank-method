@@ -104,25 +104,25 @@ readRDS(here("cached_intermediates/supplement_timecourse.rds")) |>
 # Methods details
 
 ## Criteria for inclusion 
-Vanillaness is coded in the peekbank dataset, but as part of the 2026.1 release, multiple coders went through the conditions to verify. Cases where there was potential ambiguity were discussed, to ensure that the criteria used was consistent and explainable. The vanillaness criteria used was as followed: 
+The "vanilla" status of a trial is coded in the Peekbank dataset. As part of the 2026.1 release, we implemented an updated set of "vanilla" criteria. Multiple coders systematically inspected the coding of each dataset to identify vanilla trials and ensured that the application of the vanilla criteria was consistent across all datasets. Cases where there was potential ambiguity were discussed and documented in the ReadME associated with each dataset, to ensure that the criteria used were consistent and explainable. The criteria used were as follows: 
 
 Auditory Stimulus:
 
 * familiar words/ target word is a real noun (no part words)
-* target word is first point of disambiguation
-* no duplicated target words
+* target word is the first point of disambiguation
+* no duplicated target words (i.e., repeating the target word multiple times was deemed non-vanilla)
 * well-formed/ grammatical carrier phrase (no restrictions on carrier vocabulary -- "examine the ..." ok; target word NP can appear anywhere: sentence-final, sentence-initial, medial)
-* no informative stuff prenominally or postnominally (informative verb or adjective; uninformative verb or adjective ok)
-* no nonsense words anywhere (including carrier phrase)
-* no language/ speaker/ accent/ etc. switching within trial
+* no informative structure prenominally or postnominally (informative verb or adjective; an uninformative verb or adjective is OK)
+* no nonsense words anywhere (including the carrier phrase)
+* no language/ speaker/ accent switching within the trial
 * no intentional background noise or audio filtering
 * no additional restrictions on noun difficulty 
 
 Visual stimuli:
 
-* both target and distractor are familiar objects (i.e., each could be valid familiar targets; non-prototypical objects are OK, but unnatural/ artificially modified exemplars are not)
+* both target and distractor images are familiar objects (i.e., each could be valid familiar targets; non-prototypical objects are OK, but unnatural/ artificially modified exemplars are not)
 * no novel objects are visible
-* target is the focal object of its image (dog on grass for dog is okay, apple on plate is okay,  apple and orange for orange is not)
+* The target referent is the focal object of its image (dog on grass for dog is OK; apple on plate is OK; apple and orange for orange is not, because both the apple and orange are competing for focal attention).
 
 ## Details about ICC
 
