@@ -994,14 +994,11 @@ For test-retest reliability, having at least 5 RT measures per administration is
 
 The validity and test-retest reliability of accuracy and RT increases as the number of trials increases; with large initial gains. When validity matters most, we recommend aims for 10 trials per child per condition, for expected yields of 10 trials for accuracy and 3 for RT. For individual differences when test-retest matters, as many trials as is feasible is recommended. As high as we can simulate based on the available data, there are still gains for more trials. 
 
-For this analysis, we treat separate sessions separately in order to calculate test-retest reliability, but as recommended by @fernald2008, one way of increasing trial count especially for individual-difference studies is to have children return for another session and then treat the sessions together. 
-
-
-
+For this analysis, we treat distinct sessions separately in order to calculate test-retest reliability, but as recommended by @fernald2008, one way of increasing trial count especially for individual-difference studies is to have children return for another session and then treat the sessions together [see e.g., @weaver2024]. 
 
 ## Recommendation 6: Match target and distractor images based on animacy.
 
-As mentioned in Recommendation 2, one concern with LWL trial design is that children may have preferences for which image to look at separate from the auditory stimuli, and some of their looking behavior may be independent of the auditory stimulus. One approach is to decrease the preference discrepancy between a pair of images, so that overall, in the absence of auditory cues, children prefer to look at both images equally. While there are a number of factors that could play into children's image preferences [citations], one factor that stood out in the data was animacy. Children have a strong preference for looking at animals and humans (and parts of humans). When trials have one animate and one inanimate, children look more at the animate in the pre-stimulus period (Figure \ref{fig:animacy}) and are slower to respond when the inanimate is named. In contrast, for trials with target and distractor matched on animacy, children's early looking patterns are not sensitive to animacy. This difference is particularly relevant for the younger children, whose stimulus-contingent looking behavior is weakest, so more of the looking behavior is driven by animacy (Figure S21). 
+As mentioned in Recommendation 2, one concern with LWL trial design is that children may have preferences for which image to look at separate from the auditory stimuli, and some of their looking behavior may be independent of the auditory stimulus. One approach is to decrease the preference discrepancy between a pair of images, so that overall, in the absence of auditory cues, children prefer to look at both images approximately equally. While there are a number of factors that could play into children's image preferences [@fernald2008;@pomper2019; @nothdurft2000salience], one factor that stood out in the data was animacy. Children have a strong preference for looking at animals and humans (and parts of humans). When trials have one animate and one inanimate, children look more at the animate in the pre-stimulus period (Figure \ref{fig:animacy}) and are slower to respond when the inanimate is named. In contrast, for trials with target and distractor matched on animacy, children's early looking patterns are not sensitive to animacy. This difference is particularly relevant for the younger children, whose stimulus-contingent looking behavior is weakest, so more of the looking behavior is driven by animacy; however, effects of animacy were apparent in children up to the age of three (Figure S21). 
 
 
 ```{r animacy, fig.cap="Looking time profiles for different combinations of target and distractor animacy.", fig.height=2.5}
@@ -1024,9 +1021,8 @@ readRDS(here("cached_intermediates/6_animacy.rds")) |>
 ```
 
 
-Another potential concern regarding stimulus preferences is that repeating the same pairs of images may cause children to prefer to look at the image that was previously the target [citation -- does anyone admit to worrying about this?]. We investigated this in a series of models (reported in SI: Order Effects), and found that effects of repeating target labels (and target and distractor images) are likely quite small, with unclear directionality. Repeating the same target nouns and target images, such as in a counterbalanced design, is an acceptable practice. 
-
-Animacy is not the only factor affecting children's viewing behavior, but it is an easy to measure one that makes a big difference. Other item variability could be accounted for in the statistical or analytic approach [citation for some approaches]. 
+Another potential concern regarding stimulus preferences is that repeating the same pairs of images may cause children to prefer to look at the image that was previously the target [citation -- does anyone admit to worrying about this?]. We investigated this in a series of models (reported in SI: Order Effects), and found that effects of repeating target labels (and target and distractor images) are likely quite small, with unclear directionality. 
+In general, our data suggest that order effects stemming from repeated trials of the same target are unlikely to significantly bias word recognition estimates.
 
 # How much can this matter? 
 
@@ -1124,10 +1120,21 @@ Second, baseline correction, while an intuitive solution to imbalances in the sa
 Finally, we formulate recommendations for choosing reaction time cutoffs (around 400ms tends to maximize reliability) and find that implementing trial- and child-level exclusions based on the amount of data contributed tend to have minimal consequences.
 Overall, choices about windows of analysis, approaches to exclusions, and how scores are computed can all have meaningful impacts on measure reliability.
 
-[recommendations around design - hype the animacy finding]
+A more general take-home from our data processing analyses is that intuitive data-based practices, e.g., looking at patterns in grand-average time courses, may not always be a trustworthy guide to child- or item-level psychometric properties.
+Past recommendations for time window selection have sometimes been motivated by inspecting consistent patterns of looking in grand-averages, and, e.g., noting when looking begins to decline across participants.
+These heuristics --- while based in important patterns in looking behavior --- may not always lead to optimal choices with respect to core measurement properties such as reliability.
+Wherever possible, we recommend that measurement choices be guided by direct estimates of psychometric properties in order to maximize the signal in our measures of infant behavior [@byers-heinlein2022].
 
-could mention a meta-point that looking only at grand-average time courses may not give the best intuitions about child or item level analyses? 
+Among our design-focused recommendations, the most striking result is the impact of animacy on infant looking behavior.
+When an image of an animate referent was paired with an image of an inanimate referent, infant looking was systematically biased towards the animate image.
+This has important consequences for estimating word recognition: accuracy for animate targets is substantially overestimated and accuracy for inanimate targets becomes substantially underestimated when animacy is not balanced in the target-distractor pairing.
+The results are especially dramatic for younger infants (under 18 months): looking for familiar inanimate targets can appear to be at chance when paired with an animate distractor.
+In other words, an improper balancing of saliency could make an infant appear to not know a word, even though they do.
+Once animacy is balanced in the design, animate and inanimate targets have highly similar recognition curves across all ages.
+These results emphasize the importance of balancing saliency in image pairings as much as possible in looking-while-listening designs.
+This is especially true given that many of the current analytic approaches to correcting for saliency imbalances *post-hoc* rely on difference-based measures (baseline correction; item-pair correction) which decrease reliability.
 
+ 
 ## Limitations & Generalizability 
 
 The scope of our recommendations is fundamentally limited by the characteristics of the Peekbank dataset.
