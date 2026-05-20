@@ -26,7 +26,7 @@ source(here("helper", "notebook_helper.R"))
 ```{r, eval=F}
 con <- connect_to_peekbank(db_version = "2026.1")
 all_aoi_timepoints <- get_aoi_timepoints(connection = con, rle=FALSE)
-saveRDS(all_aoi_timepoints, here("all_aoi.rds"))
+saveRDS(all_aoi_timepoints, here("cached_intermediates","all_aoi.rds"))
 ```
 
 
@@ -41,6 +41,16 @@ all_trials <- unpack_aux_data(collect(get_trials(connection = con)))
 all_datasets <- get_datasets(connection=con) %>% collect()
 ```
 
+```{r}
+#store some dataset facts
+peekbank_overall_properties <- tibble(
+  n_subjects = unique(all_subjects$subject_id) %>% length(),
+  n_datasets = unique(all_datasets$dataset_id) %>% length(),
+  n_trials = unique(all_trials$trial_id) %>% length(),
+)
+saveRDS(peekbank_overall_properties, here("cached_intermediates","peekbank_overall_properties.rds"))
+```
+
 Now do the joins. 
 
 Veronica notes that in the interest of being kind to RAM, some filters and selects have been moved up. 
@@ -53,7 +63,7 @@ Filter criteria:
 
 ```{r, eval=F}
 
-all_aoi_timepoints <- readRDS(here("all_aoi.rds"))
+all_aoi_timepoints <- readRDS(here("cached_intermediates","all_aoi.rds"))
 
 all_administrations <- all_administrations |> select(administration_id, age, dataset_id, subject_id, dataset_name) |> filter(age <= 60)
 

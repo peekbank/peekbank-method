@@ -179,8 +179,12 @@ The plan of the paper is as follows. We begin by overviewing the subset of the P
 
 # Methods: Dataset and approach
 
-Peekbank is an aggregation of datasets from a number of LWL studies. This work is based on Peekbank version 2026.1 (released February 2026) which has 134,929 trials from 3915 children and 44 datasets. 
-<!-- seems annoying to make these numbers reproducible -->
+```{r}
+peekbank_overall_properties <- readRDS(here("cached_intermediates/peekbank_overall_properties.rds"))
+```
+
+
+Peekbank is an aggregation of datasets from a number of LWL studies. This work is based on Peekbank version 2026.1 (released February 2026) which has `r peekbank_overall_properties$n_trials[1]` trials from `r peekbank_overall_properties$n_subjects[1]` children and `r peekbank_overall_properties$n_datasets[1]` datasets.
 
 
 ## Inclusion criteria
