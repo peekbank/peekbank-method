@@ -55,7 +55,7 @@ authornote: |
   TODO UPDATE AUTHOR LIST AND AFFILIATIONS
 
 abstract: |
-  TODO ABSTRACT 
+  Children's early word recognition is both an importnat phenomenon in its own right and a key index of early language more broadly. The looking-while-listening paradigm (LWL), in which eye-movements to the referent of a word are tracked to reveal online language comprehension, is a key paradigm for measuring word recognition in young children. Yet the interpretation and use of this paradigm has been hindered by variation in how LWL data are analyzed. Here we use data from Peekbank, a repository of LWL data from studies with almost 4000 children (6 months -- 5 years), to search for analytic and design decisions that maximize the reliability and validity of LWL measures. Based on these analyses, we recommend the use of long analytic windows for computing accuracy, and we do not find benefits for correcting for baseline preferences or excluding data from children or trials with low data. In our dataset, this combination of analytic choices increases reliability by approximately .20 and validity by .07. We also recommend that LWL paradigms be designed with a minimum of 10 target trials per child per condition and that experimentalists match their stimuli for animacy. We hope that these recommendations lead to improved and unified standards for the measurement of children's word recognition. 
   
 keywords          : "keywords"
 wordcount         : "X"
