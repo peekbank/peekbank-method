@@ -5,6 +5,7 @@ library(dplyr)
 library(purrr)
 library(tibble)
 library(stringr)
+# remotes::install_github("jmgirard/agreement")
 library(agreement)
 
 # Seed for random number generation

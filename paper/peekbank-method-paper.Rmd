@@ -1108,26 +1108,26 @@ For RT, differences are a lot smaller, do we want to include?
 
 # Discussion
 
-Measuring infant looking time is notoriously noisy, making decisions about measurement practices highly consequential for the conclusions we draw about infant language development.
-How can we maximize reliable, valid signal when measuring infant word recognition?
-In our analyses, we took a practical, data-driven approach to this question, using a large-scale dataset of infant looking-while-listening data to quantify the impact of different analysis choices on core measurement properties, leading to six core recommendations for data processing and experimental design.
+<!-- Measuring infant looking time is notoriously noisy, making decisions about measurement practices highly consequential for the conclusions we draw about infant language development. -->
+Children's early word recognition is an important construct for the study of language learning, but the use of the LWL paradigm is hindered by uncertainty about data analysis. How can we maximize reliable, valid signal in the analysis of data from this paradigm?
+We took a practical, data-driven approach to this question, using a large-scale dataset of infant looking-while-listening data to quantify the impact of different analysis choices on core measurement properties, leading to six core recommendations for data processing and experimental design.
 
 For data processing, our strongest take-homes from these analyses concern window choice and baseline correction.
-First, longer time windows (e.g., windows that end around 3000 ms post target word onset) maximize the reliability of accuracy measures (as measured by ICC), with no deleterious consequences for validity.
-While average accuracy tends to peak earlier in the timecourse of a trial (typically 1000-2000 ms post target word onset), leading shorter windows to be preferred in the literature, these findings suggest that later looking windows still capture signal that boosts the consistency of word recognition measures.
-Short accuracy windows might therefore be leaving reliable signal on the table.
-Second, baseline correction, while an intuitive solution to imbalances in the saliency of images, causes large decrements in reliability; we therefore generally recommend avoiding this practice, especially when maximizing reliability is a high priority (e.g., when investigating individual differences).
+First, longer time windows (e.g., windows that end around 3000 ms post target word onset) maximize the reliability of accuracy measures, with no negative consequences for validity.
+While average accuracy tends to peak earlier in the timecourse of a trial (typically 1000-2000 ms post target word onset), leading shorter windows to be preferred in the literature, these findings suggest that later looking windows still capture signal that boosts the consistency of word recognition measures. Second, baseline correction, while an intuitive solution to imbalances in the saliency of images, causes large decrements in reliability; we therefore generally recommend avoiding this practice, especially when maximizing reliability is a high priority (e.g., when investigating individual differences).
 Finally, we formulate recommendations for choosing reaction time cutoffs (around 400ms tends to maximize reliability) and find that implementing trial- and child-level exclusions based on the amount of data contributed tend to have minimal consequences.
 Overall, choices about windows of analysis, approaches to exclusions, and how scores are computed can all have meaningful impacts on measure reliability.
+
+One fascinating question that emerges from our analysis concerns the purity of the construct that LWL measures. In our analysis, long accuracy windows increased reliability more than they did validity. One speculative reason for this difference is that signal from later in the timecourse might not be as tightly coupled to language per se, and hence might instead reflect more general features of attention. Future research could use this difference as a starting point to further parcellate the attentional and linguistic contributors to language-driven eye-movements.  
 
 A more general take-home from our data processing analyses is that intuitive data-based practices, e.g., looking at patterns in grand-average time courses, may not always be a trustworthy guide to child- or item-level psychometric properties.
 Past recommendations for time window selection have sometimes been motivated by inspecting consistent patterns of looking in grand-averages, and, e.g., noting when looking begins to decline across participants.
 These heuristics --- while based in important patterns in looking behavior --- may not always lead to optimal choices with respect to core measurement properties such as reliability.
-Wherever possible, we recommend that measurement choices be guided by direct estimates of psychometric properties in order to maximize the signal in our measures of infant behavior [@byers-heinlein2022].
+Wherever possible, we recommend that measurement choices be guided by direct estimates of psychometric properties in order to maximize the signal in our measures of infant behavior [@byers-heinlein2022;@sander-montat2025;@weaver2026b].
 
 Among our design-focused recommendations, the most striking result is the impact of animacy on infant looking behavior.
 When an image of an animate referent was paired with an image of an inanimate referent, infant looking was systematically biased towards the animate image.
-This has important consequences for estimating word recognition: accuracy for animate targets is substantially overestimated and accuracy for inanimate targets becomes substantially underestimated when animacy is not balanced in the target-distractor pairing.
+This finding has important consequences for estimating word recognition: accuracy for animate targets is substantially overestimated and accuracy for inanimate targets becomes substantially underestimated when animacy is not balanced in the target-distractor pairing.
 The results are especially dramatic for younger infants (under 18 months): looking for familiar inanimate targets can appear to be at chance when paired with an animate distractor.
 In other words, an improper balancing of saliency could make an infant appear to not know a word, even though they do.
 Once animacy is balanced in the design, animate and inanimate targets have highly similar recognition curves across all ages.
@@ -1151,17 +1151,18 @@ However, by focusing on vanilla trials only, we also limit our conclusions to me
 While we summarize the choices that typically maximize reliability, we note that we often see a range of choices with similar outcomes in our analyses. 
 For example, in determining the best time window for computing accuracy, a choice of ending a time window at 2800 vs. 3000 or 3000 ms vs. 3200 ms leads to very similar outcomes.
 There is no one choice of time window that we can definitively infer as the "best" for maximizing reliability --- instead, we see a pattern of graded improvements in reliability that follow a predictable pattern (longer time windows tend to increase reliability holding the onset of the accuracy window constant).
-While we sometimes articulate which choices lead to the highest reliability descriptively (e.g., time windows from 300-4000ms [check once finalized] leads to the highest reliability values for accuracy), this is not intended as the definitive window choice.
-We offer these windows as data-driven default choices (especially in cases where the decision would otherwise be ad-hoc), but from our perspective, the important takeaways concern the factors that tend to have a consistent and generalizable impact on reliability (e.g., amount of data per trial; difference scores vs. raw scores).
+While we sometimes articulate which choices lead to the highest reliability descriptively, these are at best approximations.
+We offer these windows as data-driven default choices (especially in cases where the decision would otherwise be ad-hoc).
+<!-- ; from our perspective, the important takeaways concern the factors that tend to have a consistent and generalizable impact on reliability (e.g., amount of data per trial; difference scores vs. raw scores). -->
 
-We focused our explorations on the questions that are specific to LWL and where data-driven results based on a combined dataset can be most helpful. Other guidance both on LWL specific design considerations and options for coding LWL data are discussed elsewhere ([fernald book chapter, e.g.]). More general advice on experiment design and analysis, especially of developemental datasets, is discussed elsewhere as well  [TODO].
+<!-- We focused our explorations on the questions that are specific to LWL and where data-driven results based on a combined dataset can be most helpful. Other guidance both on LWL specific design considerations and options for coding LWL data are discussed elsewhere ([fernald book chapter, e.g.]). More general advice on experiment design and analysis, especially of developemental datasets, is discussed elsewhere as well  [TODO]. -->
 
 ## Conclusions
 
 Experimental design and data processing decisions can have profound impacts on the properties of infant measures.
 Our findings show how compiling large-scale datasets such as Peekbank can help us estimate the impact of a wide variety of experimenter decisions, generalizable across a wide range of ages, stimuli, and experimental contexts.
-Our findings are summarized in a short list of recommendations that should help researchers aiming to maximize the reliability of infant word recognition measure: [summarize].
-Establishing consistent practices and principles for reliable and valid measurement of infant looking sets the stage for asking central questions about how language skill develops.
+<!-- Our findings are summarized in a short list of recommendations that should help researchers aiming to maximize the reliability of infant word recognition measure: [summarize]. -->
+More generally, establishing consistent practices and principles for reliable and valid measurement of infant looking sets the stage for asking central questions about how language skill develops.
 
 \newpage
 
