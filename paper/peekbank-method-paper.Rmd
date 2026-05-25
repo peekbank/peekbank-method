@@ -669,14 +669,11 @@ Overall, RT measures complement accuracy measures and capture substantial signal
 
 ## Recommendation 4: Trial-level and child-level exclusions for low amounts of data are generally unnecessary.  
 
+A common issue with developmental research is when to exclude trials for behavioral patterns suggesting that children were not engaged in the task and when to exclude children for contributing too few valid trials. For LWL studies, trial-level exclusions tend to be either for contributing too few time points (e.g., due to tracker loss or looking away from the screen during the trial). Papers often use a combination of heuristic exclusions for inattention prior to coding looking behavior [@Adams2018] and criterion-based exclusions trials based on the proportion of looking to the target and distractor during the trial. Cutoffs vary, with different experiments requiring minimum looking at the images at least 20%, 50% or 66% of the time [@borovsky2019; @weaver2024; @pomper2019]. Studies also occasionally filter for looking at the target or distractor specifically at the point of disambiguation [@potter2019].  
 
-A common issue with developmental research is when to exclude trials for behavioral patterns that don't seem to match the task and when to exclude children for contributing too few valid trials. 
+In addition to trial level exclusions, studies also implement child-level exclusions based on the minimum number of valid trials. For accuracy measures, children are often excluded if they had fewer than 25% or 50% of the total trials, either within a condition, or overall [@Adams2018;@perry2017;@Garrison2020]. For RT, it is instead standard to require a certain number of trials, with typically a small minimum required number of trials [e.g., two; @fernald2006; @Adams2018]. 
 
-For LWL studies, trial-level exclusions tend to be either for contributing too few time points (ex. too much tracker loss or a child looking away from the screen too much). Some papers use heuristic exclusions for inattention prior to coding looking behavior [@Adams2018], while others exclude trials that have too much looking away from the target and distractor. Cutoffs vary, with different experiments requiring minimum looking at the images at least 20%, 50% or 66% of the time [@borovsky2019; @weaver2024; @pomper2019]. Studies also occassionally filter for looking at the target or distractor specifically at the point of disambiguation [@potter2019].  
-
-If trials with fewer valid looking points still provide signal of the child-level language behavior, excluding them will decrease reliability and validity. On the other side, if these trials are not representing the construct and are just noise, excluding them will increase reliability and validity. 
-
-In addition to trial level exclusions, studies also do child-level exclusions based on the minimum number of valid trials. For accuracy measures, children are often excluded if they had fewer than 25% or 50% of the total trials, either within a condition, or overall [@Adams2018;@perry2017;@Garrison2020]. For RT, it is instead standard to require a certain number of trials, often 2 [@fernald2006; @Adams2018]. 
+There are multiple possible ways that trial- and child-level exclusions could affect measurement properties. If trials with fewer valid looking points still provide signal of the child-level language behavior, excluding them will decrease reliability and validity. On the other hand, if these trials reflect noise and are inconsistent with behavior measured on trials with longer looking times, excluding them will increase reliability and validity. Similar possible outcomes apply to child-level exclusions: if children contributing a smaller number of trials are largely contributing estimates with elevated noise, reliability and validity should increase when these participants are excluded; conversely, if these children are still contributing consistent signal, reliability and validity should decrease when child-level exclusions are applied.
 
 ### Analytic approach
 
@@ -871,6 +868,8 @@ These exclusions lead to a negligible change in ICC by `r kid_rt_icc_mod |> filt
 
 For RT, it's reasonable to set low minimums for number of trials (like 2 trials) which does make for stronger correlations with CDI production. There are much stronger tradeoffs between test-retest reliability and number of children included (Figures S19 and S20). It's also reasonable to not exclude. 
 
+
+### Discussion
 
 Overall, exclusions based on amount of data per-trial or per-child come with trade-offs between amount of data and cleanliness of the data. Depending on the study design and goals, no exclusions, or light exclusions can both be reasonable choices. 
 
