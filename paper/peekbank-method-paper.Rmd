@@ -536,7 +536,7 @@ This result held generally: All baseline window sizes that we considered led to 
 <!-- Summary and Recommendation -->
 Why would incorporating baseline information lead to worse metrics? The literature on the psychometrics of difference scores [e.g., @lord1956;@rogosa1983; @trafimow2015] provides a valuable guide for evaluating the expected measurement properties of baseline correction. This literature points to two important features of looking while listening tasks: first, children's looking behavior is noisy from trial to trial, meaning that the reliability of proportion looking during both the baseline and the critical window is low; and second, the signal across baseline and critical portions of a trial is typically correlated (in part due to the very salience that the baseline correction is trying to remove). Unfortunately, it is under precisely these conditions -- low reliability and high correlation between components -- that difference scores exhibit the lowest reliability [@trafimow2015]. Thus, while baseline-correction may lead to less biased grand average accuracy scores (by removing item salience), it also leads to less reliable and valid individual-level measures.
 
-## Recommendation 3: Measure reaction times with a minimum reaction time of around 400 ms.
+## Recommendation 3: Measure land-based reaction times with a minimum reaction time of around 400 ms.
 
 In addition to accuracy measures, LWL studies also provide the potential for computing children's reaction time [RT; @fernald2008], i.e., the speed with which the process familiar words. RT is typically computed on trials when the child is initially looking at the distractor and shifts to the target after stimulus onset, to provide a measure of the speed with which infants respond to the familiar word by shifting their gaze to its target. RT computations include many choice points: 
 
@@ -664,7 +664,7 @@ An initial exploration of ICC reliability (Figure \ref{fig:rt-heat}) indicated t
 ### Discussion
 
 <!-- Summary and Recommendation -->
-Overall, RT measures complement accuracy measures and capture substantial signal, as indicated by the moderate ICC values across all choice parameters. A wide range of parameter options have similar properties (Figure S10 and Figure S12), but computing land-based RTs with an inclusion window of 400 - 4000ms maximizes reliability without negatively impacting validity. Log-scale transformations should be considered, but may depend on modelling and theoretical considerations. 
+Overall, RT measures complement accuracy measures and capture substantial signal, as indicated by the moderate ICC values across all choice parameters. A wide range of parameter options have similar properties (Figure S10 and Figure S12), but computing land-based RTs with an inclusion window of 400 - 4000ms maximizes reliability without negatively impacting validity. Note that the recommendation to compute land-based reaction times contradicts traditional approaches to reaction-time computation [@fernald2008] based on launch time; however, land-based RTs generally led to higher ICCs across our dataset. Log-scale transformations should be considered, but may depend on modelling and theoretical considerations. 
 
 
 ## Recommendation 4: Trial-level and child-level exclusions for low amounts of data are generally unnecessary.  
