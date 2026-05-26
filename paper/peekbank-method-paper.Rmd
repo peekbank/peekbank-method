@@ -869,7 +869,7 @@ Overall, exclusions based on amount of data per-trial or per-session come with t
 
 # Design recommendations
 
-Our focus for this work was to explore how data processing choices affected the reliability and validity of the resultant measures. However, along the way, we came across a couple key experimental design questions that could impact reliability and validity. 
+Our focus for this work was to explore how data processing choices affected the reliability and validity of the resultant measures. However, along the way, we identified several experimental design questions that had notable consequences for our central measures. We summarize two design recommendations that stood out as having the largest potential impact on reliability and validity (see supplement, section S8 for an additional analysis of order effects).
 
 ## Recommendation 5: Design studies to have a minimum of 10 trials per child, per condition, or as many trials as possible for individual-difference studies. 
 
@@ -962,25 +962,23 @@ plot_grid(plot_grid(trt_plot_rt, comp_plot_rt, prod_plot_rt, nrow=1), leg_rt, nr
 ```
 
 
-Excluding children for low trial counts may increase test-retest reliability, but it also decreases the power and generalizability of results by excluding some children. Rather than retrospective exclusions, another approach is prospective, how many trials per child should one aim for to achieve adequate reliability and validity? Test-retest reliability is particularly important for studies that look at longitudinal effects as it assumes that the test sessions are representative of properties of the child at that age. [something because evidently not everyone who does work that assumes t-rt thinks of it that way]
+Excluding children for low trial counts may increase test-retest reliability, but it also decreases the power and generalizability of results by excluding some children. Rather than retrospective exclusions, another approach is prospective: how many trials per child should one aim for to achieve adequate reliability and validity? Test-retest reliability is particularly important for studies that investigate longitudinal effects, as it assumes that the test sessions are representative of properties of the child at that age [@byers-heinlein2022]. To address this prospective question, we considered how reliability and validity measures would have changed if we had fewer trials per child. We filtered the data to include only children who had contributed at least N trials (for different values of N) and then repeatedly subsampled their trials and calculated our metrics on each subset. 
 
-To address this prospective question, we considered how reliability and validity measures would have changed in we had fewer trials per child.  We filtered the data to include only children who had contributed at least N trials (for different values of N) and then repeatedly subsampled their trials and calculated our metrics on the subsets. 
+The results for accuracy and RT are shown in Figure \ref{fig:downsample}. ICC reliability is not sensitive to the number of trials per subject, so it is not shown. For accuracy, more trials per administration increases test-retest reliability, up to 20 trials (the highest we measured), although the gains per additional trial decrease with more trials. Validity with CDI measures also increased as trials increased, with smaller gains past 5 trials. Based on accuracy, we recommend at least 10 trials per condition in general, and as many as possible for individual differences studies where test-retest reliability is essential. 
 
-The results for accuracy and RT are shown in Figure \ref{fig:downsample}. ICC reliability is not sensitive to the number of trials per subject, so is not shown. 
+Similar considerations apply for RT, but at lower total trial numbers. Nearly every trial a child does results in a useable accuracy measure, but only around 1/3 of trials result in a valid RT measure in our data (in other cases, children start fixating the target or fixating neither). For test-retest reliability, having at least 5 RT measures per administration leads to noteable improvements; gains beyond 5 are hard to measure because of the low number of subjects with sufficient trials in multiple sessions, but more trials appears to be beneficial. For CDI measures, there are substantial gains for having 2 trials compared to 1 and continued benefits to including additional trials, up to the limit of trial numbers we are able to simulate based on available data. Overall, for measuring individual differences in processing speed, designing studies to include as many trials as possible appears to be central to adequate measurement. 
+<!--MZ comment: this section is so short that I can see us just ending here to avoid repetitiveness, but retaining if we want a summary para here-->
+<!-- 
+In sum, the validity and test-retest reliability of accuracy and RT increases as the number of trials increases; with large initial gains. When validity matters most, we recommend aiming for 10 trials per child per condition, for expected yields of 10 trials for accuracy and 3 for RT. For individual differences when test-retest matters, as many trials as is feasible is recommended. As high as we can simulate based on the available data, there are still gains for more trials. 
+-->
 
-For accuracy, more trials per administration increases the test-retest reliability, up to 20 trials (the highest we measured), although the gains per additional trial decrease with more trials. Validity with CDI measures also increased as trials increased, with smaller gains past 5 trials. Based on accuracy, we recommend at least 10 trials per condition in general, and as many as possible for individual differences studies where test-retest reliability is essential. 
-
-Nearly every trial a child does results in a useable accuracy measure, but only around 1/3 of trials result in a valid RT measure (in other cases, children start fixating the target or fixating neither). 
-
-For test-retest reliability, having at least 5 RT measures per administration is better than having fewer; gains beyond 5 are hard to measure because of low numbers of subjects with repeat administrations and enough trials, but more trials appears to be beneficial. For CDI measures, there are substantial gains for having 2 trials compared to 1, and benefits to additional trials up to 7 trials. For individual differences in processing speed, as many trials as possible is very important (although we are limited by existing datasets to fully quantify the trade-offs). 
-
-The validity and test-retest reliability of accuracy and RT increases as the number of trials increases; with large initial gains. When validity matters most, we recommend aims for 10 trials per child per condition, for expected yields of 10 trials for accuracy and 3 for RT. For individual differences when test-retest matters, as many trials as is feasible is recommended. As high as we can simulate based on the available data, there are still gains for more trials. 
-
+<!--
 For this analysis, we treat distinct sessions separately in order to calculate test-retest reliability, but as recommended by @fernald2008, one way of increasing trial count especially for individual-difference studies is to have children return for another session and then treat the sessions together [see e.g., @weaver2024]. 
+-->
 
 ## Recommendation 6: Match target and distractor images based on animacy.
 
-As mentioned in Recommendation 2, one concern with LWL trial design is that children may have preferences for which image to look at separate from the auditory stimuli, and some of their looking behavior may be independent of the auditory stimulus. One approach is to decrease the preference discrepancy between a pair of images, so that overall, in the absence of auditory cues, children prefer to look at both images approximately equally. While there are a number of factors that could play into children's image preferences [@fernald2008;@pomper2019; @nothdurft2000salience], one factor that stood out in the data was animacy. Children have a strong preference for looking at animals and humans (and parts of humans). When trials have one animate and one inanimate, children look more at the animate in the pre-stimulus period (Figure \ref{fig:animacy}) and are slower to respond when the inanimate is named. In contrast, for trials with target and distractor matched on animacy, children's early looking patterns are not sensitive to animacy. This difference is particularly relevant for the younger children, whose stimulus-contingent looking behavior is weakest, so more of the looking behavior is driven by animacy; however, effects of animacy were apparent in children up to the age of three (Figure S21). 
+One concern with LWL trial design is that children may have preferences for which image to look at separate from the auditory stimuli, and some of their looking behavior may be independent of the auditory stimulus. One approach is to decrease the preference discrepancy between a pair of images, so that overall, in the absence of auditory cues, children prefer to look at both images approximately equally. While there are a number of factors that could play into children's image preferences [@fernald2008;@pomper2019; @nothdurft2000salience], one factor that stood out in the data was animacy. Children have a strong preference for looking at animals and humans (and parts of humans). When trials have one animate and one inanimate, children look more at the animate in the pre-stimulus period (Figure \ref{fig:animacy}) and are slower to respond when the inanimate is named. In contrast, for trials with target and distractor items matched on animacy, children's early looking patterns for animate and inanimate targets are highly similar. This difference is particularly relevant for the younger children, whose stimulus-contingent looking behavior is weakest, so more of the looking behavior is driven by animacy; however, effects of animacy were apparent in children up to the age of three (Figure S21). 
 
 
 ```{r animacy, fig.cap="Looking time profiles for different combinations of target and distractor animacy.", fig.height=2.5}
@@ -1002,9 +1000,9 @@ readRDS(here("cached_intermediates/6_animacy.rds")) |>
   labs(x = "Time", y = "Looking to target", fill = "Target/Distractor animacy", color= "Target/Distractor animacy")
 ```
 
-
+<!--
 Another potential concern regarding stimulus preferences is that repeating the same pairs of images may cause children to prefer to look at the image that was previously the target [citation -- does anyone admit to worrying about this?]. We investigated this in a series of models (reported in SI: Order Effects), and found that effects of repeating target labels (and target and distractor images) are likely quite small, with unclear directionality. 
-In general, our data suggest that order effects stemming from repeated trials of the same target are unlikely to significantly bias word recognition estimates.
+In general, our data suggest that order effects stemming from repeated trials of the same target are unlikely to significantly bias word recognition estimates. -->
 
 # How much can this matter? 
 
