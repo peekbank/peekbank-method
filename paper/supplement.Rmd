@@ -610,7 +610,54 @@ make_model_grid_plot(kid_icc, kid_cdi, kid_trt, baseline_kid_acc, "min_trial + m
 make_model_grid_plot(kid_icc, kid_cdi, kid_trt, baseline_kid_acc, "min_trial + min_frac", x = `Min Frac`, fix_function = fix_kid_acc_interact_2, col=pct, legend_height = .3)
 ```
 
-```{r kid-acc-trial-count-age,  fig.height=5, fig.width=8, fig.cap="Model results for different age groups for possible trial count based exclusions, compared to no minimum trial count. Colors indicate fraction of administrations retained."}
+```{r, eval=F,  fig.height=5, fig.width=8, fig.cap="Model results for possible trial count based exclusions, compared to no minimum trial count. Colors indicate fraction of administrations retained. "}
+kid_icc_with_trial <- readRDS(here("cached_intermediates/4_acc_kid_icc.rds")) |>
+  filter(t_start == 600, t_end == 4000, ) |>
+  select(-num_trials)
+
+kid_cdi_with_trial <- readRDS(here("cached_intermediates/4_acc_kid_cdi.rds")) |> filter(t_start == 600, t_end == 4000)
+
+kid_trt_with_trial <- readRDS(here("cached_intermediates/4_acc_kid_test_retest.rds")) |> filter(t_start == 600, t_end == 4000)
+
+baseline_kid_acc <- function(df) {
+  df |> mutate(
+    min_trial = relevel(min_trial, "1"),
+    min_frac = relevel(min_frac, "0"),
+    exclude_less_than = relevel(exclude_less_than, "0"),
+    look_at_start = relevel(look_at_start, "no")
+    
+  )
+}
+
+
+kid_level_exclusion <- get_total_trials(dataset_summ) |> cross_join(expand_grid(min_trial = c(1, 2, 3, 4, 6, 8, 10, 12, 14, 16),
+  min_frac = c(0, .2, .4, .5, .6, .8)
+) |> filter(!(min_trial > 1 & min_frac > 0))) |> filter(n>=min_trial, n/max_trials>=min_frac) |> 
+  group_by(dataset_name, min_trial, min_frac) |> 
+  summarize(n_admins=n()) |> 
+  group_by(dataset_name) |> 
+  mutate(pct=n_admins/max(n_admins)) |> 
+  group_by(min_trial, min_frac) |> 
+  summarize(pct=mean(pct))
+
+fix_kid_acc_interact <- function(df) {
+  df |>
+    mutate(contrast = str_replace_all(contrast, "\\)", "") |> str_replace_all("\\(", "")) |> 
+    separate(contrast, sep = " ", c("min_trial", "min_frac", "exclude_less_than", NA, NA, NA, NA)) |>
+    mutate(min_trial = str_replace(min_trial, "min_trial", "") |> as.numeric(), 
+           min_frac = str_replace(min_frac, "min_frac", "") |> as.numeric(),
+           exclude_less_than = str_replace(exclude_less_than, "exclude_less_than", "") |> as.numeric()) |> 
+    filter(min_frac==0) |> 
+    left_join(kid_level_exclusion) |> 
+    rename(`Min Trials`=min_trial)
+}
+
+
+
+make_model_grid_plot(kid_icc_with_trial, kid_cdi_with_trial, kid_trt_with_trial, baseline_kid_acc, "(min_trial + min_frac)*(exclude_less_than)", x = `Min Trials`, fix_function = fix_kid_acc_interact, col=exclude_less_than, legend_height = .2)
+```
+
+```{r kid-acc-trial-count-age,  fig.height=5, fig.width=8, fig.cap="Model results for different age groups for possible trial count based exclusions, compared to no minimum trial count."}
 kid_icc_age <- readRDS(here("cached_intermediates/4_acc_kid_icc_byage.rds")) |>
   filter(t_start == 600, t_end == 4000, exclude_less_than == 0, look_at_start == "no") |>
   select(-num_trials)
@@ -622,7 +669,7 @@ make_model_grid_plot_age(kid_icc_age, kid_cdi_age, baseline_kid_acc, "min_trial 
 ```
 
 
-```{r kid-acc-trial-frac-age,  fig.height=3, fig.width=8, fig.cap="Model results for different age groups for possible fraction of trial based exclusions, compared to no minimum. Colors indicate fraction of administrations retained."}
+```{r kid-acc-trial-frac-age,  fig.height=3, fig.width=8, fig.cap="Model results for different age groups for possible fraction of trial based exclusions, compared to no minimum. "}
 make_model_grid_plot_age(kid_icc_age, kid_cdi_age, baseline_kid_acc, "min_trial + min_frac", x = `Min Frac`, fix_function = fix_kid_acc_interact_2)
 ```
 
@@ -676,31 +723,6 @@ kid_rt_cdi_age <- readRDS(here("cached_intermediates/4_rt_cdi_byage.rds")) |>
 make_model_grid_plot_age(kid_rt_icc_age, kid_rt_cdi_age, baseline_kid_rt, "min_trial", x = `Min trial`, fix_function = fix_kid_rt_interact, limits=c(-.2, .3))
 ```
 
-\FloatBarrier
-
-# Animacy
-
-Figure \ref{fig:animacy-age} shows the time course of animate and inanimate targets and distractors, split by age bin. Animacy effects are larger for younger children with weaker stimulus-contingent looking patterns. 
-
-```{r animacy-age, fig.cap="Time course of looking for animate and inanimate targets and distractors, split by age bin.",  fig.width=6, fig.height=3}
-readRDS(here("cached_intermediates/6_animacy_byage.rds")) |>
-  order_age() |>
-  mutate(type = case_when(
-    animate_target == "yes" & animate_distractor == "yes" ~ "both animate",
-    animate_target == "yes" ~ "animate target, inanimate distractor",
-    animate_target == "no" & animate_distractor == "no" ~ "both inanimate",
-    T ~ "inanimate target, animate distractor"
-  )) |>
-  ggplot(aes(x = t_norm, y = y, ymin = ymin, ymax = ymax)) +
-  geom_ribbon(aes(fill = type), alpha = .2) +
-  geom_line(aes(color=type)) +
-  geom_hline(yintercept = .5) +
-  geom_vline(xintercept = 0) +
-  geom_vline(xintercept = 600, lty = "dashed") +
-  geom_vline(xintercept = 4000, lty = "dashed") +
-  scale_fill_brewer(aesthetics=c("color", "fill"), palette = "Set1") +
-  labs(x = "Time", y = "Looking to target", fill = "Target/Distractor animacy", color= "Target/Distractor animacy")+facet_wrap(~age_bin)
-```
 
 \FloatBarrier
 
@@ -754,10 +776,3 @@ results_summ |>
   theme(legend.position = "bottom") +
   scale_color_brewer(palette = "Accent")
 ```
-
-\newpage
-
-# References
-
-::: {#refs custom-style="Bibliography"}
-:::

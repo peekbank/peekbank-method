@@ -4,17 +4,21 @@ shorttitle        : "Peekbank"
 
 author:
   - name: Veronica Boyce
-    affiliation: a
+    affiliation: i
   - name: Virginia A. Marchman
+    affiliation: a
+  - name: Heidi Baumgartner
     affiliation: a
   - name: Claire Augusta Bergey
     affiliation: b
   - name: Mika Braginsky
     affiliation: a
-  - name: George Kachergis
-    affiliation: a
   - name: Federico Giovannetti
     affiliation: c
+  - name: George Kachergis
+    affiliation: a
+  - name: Kyle MacDonald
+    affiliation: j
   - name: Jess Mankewitz
     affiliation: d
   - name: Stephan Meylan
@@ -50,9 +54,13 @@ affiliation:
     institution: Department of Psychology, Indiana University, Bloomington, IA, USA
   - id: h
     institution: Department of Cognitive Science, University of California, San Diego, CA, USA
+  - id: i
+    institution: Department of Brain and Cognitive Sciences, Massachusetts Institute of Technology, Cambridge, MA, USA
+  - id: j
+    institution: IBM
 
 authornote: |
-  TODO UPDATE AUTHOR LIST AND AFFILIATIONS
+  AI Disclosure statement: Generative AI was used to do code refactoring and code review. 
 
 abstract: |
   Children's early word recognition is both an important phenomenon in its own right and a key index of early language more broadly. The looking-while-listening paradigm (LWL), in which eye movements to the referent of a word are tracked to reveal online language comprehension, is a key paradigm for measuring word recognition in young children. Yet the analytic and design choices vary widely, and the consequences of these choices have rarely been investigated at a large scale. Here we use data from Peekbank, a repository of LWL data from studies with almost 4000 children (6 months -- 5 years), to search for analytic and design decisions that maximize the reliability and validity of LWL measures. Based on these analyses, we recommend the use of long analytic windows for computing accuracy and avoiding baseline correction to maximize reliability. We also find little or no benefits to reliability from excluding children or trials with low data. In our dataset, the recommended combination of analytic choices increases reliability by approximately .20 and validity by .07. Finally, we recommend that LWL paradigms be designed with a minimum of 10 target trials per child per condition to improve reliability and that experimentalists match their stimuli for animacy --- image saliency differences due to pairing animate and inanimate images can mask word knowledge in infants. We hope that these recommendations lead to improved and unified standards for the measurement of children's word recognition. 
@@ -146,35 +154,26 @@ set.seed(42)
 knitr::opts_chunk$set(cache.extra = knitr::rand_seed)
 ```
 
-<!-- [pre-intro]  -->
 Over the first few months of life, children become experts in their native language, organizing the phonological system of the speech that they hear and parsing speech into meaningful units. Soon after, children begin to show early signs of comprehension of words or phrases through simple behaviors such as turning their head when their name is called (e.g., "Hey, Billy!") or reaching for an object that is named (e.g., "Where's the ball?"). These everyday accomplishments mark important milestones in children’s development. Yet such global assessments may miss continuous processes of growth in underlying skills and the millisecond-level processes that take place during real-time language comprehension. Children, like adults, process speech incrementally, as it unfolds in time [@fernald1998;@snedeker2013;@frank2026], and use features of the speech signal to extract meaning that will support language comprehension [@law2015;@Weisleder2013]. 
 
-<!-- [what is LWL]  -->
 These moment-to-moment processes are difficult to document without child-friendly procedures that allow precision in capturing how children’s behaviors are time-locked to speech. In particular, the "looking while listening" (LWL) procedure has emerged as a *de facto* standard for measuring language in infants and children, especially when they are younger than two years old, as other options for direct assessment during this period are limited [@frank2021].^[Here we adopt LWL as a convenient label while recognizing that the procedure goes by a number of different names in the literature including the "intermodal preferential looking procedure" [@hirsh-pasek1996;@reznick1990visual;@fernald2008].] In the standard version of LWL, children see two pictures on a screen and hear a referring expression, e.g. "look at the ball"; their time-locked eye-movements to the ball over the distractor image are then taken to be evidence for language comprehension [@fernald2008].
 
-<!-- [what has LWL achieved -- a lot]  -->
 LWL has been a key tool for enhancing our understanding of infants’ language processing and knowledge [@golinkoff2013]. For example, using LWL methods, we can measure increases in speed and accuracy in responding to familiar words [@fernald2006;@frank2026] and increases in the detail of their phonological representations [@swingley2000;@moore2024] during the first years after birth. Moreover, measures of children’s skill in the LWL task have also proven useful as an index of individual differences. Children who show more efficient language processing at 18 months show larger vocabulary size and more rapid vocabulary growth over the second and third years than children with less efficient processing [@fernald2012;@fernald2006;@frank2026;@peter2019]. Language processing efficiency has also been shown to link to later language, cognitive, and non-verbal outcomes in both typically-developing [@peter2019;@law2015] and preterm children [@marchman2016;@marchman2018;@marchman2023]. 
 
-<!-- [LWL requires lots of decisions at all points of experiment; some parts of the pipeline have been covered before, but data processing is an area of variation and limited consensus (could frame this as new researcher)]  -->
 One key reason for the success of this research is the care that has been invested in the development of the looking-while-listening method. Past work has articulated best practices in collecting and analyzing looking-while-listening measures, with a particular focus on stimulus and design choices that make looking preferences maximally informative about word recognition processes [@fernald2008]. However, despite widespread use of the looking-while-listening method in language development research, there is still limited consensus on how to best process and analyze time-series data of this type [from either adults or infants, @mirman2008; @bergelson2012; @peelle2021; @vonholzen2012; @weaver2026b]. 
 
-<!-- [the gap -- why data processing is an open question and hard to address (and important?)]  -->
 In the developmental field especially, this lack of consensus likely stems from structural factors: infant recruitment is time- and cost-intensive and datasets collected by individual labs are often small [@frank2017;@bergmann2018]. These issues make it difficult for any one researcher to systematically evaluate the consequences of specific analytic choices independently of the data collected for a particular study [cf. @peelle2021]. Instead, researchers are often forced to make ad-hoc decisions or to adopt idiosyncratic lab practices that themselves originate from subjective judgments of what "seems to work". By decreasing uniformity in the literature, this variation also increases the challenge of triangulating what precisely is being measured by LWL [@weaver2026b]. How can we put the measurement and analysis of infant word recognition and online language processing on firmer empirical footing?
 
-<!-- [we fill the gap]  -->
 Peekbank is a new data resource that offers a potential solution to this core issue by providing a large database of infant eye-tracking data from the looking-while-listening paradigm for exploring methodological questions [@zettersten2022]. The most recent release of Peekbank (version 2026.1) houses 44 datasets from infants across a wide age range [6 months - 5 years] and across a broad set of test words and materials, resulting in observations from over 3915 infants participating in the looking-while-listening task. The goal of the current manuscript is to use these data to systematically explore key analytic decisions that researchers make when using this paradigm, offering best-practices guidance for measurement. 
 
-<!-- [desiderata]  -->
 Our approach throughout is to seek analytic choices that distill the best possible measures from the rich time course of behavior in the LWL task. Recent reviews of the LWL literature highlight open questions about both the reliability and validity of looking-based measures of word recognition [@weaver2026b]. Starting with reliability, we aim for analyses that yield the maximal signal about individual children relative to both measurement error and irrelevant artifacts [@byers-heinlein2022;@schreiner2024limited;@rhemtulla2022reliability].  Here, to measure reliability, we compute both within-dataset inter-item reliability (ICC) and test-retest reliability for datasets with multiple LWL sessions close in time for the same children. 
 
 Turning to validity, the goal is to make analytic decisions that maximize the relationship with other measures that are thought to reflect related constructs [@kominsky2022simplicity;@flake2020]. Here, we select as our primary measure the correlations between LWL measures and parent reports of vocabulary measured with the MacArthur-Bates Communicative Development Inventories [MB-CDI, a popular parent report measure of early vocabulary that is widely used in conjunction with LWL tasks, @frank2021; @fenson1994variability]. We focus specifically on the relationships between aggregate measures of vocabulary size from the MB-CDI and LWL data, given both the documented relationships between these measures [reviewed in @marchman2023] and the mixed evidence on item-level alignment between LWL and MB-CDI data [@lopezperez2024;@weaver2026]. This correspondence reflects the general relationship between word recognition in the moment (indexed by LWL) and the growth of early vocabulary over time (indexed by the MB-CDI) [@frank2026]. 
 
 Our focus in this paper is on providing guidance for navigating some of the many decisions facing an investigator analyzing LWL data. Recent work using an earlier version of Peekbank (as well as other datasets) has investigated the psychometric properties of a range of different dependent measures in LWL tasks and their general construct structure [@sander-montant2025]. We focus instead on the consequences of varying analytic choices for two main measures, which tend to have the strongest psychometric properties [@sander-montant2025]. The first is *accuracy*: how much of the time a child looks at the target image compared to looking at either the target or distractor image over some period of time after the auditory stimulus. Children's responses unfold over time, but it is not known what start and end time maximizes the signal of children's response to the stimulus [@peelle2021]. The second measure we focus on is *reaction time* (RT): how long it takes a child to change where they are looking in response to the stimulus [@fernald2008]. There are even more analytic options available for this metric --- whether to measure RT as when a child shifts attention away from the distractor (launch-based RT) or when a child completes this shift and fixates the target (land-based RT), whether to measure RT on a log or raw scale, and how long after the start of the target onset to start counting the RTs. For all measures, there are also questions about whether and when to exclude either children or trials. 
 
-<!-- [scoping? -- maybe also in the weeds?]  -->
 While the LWL task is used for a wide variety of purposes, including measurements of individual differences [e.g., @peter2019] as well as measurements of experimentally-induced condition differences [e.g., @swingley2000], here we focus only on what we refer to as "vanilla" word recognition items. These are items that test vocabulary directly with familiar targets, familiar distractors, and no informative carrier phrases or experimental manipulations. We focus on these items both because they are the most commonly used LWL items and because they are measurements in which reliability and validity are most clearly defined. Vanilla trials are expected to reflect the construct of word knowledge and correlate with other measures of word knowledge, including vocabulary size.
 
-<!-- [here we ... preview results]  -->
 The plan of the paper is as follows. We begin by overviewing the subset of the Peekbank database we selected for our analyses. We then make a set of targeted recommendations, providing evidence for each based on the impact of our recommendation on the average reliability and validity of the resulting measures. Our first set of recommendations focus on data processing decisions and our second set of recommendations concern design considerations. To foreshadow our results, we find that while many common data analysis practices provide relatively reasonable levels of reliability and validity, it may be possible to further optimize reliability and validity through careful, data-driven decision-making. 
 
 # Methods: Dataset and approach
@@ -189,8 +188,10 @@ Peekbank is an aggregation of datasets from a number of LWL studies. This work i
 
 ## Inclusion criteria
 
-We focus our exploration of data processing choices on a set of items where we have the clearest expectations around what we are trying to measure. 
-While LWL is also used to study a variety of experimental effects, such as the effects of noise, mispronunciations, novel word learning, and expectations of mutual exclusivity, these items may index different constructs. 
+<!-- VB: removing b/c this is covered in intro --> 
+<!--We focus our exploration of data processing choices on a set of items where we have the clearest expectations around what we are trying to measure. 
+While LWL is also used to study a variety of experimental effects, such as the effects of noise, mispronunciations, novel word learning, and expectations of mutual exclusivity, these items may index different constructs. --> 
+
 We limit our analyses to what we term "vanilla" trials: trials that represent standard LWL trials testing familiar words without additional experimental manipulations. 
 For a trial to be considered "vanilla", both the target and the distractor images must be of familiar objects. For the auditory stimulus, the target word must be a real word that occurs once and is the first and only source of information about the target. 
 The carrier phrase must be a well-formed, grammatical phrase, without any switches in language, and without any intentionally added noise or audio filtering. 
@@ -304,13 +305,12 @@ All the code and data to reproduce the analyses is available at https://github.c
 
 # Data processing recommendations
 
-Our first set of recommendations focuses on data processing decisions. Looking while listening data undergoes significant post-processing to go from the experiment to the data that is analysed. Experiment design, eye-tracking, and eye-gaze coding considerations are covered elsewhere [@fernald2008; @pomper2020; @wass2013; @venker2020], so we focus here on the process of going from a series of timepoints to the measures of accuracy and reaction time that are analysed. There are a number of decisions involved, including what windows and time cutoffs to use, and what exclusions to make around missing or low amounts of data. 
+Our first set of recommendations focuses on data processing decisions. Looking while listening data undergoes significant post-processing.. Experiment design, eye-tracking, and eye-gaze coding considerations are covered elsewhere [@fernald2008; @pomper2020; @wass2013; @venker2020], so we focus here on the process of going from a series of timepoints to the measures of accuracy and reaction time that are analysed. There are a number of decisions involved, including what windows and time cutoffs to use, and what exclusions to make around missing or low amounts of data. 
 
 
 ## Recommendation 1: Measure accuracy over a long window. 
 
-<!-- [what is accuracy, who uses it, and what is the range of common practice]  -->
-In LWL studies, accuracy is typically calculated as the fraction of time a child is looking at the target divided by the time they are looking at the target or the distractor, over a time window of interest. A key decision is therefore the time window of analysis. Typically windows start shortly after the point of disambiguation and continue until several seconds later; this window is intended to capture the peak of children's stimulus-driven looks to the target. However, in practice, studies vary in what windows are used, and often window selection is a locus for analytic flexibility (choosing windows post hoc to maximize a particular effect) [@peelle2021].
+In LWL studies, accuracy is typically calculated as the fraction of time a child is looking at the target divided by the time they are looking at the target or the distractor, over a time window of interest. A key decision is therefore the time window of analysis. Typically windows start shortly after the point of disambiguation and continue until a few seconds later; this window is intended to capture the peak of children's stimulus-driven looks to the target. However, in practice, studies vary in what windows are used, and often window selection is a locus for analytic flexibility (choosing windows post hoc to maximize a particular effect) [@peelle2021].
 Common analysis windows include starting 300 milliseconds after stimulus onset and ending 1800 ms after stimulus onset [following @fernald2008] and 367ms to 2000ms after stimulus onset [e.g., @swingley2002], although windows that extend until 3 or 4 seconds after stimulus onset are also used [e.g., @bergelson2012;@bergelson2017a;@lopezperez2024]. In this analysis, we begin from first principles and ask what windows maximize reliability and validity on word recognition trials. 
 
 ```{r acc-heat-map, fig.cap="A heat map showing the average ICC across datasets for different start and end points for the accuracy window. A region with the highest ICC (best reliability) is outlined in black, and the region most commonly represented in the literature is outlined in blue.", fig.width=5, fig.height=3}
@@ -351,6 +351,13 @@ acc_include <- function(df) {
 
 set_of_lollis(readRDS(here("cached_intermediates/1_acc_icc.rds")), readRDS(here("cached_intermediates/1_acc_cdi.rds")), readRDS(here("cached_intermediates/1_acc_test_retest.rds")), acc_include)
 ```
+
+```{r acc-lolli-age, fig.height=4, fig.width=6, fig.pos="t", fig.cap="Per dataset outcome measures for two window options: 300ms-1800ms (red) and 600ms-4000ms (blue), shown split by age category. Dot size is proportional within each panel to the number of administrations." }
+set_of_age_lollis(readRDS(here("cached_intermediates/1_acc_icc_byage.rds")) |> order_age(), readRDS(here("cached_intermediates/1_acc_cdi_byage.rds")) |> order_age(), acc_include)
+
+
+```
+
 
 ```{r}
 baseline_acc <- function(df) {
@@ -411,14 +418,11 @@ acc_comp_mod <- do_model(
 ### Results
 
 <!-- Key Result -->
-Average ICCs across windows are shown in Figure \ref{fig:acc-heat-map}. As expected, including time points from before the point of disambiguation decreases reliability. Our initial exploration found a region of high reliability with onsets in the 600-800 range and offsets in the 2800-4000 range, surrounded by a gradual decline in ICC reliability. A dataset by dataset comparison of the differences between a 300-1800ms window (representative of common practice) and a 600-4000 ms window are shown in Figure \ref{fig:acc-lolli}. Nearly all datasets have higher ICC reliability for the later and longer window than the shorter window. All 5 test-retest reliability datasets with close in time pairs of administrations also show increased reliability on this later and longer window. Our mixed effect model confirms that there are expected reliability gains from switching from a 300-1800ms window to a 600-4000ms one. ICC reliability is expected to increase by `r acc_icc_mod |> filter(t_start==300, t_end==1800) |> in_text_stats(sign_flip=T)` and test-retest reliability by `r acc_trt_mod |> filter(t_start==300, t_end==1800) |> in_text_stats(sign_flip=T)`. There is no evidence of differences in validity between these two windows (`r acc_comp_mod |> filter(t_start==300, t_end==1800) |> in_text_stats(sign_flip=T)` for vocabulary comprehension or `r acc_prod_mod |> filter(t_start==300, t_end==1800) |> in_text_stats(sign_flip=T)` for vocabulary production).
+Average ICCs across windows are shown in Figure \ref{fig:acc-heat-map}. As expected, including time points from before the point of disambiguation decreases reliability. Our initial exploration found a region of high reliability with onsets around 600-800ms and offsets around 2800-4000ms. A dataset by dataset comparison of the differences between a 300-1800ms window (representative of common practice) and a 600-4000 ms window are shown in Figure \ref{fig:acc-lolli}. Nearly all datasets have higher ICC reliability for the later and longer window. All 5 test-retest reliability datasets with close in time pairs of administrations also show increased reliability on this later and longer window. Our mixed effect model confirms that there are expected reliability gains from switching from a 300-1800ms window to a 600-4000ms one. ICC reliability is expected to increase by `r acc_icc_mod |> filter(t_start==300, t_end==1800) |> in_text_stats(sign_flip=T)` and test-retest reliability by `r acc_trt_mod |> filter(t_start==300, t_end==1800) |> in_text_stats(sign_flip=T)`. There is no evidence of differences in validity between these two windows (`r acc_comp_mod |> filter(t_start==300, t_end==1800) |> in_text_stats(sign_flip=T)` for vocabulary comprehension or `r acc_prod_mod |> filter(t_start==300, t_end==1800) |> in_text_stats(sign_flip=T)` for vocabulary production).
 
 <!-- Age -->
-These patterns generally hold across age. The overall level of reliability rises with age, as younger children generally fixate target images more consistently and experiments with younger children typically use fewer trials (Figure S3). However, the overall pattern of which time windows maximize reliability and validity at any given age is remarkably consistent across the different age groups (Figure S5). For instance, across different ages there is an improvement in ICC for using a 600-4000 window compared to a 300-1800ms one. For <18 months, the ICC difference is `r acc_icc_mod_age |> filter(t_start==300, t_end==1800, age_bin=="<18") |> in_text_stats(sign_flip=T)`; for 18-24 months, `r acc_icc_mod_age |> filter(t_start==300, t_end==1800, age_bin=="18-24") |> in_text_stats(sign_flip=T)`; for 24-36 months,  `r acc_icc_mod_age |> filter(t_start==300, t_end==1800, age_bin=="24-36") |> in_text_stats(sign_flip=T)`; and for 36+ months `r acc_icc_mod_age |> filter(t_start==300, t_end==1800, age_bin==">=36") |> in_text_stats(sign_flip=T)`. The main difference across ages is that when there is less consistency in accuracy measures generally (in the youngest age group), there is less improvement in reliability from longer window choices. For CDI production, there was no evidence for consistent age effects.
+These patterns generally hold across age (Figure \ref{fig:acc-lolli-age}). The overall level of reliability rises with age, as older children generally fixate target images more consistently and experiments with younger children typically use fewer trials (Figure S3). However, the overall pattern of which time windows maximize reliability and validity at any given age is remarkably consistent across the different age groups (Figure S5). For instance, across different ages there is an improvement in ICC for using a 600-4000 window compared to a 300-1800ms one. For <18 months, the ICC difference is `r acc_icc_mod_age |> filter(t_start==300, t_end==1800, age_bin=="<18") |> in_text_stats(sign_flip=T)`; for 18-24 months, `r acc_icc_mod_age |> filter(t_start==300, t_end==1800, age_bin=="18-24") |> in_text_stats(sign_flip=T)`; for 24-36 months,  `r acc_icc_mod_age |> filter(t_start==300, t_end==1800, age_bin=="24-36") |> in_text_stats(sign_flip=T)`; and for 36+ months `r acc_icc_mod_age |> filter(t_start==300, t_end==1800, age_bin==">=36") |> in_text_stats(sign_flip=T)`. 
 
-<!--For CDI production, there might be slight age effects, but the differences are not significant and are difficult to interpret. For <18 months, a longer window results in change of `r acc_prod_mod_age |> filter(t_start==300, t_end==1800, age_bin=="<18") |> in_text_stats(sign_flip=T)` in correlation with CDI production ; for 18-24 months, `r acc_prod_mod_age |> filter(t_start==300, t_end==1800, age_bin=="18-24") |> in_text_stats(sign_flip=T)`; for 24-36 months,  `r acc_prod_mod_age |> filter(t_start==300, t_end==1800, age_bin=="24-36") |> in_text_stats(sign_flip=T)`. These small and inconsistent age effects could be due to dataset differences across different ages or small but true developmental differences. -->
-
-<!-- Constraints/ Limitations -->
 While we focused our analyses on the window that maximized reliability numerically (600 - 4000 ms), there are a wide range of window options with generally comparable reliability and validity measures (Figure S4). 
 For instance, a 400 - 3000 ms window is not significantly different from a 600 - 4000 ms window on any of the outcome measures.
 Although we recommend starting between 400ms and 600 milliseconds to optimally balance validity and reliability, choosing when precisely the accuracy window starts is likely less important for maximizing reliability than choosing a long time window: regardless of window start time, increasing the window size consistently improves reliability (Figure 1).
@@ -544,10 +548,6 @@ In addition to accuracy measures, LWL studies also provide the potential for com
 - **Exclusion of short and long RTs**: Short and long RTs are often excluded because they are considered unlikely to be generated in response to the stimulus [@fernald2008]. 
 - **Linear vs. logarithmic analysis**: Reaction time data are often analyzed using a logarithmic transform (consistent with the idea that reaction times are log-normally distributed and that effects on them may be multiplicative rather than additive) [@csibra2016;@frank2026].
 
-<!-- Launches could be a more precise index of the timing of intent to look at the target, but leaving from the distractor could also be done with intent to look elsewhere. Thus, launch based analyses sometimes exclude trials where it takes a child too long to go from distractor to target (shift-length cutoff). [ citations to what papers do what] -->
-
-<!-- In the literature, common cutoffs are ... based on what minimum times to initiate eye movements are. We explore a range of different potential cutoffs in at attempt to maximize reliability. This can be thought of as the point at what point RTs shift from mostly being random (not driven by the stimulus) to mostly being stimulus driven.  -->
-
 ### Analytic approach
 
 ```{r rt-heat,  fig.width=7, fig.height=3, fig.cap="Heat map of different parameter options for measuring RT and how they on average affected ICC."}
@@ -659,7 +659,7 @@ rt_trt_mod <- do_model(
 ### Results
 
 <!-- Key Result and Age -->
-An initial exploration of ICC reliability (Figure \ref{fig:rt-heat}) indicated that ICC reliability was maximized for land-based RTs; a minumum threshold for including RTs set at around 400 ms; and with higher maximum thresholds for RT inclusion. A comparison between a common set of parameters for calculating RT and an alternative that maximizes ICC are shown in Figure \ref{fig:rt-lolli}. Compared to computing the "standard" launch-based, raw RTs restricted to 300-1800ms, using land-based log RTs ranging between 400-4000ms is expected to increase ICC by `r rt_icc_mod |> filter(type=="first_launch", min_rt==300, max_rt==1800, trimming=="untrimmed", logged=="raw") |> in_text_stats(sign_flip=T)`, with little change in  test-retest reliability (`r rt_trt_mod |> filter(type=="first_launch", min_rt==300, max_rt==1800, trimming=="untrimmed", logged=="raw") |> in_text_stats(sign_flip=T)`). These choices had little impact on CDI correlations (`r rt_comp_mod |> filter(type=="first_launch", trimming=="untrimmed", min_rt==300, max_rt==1800, logged=="raw") |> in_text_stats()` for comprehension, and `r rt_prod_mod |> filter(type=="first_launch", min_rt==300, max_rt==1800, trimming=="untrimmed", logged=="raw") |> in_text_stats() ` for production). Similar patterns hold for children of different ages (Figure S9 and Figure S11). 
+An initial exploration of ICC reliability (Figure \ref{fig:rt-heat}) indicated that ICC reliability was maximized for land-based RTs; a minumum threshold for including RTs set at around 400 ms; and with higher maximum thresholds for RT inclusion. A comparison between a common set of parameters for calculating RT and an alternative that maximizes ICC are shown in Figure \ref{fig:rt-lolli}. Compared to computing the "standard" launch-based, raw RTs restricted to 300-1800ms, using land-based log RTs ranging between 400-4000ms is expected to increase ICC by `r rt_icc_mod |> filter(type=="first_launch", min_rt==300, max_rt==1800, trimming=="untrimmed", logged=="raw") |> in_text_stats(sign_flip=T)`, with little change in  test-retest reliability (`r rt_trt_mod |> filter(type=="first_launch", min_rt==300, max_rt==1800, trimming=="untrimmed", logged=="raw") |> in_text_stats(sign_flip=T)`). These choices had little impact on CDI correlations (`r rt_comp_mod |> filter(type=="first_launch", trimming=="untrimmed", min_rt==300, max_rt==1800, logged=="raw") |> in_text_stats(sign_flip=T)` for comprehension, and `r rt_prod_mod |> filter(type=="first_launch", min_rt==300, max_rt==1800, trimming=="untrimmed", logged=="raw") |> in_text_stats(sign_flip=T) ` for production). Similar patterns hold for children of different ages (Figure S9 and Figure S11). 
 
 ### Discussion
 
@@ -795,9 +795,7 @@ kid_acc_trt_mod <- do_model(
 kid_level_exclusion <- dataset_summ  |> group_by(administration_id, dataset_name) |> summarize(trials=n())|> group_by(dataset_name) |> summarize(at_least_8=sum(trials>=8)/n())|> summarize(mid=mean(at_least_8*100), lower=min(at_least_8*100), upper=max(at_least_8*100))
 ```
 
-<!-- Key Results - Session Exclusions -->
-<!-- could switch out min trial numbers for 50%-->
-We then explored the effects of excluding sessions for too few trials. Here, we focus on the results for a minimum number of 8 total trials to illustrate general patterns in the results, but report outcomes for a range of proportion- and count-based thresholds in the supplement (Figures S15-S18). Only including sessions with at least 8 trials results in retaining `r str_c(round(kid_level_exclusion$mid[1], 2), " % (range: ", round(kid_level_exclusion$lower[1], 2), "% - ", round(kid_level_exclusion$upper[1], 2), "%)")` of total sessions. These exclusions show little evidence of increasing ICC (`r kid_acc_icc_mod |> filter(min_trial==8) |> in_text_stats()`) and or test-retest reliability (`r kid_acc_trt_mod |> filter(min_trial==8)|> in_text_stats()`) compared to retaining all sessions. Differences in CDI correlation are not substantive (`r kid_acc_comp_mod |> filter(min_trial==8) |> in_text_stats()` for comprehension and `r kid_acc_prod_mod |> filter(min_trial==8) |> in_text_stats() ` for production). We do not observe significant differences based on minimum trials below 10 or minimum fractions (Figures S15-S18). Overall, excluding sessions with too few trials had minimal impact on reliability and validity.
+We then explored the effects of excluding sessions for too few trials. Here, we focus on the results for a minimum number of 8 total trials, with no trial-level exclusions, to illustrate general patterns in the results, but report outcomes for a range of proportion- and count-based thresholds in the supplement (Figures S15-S18). Only including sessions with at least 8 trials results in retaining `r str_c(round(kid_level_exclusion$mid[1], 2), " % (range: ", round(kid_level_exclusion$lower[1], 2), "% - ", round(kid_level_exclusion$upper[1], 2), "%)")` of total sessions. These exclusions show little evidence of increasing ICC (`r kid_acc_icc_mod |> filter(min_trial==8) |> in_text_stats()`) and or test-retest reliability (`r kid_acc_trt_mod |> filter(min_trial==8)|> in_text_stats()`) compared to retaining all sessions. Differences in CDI correlation are not substantive (`r kid_acc_comp_mod |> filter(min_trial==8) |> in_text_stats()` for comprehension and `r kid_acc_prod_mod |> filter(min_trial==8) |> in_text_stats() ` for production). We do not observe significant differences based on minimum trials below 10 or minimum fractions (Figures S15-S18). Overall, excluding sessions with too few trials had minimal impact on reliability and validity.
 
 ```{r, fig.height=7, fig.width=8, fig.cap="rt kid level exclusions"}
 kid_rt_icc <- readRDS(here("cached_intermediates/4_rt_icc.rds")) |>
@@ -806,8 +804,7 @@ kid_rt_icc <- readRDS(here("cached_intermediates/4_rt_icc.rds")) |>
 
 kid_rt_cdi <- readRDS(here("cached_intermediates/4_rt_cdi.rds")) |>
   regroup_rt() |>
-  filter(min_rt == 400, max_rt==4000, trimming == "untrimmed", logged == "log", type == "land") |> 
-  mutate(comp_est=-comp_est, prod_est=-prod_est)
+  filter(min_rt == 400, max_rt==4000, trimming == "untrimmed", logged == "log", type == "land") 
 
 
 kid_rt_trt <- readRDS(here("cached_intermediates/4_rt_test_retest.rds")) |>
@@ -859,9 +856,8 @@ rt_data_loss <- readRDS(here("cached_intermediates", "3_rts.rds")) |> filter(min
 ```
 
 <!-- Key Results - Reaction Times -->
-We also considered the effects of minimum trial requirements on RT data. Only including sessions that contribute at least 2 trials results in retaining `r str_c(round(rt_data_loss$mid[1], 2), " % (range: ", round(rt_data_loss$lower[1], 2), "% - ", round(rt_data_loss$upper[1], 2), "%)")` of all sessions. Similar to previous results, these exclusions lead to a negligible change in ICC by `r kid_rt_icc_mod |> filter(min_trial==2) |> in_text_stats()`, a slight numerical increase in test-retest reliability by `r kid_rt_trt_mod |> filter(min_trial==2)|> in_text_stats()`, no change in CDI comprehension correlation(`r kid_rt_comp_mod |> filter(min_trial==2) |> in_text_stats()` ), and a slight numerical increase in CDI production correlation (`r kid_rt_prod_mod |> filter(min_trial==2) |> in_text_stats() `). For RT, setting a low minimum threshold for number of trials (e.g., 2 trials) appears to lead to moderate improvements in test-retest reliability and slightly stronger correlations with CDI production. 
+We also considered the effects of minimum trial requirements on RT data. Only including sessions that contribute at least 2 trials results in retaining `r str_c(round(rt_data_loss$mid[1], 2), " % (range: ", round(rt_data_loss$lower[1], 2), "% - ", round(rt_data_loss$upper[1], 2), "%)")` of all sessions. Similar to previous results, these exclusions lead to a negligible change in ICC by `r kid_rt_icc_mod |> filter(min_trial==2) |> in_text_stats()`, a slight numerical increase in test-retest reliability by `r kid_rt_trt_mod |> filter(min_trial==2)|> in_text_stats()`, no change in CDI comprehension correlation(`r kid_rt_comp_mod |> filter(min_trial==2) |> in_text_stats()` ), and a slight numerical increase in CDI production correlation (`r kid_rt_prod_mod |> filter(min_trial==2) |> in_text_stats() `). For RT, setting a low minimum threshold for number of trials (e.g., 2 trials) appears to lead to moderate improvements in test-retest reliability and slightly stronger correlations with CDI production (Figures S19 and S20). 
 
-<!-- There are much stronger tradeoffs between test-retest reliability and number of children included (Figures S19 and S20). It's also reasonable to not exclude. MZ comment: I'm not sure I'm seeing this in the figures? So commenting out-->
 
 ### Discussion
 
@@ -912,13 +908,13 @@ summary(rg, infer = c(TRUE, TRUE), level = 0.95) |> tidy()
 do_downsample_plot <- function(df, lab){
   df |> mutate(sample_down=as.numeric(sample_down), start_point=as.numeric(start_point)) |> 
     ggplot(aes(x = sample_down, col = as.factor(start_point), y = estimate, ymin=conf.low, ymax=conf.high))+
-    geom_point()+geom_line()+theme(legend.position="none")+scale_color_viridis(discrete=T)+labs(x="Sampled Trials", y=lab, color="Minimum trials to sample from")
+    geom_point()+geom_line()+theme(legend.position="none")+scale_color_viridis(discrete=T)+labs(x="Sampled Trials", y=lab, color="Minimum actual trials to sample from")
 }
 
 icc_plot <- do_downsample_model(downsample_icc_acc, has_at_least, "start_point * sample_down") |> do_downsample_plot("ICC")+coord_cartesian(ylim=c(0,.5))
-comp_plot <- do_downsample_model(downsample_cdi_acc |> mutate(est=comp_est), has_at_least_comp, "start_point * sample_down") |> do_downsample_plot("CDI Comp")+coord_cartesian(ylim=c(0,.5))+labs(x="Accuracy Trials")
-prod_plot <- do_downsample_model(downsample_cdi_acc |> mutate(est=prod_est), has_at_least_prod, "start_point * sample_down") |> do_downsample_plot("CDI Prod")+coord_cartesian(ylim=c(0,.5))+labs(x="Accuracy Trials")
-trt_plot <- do_downsample_model(downsample_trt_acc, has_at_least_pairs, "start_point * sample_down") |> do_downsample_plot("Test Retest")+coord_cartesian(ylim=c(0,.5))+labs(x="Accuracy Trials")
+comp_plot <- do_downsample_model(downsample_cdi_acc |> mutate(est=comp_est), has_at_least_comp, "start_point * sample_down") |> do_downsample_plot("CDI Comp")+coord_cartesian(ylim=c(0,.5))+labs(x="Simulated Accuracy Trials")
+prod_plot <- do_downsample_model(downsample_cdi_acc |> mutate(est=prod_est), has_at_least_prod, "start_point * sample_down") |> do_downsample_plot("CDI Prod")+coord_cartesian(ylim=c(0,.5))+labs(x="Simulated Accuracy Trials")
+trt_plot <- do_downsample_model(downsample_trt_acc, has_at_least_pairs, "start_point * sample_down") |> do_downsample_plot("Test Retest")+coord_cartesian(ylim=c(0,.5))+labs(x="Simulated Accuracy Trials")
 
 g <- ggplotGrob(icc_plot + theme(legend.position = "bottom"))
   leg <- g$grobs[[which(g$layout$name == "guide-box-bottom")]]
@@ -949,9 +945,9 @@ downsample_cdi_rt <- readRDS(here("cached_intermediates/5_rt_cdi.rds"))
 downsample_trt_rt <- readRDS(here("cached_intermediates/5_rt_test_retest.rds"))
 
 icc_plot_rt <- do_downsample_model(downsample_icc_rt, has_at_least_rt, "start_point * sample_down") |> do_downsample_plot("ICC")
-comp_plot_rt <- do_downsample_model(downsample_cdi_rt |> mutate(est=comp_est), has_at_least_comp_rt, "start_point * sample_down") |> do_downsample_plot("CDI Comp")+scale_y_reverse()+labs(x="RT Trials")
-prod_plot_rt <- do_downsample_model(downsample_cdi_rt |> mutate(est=prod_est), has_at_least_prod_rt, "start_point * sample_down") |> do_downsample_plot("CDI Prod")+scale_y_reverse()+labs(x="RT Trials")
-trt_plot_rt <- do_downsample_model(downsample_trt_rt, has_at_least_pairs_rt, "start_point * sample_down") |> do_downsample_plot("Test retest")+labs(x="RT Trials")
+comp_plot_rt <- do_downsample_model(downsample_cdi_rt |> mutate(est=comp_est), has_at_least_comp_rt, "start_point * sample_down") |> do_downsample_plot("CDI Comp")+scale_y_reverse()+labs(x="Simulated RT Trials")
+prod_plot_rt <- do_downsample_model(downsample_cdi_rt |> mutate(est=prod_est), has_at_least_prod_rt, "start_point * sample_down") |> do_downsample_plot("CDI Prod")+scale_y_reverse()+labs(x="Simulated RT Trials")
+trt_plot_rt <- do_downsample_model(downsample_trt_rt, has_at_least_pairs_rt, "start_point * sample_down") |> do_downsample_plot("Test retest")+labs(x="Simulated RT Trials")
 
 g <- ggplotGrob(icc_plot_rt + theme(legend.position = "bottom"))
   leg_rt <- g$grobs[[which(g$layout$name == "guide-box-bottom")]]
@@ -962,11 +958,11 @@ plot_grid(plot_grid(trt_plot_rt, comp_plot_rt, prod_plot_rt, nrow=1), leg_rt, nr
 ```
 
 
-Excluding children for low trial counts may increase test-retest reliability, but it also decreases the power and generalizability of results by excluding some children. Rather than retrospective exclusions, another approach is prospective: how many trials per child should one aim for to achieve adequate reliability and validity? Test-retest reliability is particularly important for studies that investigate longitudinal effects, as it assumes that the test sessions are representative of properties of the child at that age [@byers-heinlein2022]. To address this prospective question, we considered how reliability and validity measures would have changed if we had fewer trials per child. We filtered the data to include only children who had contributed at least N trials (for different values of N) and then repeatedly subsampled their trials and calculated our metrics on each subset. 
+Excluding children for low trial counts may increase test-retest reliability, but it also decreases the power and generalizability of results by excluding some children. Rather than retrospective exclusions, another approach is prospective: how many trials per child should one aim for to achieve adequate reliability and validity? Test-retest reliability is important for studies that investigate longitudinal effects, as it assumes that the test sessions are representative of properties of the child at that age [@byers-heinlein2022]. To address this prospective question, we considered how reliability and validity measures would have changed if we had fewer trials per child. We filtered the data to include only children who had contributed at least N trials (for different values of N) and then repeatedly subsampled their trials and calculated our metrics on each subset. Datasets vary in how many trials they have, so different minimum trials include different distributions and datasets, items, and children. 
 
 The results for accuracy and RT are shown in Figure \ref{fig:downsample}. ICC reliability is not sensitive to the number of trials per subject, so it is not shown. For accuracy, more trials per administration increases test-retest reliability, up to 20 trials (the highest we measured), although the gains per additional trial decrease with more trials. Validity with CDI measures also increased as trials increased, with smaller gains past 5 trials. Based on accuracy, we recommend at least 10 trials per condition in general, and as many as possible for individual differences studies where test-retest reliability is essential. 
 
-Similar considerations apply for RT, but at lower total trial numbers. Nearly every trial a child does results in a useable accuracy measure, but only around 1/3 of trials result in a valid RT measure in our data (in other cases, children start fixating the target or fixating neither). For test-retest reliability, having at least 5 RT measures per administration leads to noteable improvements; gains beyond 5 are hard to measure because of the low number of subjects with sufficient trials in multiple sessions, but more trials appears to be beneficial. For CDI measures, there are substantial gains for having 2 trials compared to 1 and continued benefits to including additional trials, up to the limit of trial numbers we are able to simulate based on available data. Overall, for measuring individual differences in processing speed, designing studies to include as many trials as possible appears to be central to adequate measurement. 
+Similar considerations apply for RT, but at lower total trial numbers. Nearly every trial a child does results in a useable accuracy measure, but only around 1/3 of trials result in a valid RT measure in our data. For test-retest reliability, having at least 5 RT measures per administration leads to notable improvements; gains beyond 5 are hard to measure because of the low number of subjects with sufficient trials, but more trials appears to be beneficial. For CDI measures, there are substantial gains for having 2 trials compared to 1 and continued benefits to including additional trials. Overall, for measuring individual differences in processing speed, designing studies to include as many trials as possible appears to be central to adequate measurement. 
 <!--MZ comment: this section is so short that I can see us just ending here to avoid repetitiveness, but retaining if we want a summary para here-->
 <!-- 
 In sum, the validity and test-retest reliability of accuracy and RT increases as the number of trials increases; with large initial gains. When validity matters most, we recommend aiming for 10 trials per child per condition, for expected yields of 10 trials for accuracy and 3 for RT. For individual differences when test-retest matters, as many trials as is feasible is recommended. As high as we can simulate based on the available data, there are still gains for more trials. 
@@ -978,11 +974,11 @@ For this analysis, we treat distinct sessions separately in order to calculate t
 
 ## Recommendation 6: Match target and distractor images based on animacy.
 
-One concern with LWL trial design is that children may have preferences for which image to look at separate from the auditory stimuli, and some of their looking behavior may be independent of the auditory stimulus. One approach is to decrease the preference discrepancy between a pair of images, so that overall, in the absence of auditory cues, children prefer to look at both images approximately equally. While there are a number of factors that could play into children's image preferences [@fernald2008;@pomper2019; @nothdurft2000salience], one factor that stood out in the data was animacy. Children have a strong preference for looking at animals and humans (and parts of humans). When trials have one animate and one inanimate, children look more at the animate in the pre-stimulus period (Figure \ref{fig:animacy}) and are slower to respond when the inanimate is named. In contrast, for trials with target and distractor items matched on animacy, children's early looking patterns for animate and inanimate targets are highly similar. This difference is particularly relevant for the younger children, whose stimulus-contingent looking behavior is weakest, so more of the looking behavior is driven by animacy; however, effects of animacy were apparent in children up to the age of three (Figure S21). 
+One concern with LWL trial design is that children may have preferences for which image to look at separate from the auditory stimuli, and some of their looking behavior may be independent of the auditory stimulus. One approach is to decrease the preference discrepancy between a pair of images, so that in the absence of auditory cues, children prefer to look at both images approximately equally. While there are a number of factors that could play into children's image preferences [@fernald2008;@pomper2019; @nothdurft2000salience], one factor that stood out in the data was animacy. Children have a strong preference for looking at animals and humans. When trials have one animate and one inanimate, children look more at the animate in the pre-stimulus period (Figure \ref{fig:animacy}A) and are slower to respond when the inanimate is named. In contrast, for trials with target and distractor items matched on animacy, children's early looking patterns for animate and inanimate targets are highly similar. This difference is particularly relevant for the younger children, whose stimulus-contingent looking behavior is weakest, so more of the looking behavior is driven by animacy; however, effects of animacy were apparent in children up to the age of three (Figure \ref{fig:animacy}B). 
 
 
-```{r animacy, fig.cap="Looking time profiles for different combinations of target and distractor animacy.", fig.height=2.5}
-readRDS(here("cached_intermediates/6_animacy.rds")) |>
+```{r animacy, fig.cap="Looking time profiles for different combinations of target and distractor animacy. Panel A shows overall; Panel B shows split by age category. ", fig.height=2.5, fig.width=8}
+all <- readRDS(here("cached_intermediates/6_animacy.rds")) |>
   mutate(type = case_when(
     animate_target == "yes" & animate_distractor == "yes" ~ "both animate",
     animate_target == "yes" ~ "animate target, inanimate distractor",
@@ -998,6 +994,26 @@ readRDS(here("cached_intermediates/6_animacy.rds")) |>
   geom_vline(xintercept = 4000, lty = "dashed") +
   scale_fill_brewer(aesthetics=c("color", "fill"), palette = "Set1") +
   labs(x = "Time", y = "Looking to target", fill = "Target/Distractor animacy", color= "Target/Distractor animacy")
+
+age_split <- readRDS(here("cached_intermediates/6_animacy_byage.rds")) |>
+  order_age() |>
+  mutate(type = case_when(
+    animate_target == "yes" & animate_distractor == "yes" ~ "both animate",
+    animate_target == "yes" ~ "animate target, inanimate distractor",
+    animate_target == "no" & animate_distractor == "no" ~ "both inanimate",
+    T ~ "inanimate target, animate distractor"
+  )) |>
+  ggplot(aes(x = t_norm, y = y, ymin = ymin, ymax = ymax)) +
+  geom_ribbon(aes(fill = type), alpha = .2) +
+  geom_line(aes(color=type)) +
+  geom_hline(yintercept = .5) +
+  geom_vline(xintercept = 0) +
+  geom_vline(xintercept = 600, lty = "dashed") +
+  geom_vline(xintercept = 4000, lty = "dashed") +
+  scale_fill_brewer(aesthetics=c("color", "fill"), palette = "Set1") +
+  labs(x = "Time", y = "Looking to target", fill = "Target/Distractor animacy", color= "Target/Distractor animacy")+facet_wrap(~age_bin)+theme(legend.position = "none", axis.text.x=element_text(size=6))
+
+plot_grid(all, age_split, rel_widths = c(1, .7), labels = "AUTO")
 ```
 
 <!--MZ comment: only refer briefly to order effects in design intro para?-->
@@ -1080,23 +1096,21 @@ agg_acc_trt_mod <- do_model(
 
 To quantify the potential cumulative consequences of different combinations of choices, we computed the difference in reliability when making all of the recommended choices with respect to data processing to an instance in which a researcher made a set of unfortunate choices that are nevertheless consistent with the literature. Consider two researchers analyzing accuracy in the same LWL dataset, Norm and Rex. Researcher Norm makes a set of reasonable choices based on practices observed in other LWL papers, choosing to analyze a short analysis time window (300-1800 ms); apply baseline correction (baseline window: -2000-0 ms); exclude trials on which infants are not looking for at least 60% of the critical window or not looking at the target onset for insufficient attentiveness; and require that infants contribute at least 50% of all trials for inclusion. Researcher Rex, on the other hand, analyzes the same data and instead chooses parameters based on the data-driven recommendations above: a critical window of 600-4000ms, no baseline correction, and including all trials and sessions. Researcher Rex would gain substantial increases in ICC (`r agg_acc_icc_mod |> in_text_stats(sign_flip=T)`) and test-retest reliability (`r agg_acc_trt_mod |> in_text_stats(sign_flip=T)`). Additionally, Rex could expect small increases in validity for correlations with comprehension  (`r agg_acc_comp_mod |> in_text_stats(sign_flip=T)`) and production (`r agg_acc_prod_mod |>  in_text_stats(sign_flip=T)`). Despite both researchers making choices consistent with past practices, we would expect Rex to derive a measure with significantly improved psychometric properties compared to Norm, and therefore be in a substantially better position to study individual differences and longitudinal change.
 
-<!-- For RT, differences are a lot smaller, do we want to include? -->
 # General Discussion
 
-<!-- Measuring infant looking time is notoriously noisy, making decisions about measurement practices highly consequential for the conclusions we draw about infant language development. -->
 Children's early word recognition is a central construct for the study of language learning, meaning that improving recognition measures can have widespread benefits for our understanding of language development. How can we maximize reliable, valid signal in the analysis of data in the LWL paradigm?
 We took a practical, data-driven approach to this question, using a large-scale dataset of infant looking-while-listening data to quantify the impact of different analysis choices on measurement properties, leading to six core recommendations for data processing and experimental design.
 
 For data processing, our strongest take-homes concern window choice and baseline correction.
 First, longer time windows (e.g., windows that end around 3000 ms post target word onset) maximize the reliability of accuracy measures, with no negative consequences for validity.
-While average accuracy tends to peak earlier in the timecourse of a trial (typically 1000-2000 ms post target word onset), leading shorter windows to be preferred in the literature, these findings suggest that later looking windows still capture signal that boosts the consistency of word recognition measures. Second, baseline correction, while an intuitive solution to imbalances in the saliency of images, causes large decrements in reliability; we therefore generally recommend avoiding this practice, especially when maximizing reliability is a high priority (e.g., when investigating individual differences).
+While average accuracy tends to peak earlier in the timecourse of a trial (typically 1000-2000 ms post target word onset), leading shorter windows to be preferred in the literature, these findings suggest that later looking windows still capture signal that boosts the consistency of word recognition measures. Second, baseline correction, while an intuitive solution to imbalances in the saliency of images, causes large decrements in reliability; we therefore recommend avoiding this practice.
 Finally, we formulate recommendations for choosing reaction time cutoffs (around 400ms tends to maximize reliability) and find that implementing trial- and session-level exclusions based on the amount of data contributed tend to have minimal consequences.
 Overall, choices about windows of analysis, approaches to exclusions, and how scores are computed can all have meaningful impacts on measure reliability.
 
-One fascinating question that emerges from our analysis concerns the purity of the construct that LWL measures. In our analysis, long accuracy windows increased reliability more than they did validity. One speculative reason for this difference is that signal from later in the timecourse might not be as tightly coupled to language per se, and hence might instead reflect more general features of attention. Future research could use this difference as a starting point to further parcellate the attentional and linguistic contributors to language-driven eye-movements.  
+One question that emerges from our analysis concerns the purity of the construct that LWL measures. In our analysis, long accuracy windows increased reliability more than validity. One speculative reason for this difference is that signal from later in the timecourse might be less coupled to language per se, and might instead reflect more general features of attention. Future research could use this difference as a starting point to further parcellate the attentional and linguistic contributors to language-driven eye-movements.  
 
 A more general take-home from our data processing analyses is that intuitive data-based practices, e.g., looking at patterns in grand-average time courses, may not always be a trustworthy guide to child- or item-level psychometric properties.
-Past recommendations for time window selection have sometimes been motivated by inspecting consistent patterns of looking in grand-averages, and, e.g., noting when looking begins to decline across participants.
+Past recommendations for time window selection have sometimes been motivated by inspecting consistent patterns of looking in grand-averages and noting when looking begins to decline across participants.
 These heuristics --- while based in important patterns in looking behavior --- may not always lead to optimal choices with respect to core measurement properties such as reliability.
 Wherever possible, we recommend that measurement choices be guided by direct estimates of psychometric properties in order to maximize the signal in infant looking behavior [@byers-heinlein2022;@sander-montant2025;@weaver2026b].
 
@@ -1105,7 +1119,6 @@ When an image of an animate referent was paired with an image of an inanimate re
 This finding has important consequences for estimating word recognition: accuracy for animate targets is substantially overestimated and accuracy for inanimate targets becomes substantially underestimated when animacy is not balanced in the target-distractor pairing.
 The results are especially dramatic for younger infants (under 18 months): looking for familiar inanimate targets can appear to be at chance when paired with an animate distractor.
 In other words, an improper balancing of saliency could make an infant appear to not know a word, even though they do.
-Once animacy is balanced in the design, animate and inanimate targets have highly similar recognition curves across all ages.
 These results emphasize the importance of balancing saliency in image pairings as much as possible in looking-while-listening designs.
 This is especially true given that many of the current analytic approaches to correcting for saliency imbalances post hoc rely on difference-based measures (baseline correction; item-pair correction) which decrease reliability.
 
@@ -1113,11 +1126,11 @@ This is especially true given that many of the current analytic approaches to co
 ## Limitations & Generalizability 
 
 The scope of our recommendations is fundamentally limited by the characteristics of the Peekbank dataset.
-First, while the Peekbank database is by far the largest dataset of its kind, and one of the largest harmonized infant eyetracking datasets, it is not a comprehensive or representative set of looking-while-listening studies. 
+First, while the Peekbank database is by far the largest dataset of its kind, it is not a comprehensive or representative set of looking-while-listening studies. 
 To highlight just a few of these limitations, (1) the data is predominantly English word recognition collected from infants living in the U.S., and (2) the dataset is a convenience sample from labs who made their data openly available or otherwise accessible on request from the Peekbank team.
 Looking-while-listening studies as a whole are likely more heterogeneous than what is represented in Peekbank --- the datasets considered here come predominantly from a small group of labs or networks of researchers with similar training in looking-while-listening data collection.
 
-At the same time, there is also substantial heterogeneity in the studies included in Peekbank, due to many studies pursuing different research questions and therefore making a variety of distinct design choices (e.g., surrounding target words, image properties, and characteristics of the auditory stimuli).
+At the same time, there is also substantial heterogeneity in the studies included in Peekbank, due to many studies pursuing different research questions and therefore making a variety of distinct design choices.
 To mitigate this concern, our analyses focused exclusively on what we term “vanilla” trials, i.e., trials that present familiar words with familiar images with limited or no targeted manipulations of the stimuli.
 The main benefit of focusing on vanilla trials is that it allows for a clear interpretation of reliability and validity --- trials are truly designed to measure word recognition, rather than some other aspect of language processing.
 We view the remaining heterogeneity of study properties (e.g., specific words; differences in age) as a strength of our approach --- our findings generalize broadly across a wide range of items and ages.
@@ -1128,15 +1141,11 @@ For example, in determining the best time window for computing accuracy, a choic
 There is no one choice of time window that we can definitively infer as the "best" for maximizing reliability --- instead, we see a pattern of graded improvements in reliability that follow a predictable pattern. For example, longer time windows tend to increase reliability holding the onset of the accuracy window constant.
 While we sometimes articulate which choices lead to the highest reliability descriptively, these are at best approximations.
 We offer these windows as data-driven default choices (especially in cases where the decision would otherwise be ad hoc).
-<!-- ; from our perspective, the important takeaways concern the factors that tend to have a consistent and generalizable impact on reliability (e.g., amount of data per trial; difference scores vs. raw scores). -->
-
-<!-- We focused our explorations on the questions that are specific to LWL and where data-driven results based on a combined dataset can be most helpful. Other guidance both on LWL specific design considerations and options for coding LWL data are discussed elsewhere ([fernald book chapter, e.g.]). More general advice on experiment design and analysis, especially of developemental datasets, is discussed elsewhere as well  [TODO]. -->
 
 ## Conclusions
 
 Experimental design and data processing decisions can have profound impacts on the properties of infant measures.
 Our findings show how compiling large-scale datasets such as Peekbank can help us estimate the impact of a wide variety of experimenter decisions, generalizable across a wide range of ages, stimuli, and experimental contexts.
-<!-- Our findings are summarized in a short list of recommendations that should help researchers aiming to maximize the reliability of infant word recognition measure: [summarize]. -->
 Establishing consistent practices and principles for reliable and valid measurement of infant looking sets the stage for asking central questions about how language skill develops.
 
 \newpage

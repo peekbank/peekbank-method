@@ -53,20 +53,19 @@ regroup_rt <- function(df) {
     select(-time_0, -time_end, -during, -frac)
 }
 
-name_rt <- function(df) {
-  df |>
-    mutate(approach = case_when(
-      type == "land" & trimming == "untrimmed" & logged == "log" ~ "Log Land RT",
-      type == "land" & trimming == "untrimmed" & logged == "raw" ~ "Raw Land RT",
-      type == "first_launch" & trimming == "trim_first" & logged == "log" ~ "Log Launch RT",
-      type == "first_launch" & trimming == "trim_first" & logged == "raw" ~ "Raw Launch RT",
-    )) |>
-    filter(!is.na(approach))
-}
-
 
 order_age <- function(df) {
   df |> mutate(age_bin = factor(age_bin, levels = c("<18", "18-24", "24-36", ">=36")))
+}
+
+reorder_within <- function(x, by, within) {
+  new_x <- paste(x, within, sep = "___")
+  stats::reorder(new_x, by)
+}
+
+
+scale_y_reordered <- function(...) {
+  scale_y_discrete(labels = function(x) gsub("___.*$", "", x), ...)
 }
 
 
@@ -81,14 +80,17 @@ filter_icc <- function(data, col_est) {
 }
 
 do_lollipop_plot <- function(df, name, include_condition, weights, flip = F) {
-  df |>
+  df <- df |>
     mutate(name = name) |>
     {{ include_condition }}() |>
     filter(!is.na(combined)) |>
     left_join(weights) |>
     left_join(clean_names) |>
+    group_by(`Dataset Name`) |>
+    mutate(winner = if (flip) combined[which.min(est)] else combined[which.max(est)]) |>
+    ungroup() |>
     ggplot(aes(x = if (flip) reorder(`Dataset Name`, -est) else reorder(`Dataset Name`, est), y = est)) +
-    geom_line() +
+    geom_line(aes(color = winner, group = `Dataset Name`), linewidth = 1.3, alpha = .5) +
     geom_point(aes(color = combined, size = n_admins)) +
     scale_size_area(max_size = 2) +
     guides(size = "none") +
@@ -105,6 +107,73 @@ do_lollipop_plot <- function(df, name, include_condition, weights, flip = F) {
     )
 }
 
+do_lollipop_plot_age <- function(df, name, include_condition, weights, flip = F, xlim = NULL) {
+  df <- df |>
+    mutate(name = name) |>
+    {{ include_condition }}() |>
+    filter(!is.na(combined)) |>
+    left_join(weights) |>
+    left_join(clean_names) |>
+    order_age() |>
+    group_by(`Dataset Name`, age_bin) |>
+    mutate(winner = if (flip) combined[which.min(est)] else combined[which.max(est)]) |>
+    ungroup() |>
+    mutate(dataset_ordered = reorder_within(`Dataset Name`, if (flip) -est else est, age_bin))
+
+  missing_bins <- setdiff(levels(df$age_bin), as.character(unique(df$age_bin)))
+  if (length(missing_bins) > 0) {
+    df <- bind_rows(df, tibble(age_bin = factor(missing_bins, levels = levels(df$age_bin)), est = NA_real_))
+  }
+
+  df |>
+    ggplot(aes(y = dataset_ordered, x = est)) +
+    geom_line(aes(color = winner, group = `Dataset Name`), linewidth = 1.3, alpha = .5) +
+    geom_point(aes(color = combined, size = n_admins)) +
+    scale_size_area(max_size = 2) +
+    guides(size = "none") +
+    scale_y_reordered(expand = expansion(add = 1)) +
+    coord_cartesian(xlim = xlim) +
+    labs(title = name) +
+    scale_color_solarized(accent = "red") +
+    facet_wrap(~age_bin, scales = "free_y", ncol = 1, drop = FALSE, strip.position = "right") +
+    annotate("segment", x = 0, xend = 0, y = -Inf, yend = Inf, lty = "dashed") +
+    theme(
+      legend.position = "none",
+      axis.title.y = element_blank(),
+      axis.text.y = element_blank(),
+      axis.ticks.y = element_blank(),
+      axis.title.x = element_blank(),
+      strip.placement = "outside",
+      plot.title = element_text(hjust = 0.5, face = "bold", size = 8)
+    )
+}
+
+set_of_age_lollis <- function(icc, cdi, include_func, is_rt = F) {
+  xlim <- range(c(icc$est, cdi$comp_est, cdi$prod_est), na.rm = TRUE)
+
+  a <- do_lollipop_plot_age(
+    icc |> filter_icc("est"), "ICC reliability", {{ include_func }},
+    dataset_summ |> group_by(dataset_name) |> summarize(n_admins = n_distinct(administration_id)),
+    xlim = xlim
+  )
+  b <- do_lollipop_plot_age(
+    cdi |> filter(!is.na(comp_est)) |> rename(est = comp_est), "CDI Comprehension", {{ include_func }},
+    dataset_summ |> group_by(dataset_name) |> filter(!is.na(comp)) |> summarize(n_admins = n_distinct(administration_id)),
+    flip = is_rt,
+    xlim = xlim
+  )
+  c <- do_lollipop_plot_age(
+    cdi |> filter(!is.na(prod_est)) |> rename(est = prod_est), "CDI Production", {{ include_func }},
+    dataset_summ |> group_by(dataset_name) |> filter(!is.na(prod)) |> summarize(n_admins = n_distinct(administration_id)),
+    flip = is_rt,
+    xlim = xlim
+  )
+
+  g <- ggplotGrob(a + theme(legend.position = "bottom", legend.title = element_blank()))
+  leg <- g$grobs[[which(g$layout$name == "guide-box-bottom")]]
+
+  plot_grid(plot_grid(a, b, c, nrow = 1), leg, nrow = 2, rel_heights = c(2, .1))
+}
 
 set_of_lollis <- function(icc, cdi, trt, include_func, is_rt = F) {
   a <- do_lollipop_plot(
@@ -260,8 +329,6 @@ safe_model_age <- function(d, form) {
   )
 }
 do_model_age <- function(df, make_baseline, weight_df, form) {
-  weight_df
-
   data <- df |>
     filter(!is.na(est)) |>
     left_join(weight_df) |>
@@ -388,53 +455,4 @@ in_text_stats <- function(df, sign_flip = F, places = 2) {
     high <- new_high
   }
   str_c(round(est, places), " [", round(low, places), ", ", round(high, places), "]")
-}
-
-
-# these are now only used for the simulations
-safe_rma <- function(d, col_est, col_upper, col_lower) {
-  d <- d |>
-    mutate(
-      stdev = (.data[[col_upper]] - .data[[col_lower]]) / (1.96 * 2),
-      var = stdev**2
-    ) |>
-    filter(!is.na(.data[[col_est]]), !is.na(var))
-  if (nrow(d) > 2) {
-    tryCatch(
-      rma(d[[col_est]], d$var, control = list(maxiter = 1000)) |> summary() |> coef() |> select(estimate, ci.lb, ci.ub),
-      error = function(e) tibble(estimate = NA, ci.lb = NA, ci.ub = NA)
-    )
-  } else {
-    tibble(estimate = NA, ci.lb = NA, ci.ub = NA)
-  }
-}
-
-do_cdi_meta <- function(dataset, grouping_factors) {
-  dataset |>
-    group_by(across(all_of(grouping_factors))) |>
-    nest() |>
-    mutate(
-      comp = map(data, \(d){
-        safe_rma(d, "comp_est", "comp_upper", "comp_lower")
-      }),
-      prod = map(data, \(d){
-        safe_rma(d, "prod_est", "prod_upper", "prod_lower")
-      }),
-      age = map(data, \(d){
-        safe_rma(d, "age_est", "age_upper", "age_lower")
-      }),
-    ) |>
-    select(-data) |>
-    unnest(c(comp, prod, age), names_sep = "_")
-}
-
-do_meta <- function(dataset, grouping_factors) {
-  dataset |>
-    group_by(across(all_of(grouping_factors))) |>
-    nest() |>
-    mutate(corr = map(data, \(d){
-      safe_rma(d, "est", "upper", "lower")
-    })) |>
-    unnest(corr) |>
-    select(-data)
 }

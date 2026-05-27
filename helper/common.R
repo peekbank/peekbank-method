@@ -15,7 +15,6 @@ options(dplyr.summarise.inform = FALSE)
 get_total_trials <- function(d_aoi) {
   d_aoi |>
     distinct(age, administration_id, dataset_name, trial_id) |>
-    distinct() |>
     group_by(age, administration_id, dataset_name) |>
     tally() |>
     group_by(dataset_name) |>
@@ -77,11 +76,12 @@ make_test_retest_pairs <- function(d_aoi) {
 
   pairs <- repeated_subjects |>
     group_by(dataset_name, subject_id) |>
+    arrange(age, .by_group = TRUE) |>
     mutate(
       forward_age = lead(age),
       forward_diff = forward_age - age,
       test_num = case_when(
-        forward_diff < 1.5 ~ 1,
+        forward_diff >= 0 & forward_diff < 1.5 ~ 1,
       ),
       mean_age = case_when(
         test_num == 1 ~ (age + forward_age) / 2,
