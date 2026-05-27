@@ -714,21 +714,16 @@ We considered 5 DVs:
 * "late looking" on the 0 to 600 window (between onset of stimulus name and when we start an accuracy window)
 * accuracy on 600 to 4000
 * RT (on 400-4000)
-* whether there is a valid RT (if children's looks at 0 are disproportionate this could reduce the trials where RT is possible)
+* whether there is a valid RT (if children's looks at 0 are disproportionate, this could reduce the trials where RT is possible)
 
 We also considered a set of IVs across different models:
 
-* trial order: for stimuli seen for the first time how does position in order change viewing behavior
+* trial order: for stimuli seen for the first time, how does position in order change viewing behavior?
 * seen prev (as distractor) -- for stimuli, how does being seen for the first time as the target compare to being the target when seen once previously as the distractor?  (We restrict to pairs of stimuli that are always each other's distractors.)
-* seen prev (as target) -- for stimuli, how does being seen for the first time as the target compare to being the target when seen once previously as the target?  (We restrict to pairs of stimuli that are always each other's distractors.)
+* seen prev (as target) -- for stimuli, how does being seen for the first time as the target compare to being the target when seen once previously as the target?  (We restrict to pairs of stimuli that are always each other's distractors)
 * for datasets where the same items could be seen previously as either the target or distractor, we do a 3-way comparison between first time viewing and one previous viewing as either target or distractor. 
 
-The coefficients from all these models are shown in Figure \ref{fig:order}.Effects related to trial order were multiplied by 10 for the effect of a difference in 10 trials for viewability. 
-
-The effects of having a target image that has been seen 1 time previously (as distractor or target), versus a target image that is being seen for the first time are (if they exist) have central estimates around 1% of the time more or less looking (both for windows around 0 and actual accuracy). These effects may well interact with trial order, although again, effects and interactions, if they exist, are small.  
-Log RT has a larger scale than the other measures that are all on 0-1. Switches to target may be a bit faster if the target was previously seen, but only when interaction with trial order is considered in the model. If anything, more looking to previous distractors on the accuracy window. 
-
-At least across datasets, we cannot detect reliable effects of previously seen items or trial order on any of the DVs. 
+The coefficients from all these models are shown in Figure \ref{fig:order}. Effects related to trial order were multiplied by 10 for the effect of a difference in 10 trials for viewability. The effects of having a target image that has been seen 1 time previously (as distractor or target), versus a target image that is being seen for the first time are (if they exist) have central estimates around 1% of the time more or less looking (both for windows around 0 and actual accuracy). These effects may well interact with trial order, although again, effects and interactions, if they exist, are small. Log RT has a larger scale than the other measures that are all on 0-1. Switches to target may be a bit faster if the target was previously seen, but only when interaction with trial order is considered in the model. If anything, there is more looking to previous distractors on the accuracy window. At least across datasets, we cannot detect reliable effects of previously seen items or trial order on any of the DVs. 
 
 ```{r order, fig.cap="Fitted coefficient estimates from a series of models investigating potential order and repetition effects. For scaling, trial order effects are shown for every 10 trials.", fig.width=6, fig.height=4}
 results_summ <- readRDS(here("cached_intermediates/7_model_summary.rds"))
