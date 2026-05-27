@@ -1000,6 +1000,7 @@ readRDS(here("cached_intermediates/6_animacy.rds")) |>
   labs(x = "Time", y = "Looking to target", fill = "Target/Distractor animacy", color= "Target/Distractor animacy")
 ```
 
+<!--MZ comment: only refer briefly to order effects in design intro para?-->
 <!--
 Another potential concern regarding stimulus preferences is that repeating the same pairs of images may cause children to prefer to look at the image that was previously the target [citation -- does anyone admit to worrying about this?]. We investigated this in a series of models (reported in SI: Order Effects), and found that effects of repeating target labels (and target and distractor images) are likely quite small, with unclear directionality. 
 In general, our data suggest that order effects stemming from repeated trials of the same target are unlikely to significantly bias word recognition estimates. -->
@@ -1077,15 +1078,9 @@ agg_acc_trt_mod <- do_model(
 
 
 
-To quantify the potential cumulative consequences of different combinations of choices, we computed the difference in reliability when making all of the recommended choices with respect to data processing (in particular, measuring accuracy on 600-4000 with no exclusions) to an instance in which researchers made a set of reasonable-sounding but unfortunate choices. 
+To quantify the potential cumulative consequences of different combinations of choices, we computed the difference in reliability when making all of the recommended choices with respect to data processing to an instance in which a researcher made a set of unfortunate choices that are nevertheless consistent with the literature. Consider two researchers analyzing accuracy in the same LWL dataset, Norm and Rex. Researcher Norm makes a set of reasonable choices based on practices observed in other LWL papers, choosing to analyze a short analysis time window (300-1800 ms); apply baseline correction (baseline window: -2000-0 ms); exclude trials on which infants are not looking for at least 60% of the critical window or not looking at the target onset for insufficient attentiveness; and require that infants contribute at least 50% of all trials for inclusion. Researcher Rex, on the other hand, analyzes the same data and instead chooses parameters based on the data-driven recommendations above: a critical window of 600-4000ms, no baseline correction, and including all trials and sessions. Researcher Rex would gain substantial increases in ICC (`r agg_acc_icc_mod |> in_text_stats(sign_flip=T)`) and test-retest reliability (`r agg_acc_trt_mod |> in_text_stats(sign_flip=T)`). Additionally, Rex could expect small increases in validity for correlations with comprehension  (`r agg_acc_comp_mod |> in_text_stats(sign_flip=T)`) and production (`r agg_acc_prod_mod |>  in_text_stats(sign_flip=T)`). Despite both researchers making choices consistent with past practices, we would expect Rex to derive a measure with significantly improved psychometric properties compared to Norm, and therefore be in a substantially better position to study individual differences and longitudinal change.
 
-DO WE WANT worst case? this is currently a combination of things people actually do (at least individually  -- 300-1800 bc to -2000 - 0; exclude for .6 and if not looking at start; then require 50% trials) 
-
-Switching to the recommended parameters yields an ICC gain of `r agg_acc_icc_mod |> in_text_stats(sign_flip=T)` and increases test-retest reliability by `r agg_acc_trt_mod |> in_text_stats(sign_flip=T)`. There are also smaller expected increases in validity of  (`r agg_acc_comp_mod |> in_text_stats(sign_flip=T)` for correlation with comprehension, and `r agg_acc_prod_mod |>  in_text_stats(sign_flip=T)` for correlation with production.  
-
-For RT, differences are a lot smaller, do we want to include? 
-
-
+<!-- For RT, differences are a lot smaller, do we want to include? -->
 # General Discussion
 
 <!-- Measuring infant looking time is notoriously noisy, making decisions about measurement practices highly consequential for the conclusions we draw about infant language development. -->
