@@ -63,7 +63,8 @@ authornote: |
   AI Disclosure statement: Generative AI was used to do code refactoring and code review. 
 
 abstract: |
-  Children's early word recognition is both an important phenomenon in its own right and a key index of early language more broadly. The looking-while-listening paradigm (LWL), in which eye movements to the referent of a word are tracked to reveal online language comprehension, is a key paradigm for measuring word recognition in young children. Yet the analytic and design choices vary widely, and the consequences of these choices have rarely been investigated at a large scale. Here we use data from Peekbank, a repository of LWL data from studies with almost 4000 children (6 months -- 5 years), to search for analytic and design decisions that maximize the reliability and validity of LWL measures. Based on these analyses, we recommend the use of long analytic windows for computing accuracy and avoiding baseline correction to maximize reliability. We also find little or no benefits to reliability from excluding children or trials with low data. In our dataset, the recommended combination of analytic choices increases reliability by approximately .20 and validity by .07. Finally, we recommend that LWL paradigms be designed with a minimum of 10 target trials per child per condition to improve reliability and that experimentalists match their stimuli for animacy --- image saliency differences due to pairing animate and inanimate images can mask word knowledge in infants. We hope that these recommendations lead to improved and unified standards for the measurement of children's word recognition. 
+  Children’s early word recognition is both an important phenomenon in its own right and a key index of early language more broadly. A key paradigm for measuring word recognition in young children is the looking-while-listening paradigm (LWL), which tracks eye movements to the referent of a word as a measure of online language comprehension. Yet the analytic and design choices for LWL vary widely, and the consequences of these choices have rarely been investigated at a large scale. Here we use data from Peekbank, a repository of LWL data from studies with almost 4000 children (6 months – 5 years), to search for analytic and design decisions that maximize the reliability and validity of LWL measures. Analytic recommendations include using long analytic windows for computing accuracy and avoiding baseline correction. We also find little or no benefits from excluding children or trials with low data. The recommended combination of analytic choices increased reliability by approximately .20 and validity by .07. Design recommendations include building experiments with  a minimum of 10 target trials per child per condition to improve reliability and matching stimuli for animacy because image saliency differences can mask word knowledge in infants. We hope that these recommendations lead to improved and unified standards for the measurement of children’s word recognition in the LWL paradigm.
+
   
 keywords          : "looking while listening, word recognition, language development, eyetracking, reliability, validity"
 wordcount         : "X"
@@ -136,7 +137,13 @@ nocite: |
   @pomperyumme,
 
 ---
+<!-- Known TODOs
 
+* fix author affiliations & affiliation order
+* fix bib info -- look for incomplete entries
+* after more edits, re-standardize on LWL except for 1st time in abstract & intro
+
+-->
 # Introduction
 
 ```{r setup, include = FALSE}
@@ -154,22 +161,26 @@ set.seed(42)
 knitr::opts_chunk$set(cache.extra = knitr::rand_seed)
 ```
 
-Over the first few months of life, children become experts in their native language, organizing the phonological system of the speech that they hear and parsing speech into meaningful units. Soon after, children begin to show early signs of comprehension of words or phrases through simple behaviors such as turning their head when their name is called (e.g., "Hey, Billy!") or reaching for an object that is named (e.g., "Where's the ball?"). These everyday accomplishments mark important milestones in children’s development. Yet such global assessments may miss continuous processes of growth in underlying skills and the millisecond-level processes that take place during real-time language comprehension. Children, like adults, process speech incrementally, as it unfolds in time [@fernald1998;@snedeker2013;@frank2026], and use features of the speech signal to extract meaning that will support language comprehension [@law2015;@Weisleder2013]. 
+Over the first few months of life, children become experts in their native language, organizing the phonological system of speech input and parsing speech into meaningful units. Soon after, children begin to show early signs of comprehension of words or phrases through simple behaviors such as turning their head when their name is called (e.g., “Hey, Billy!”) or reaching for an object that is named (e.g., “Where’s the ball?”). These everyday accomplishments mark important milestones in children’s development. Yet global assessments of these milestones do not capture the millisecond-level processes that take place from moment-to-moment during real-time language comprehension. Children, like adults, process speech incrementally, as it unfolds in time [@fernald1998;@snedeker2013;@frank2026], and use features of the speech signal to extract meaning that supports language comprehension [@law2015;@Weisleder2013]. 
 
-These moment-to-moment processes are difficult to document without child-friendly procedures that allow precision in capturing how children’s behaviors are time-locked to speech. In particular, the "looking while listening" (LWL) procedure has emerged as a *de facto* standard for measuring language in infants and children, especially when they are younger than two years old, as other options for direct assessment during this period are limited [@frank2021].^[Here we adopt LWL as a convenient label while recognizing that the procedure goes by a number of different names in the literature including the "intermodal preferential looking procedure" [@hirsh-pasek1996;@reznick1990visual;@fernald2008].] In the standard version of LWL, children see two pictures on a screen and hear a referring expression, e.g. "look at the ball"; their time-locked eye-movements to the ball over the distractor image are then taken to be evidence for language comprehension [@fernald2008].
+These moment-to-moment processes are difficult to document without child-friendly procedures that precisely measure how children’s eye-movements are time-locked to speech. In particular, the "looking while listening" (LWL) procedure has emerged as a *de facto* standard for assessing language comprehension in infants and children, especially when they are younger than two years old, as other options for direct assessment during this period are limited [@frank2021].^[Here we adopt LWL as a convenient label while recognizing that the procedure goes by a number of different names in the literature including the "intermodal preferential looking procedure" [@hirsh-pasek1996;@reznick1990visual;@fernald2008].]  In the standard version of LWL, children see two pictures on a screen and hear speech directing their attention to one of the pictures, e.g., “look at the ball”. The accuracy and speed of fixating the named referent, rather than the distractor image, measure the efficiency of language comprehension [@fernald2008].
 
-LWL has been a key tool for enhancing our understanding of infants’ language processing and knowledge [@golinkoff2013]. For example, using LWL methods, we can measure increases in speed and accuracy in responding to familiar words [@fernald2006;@frank2026] and increases in the detail of their phonological representations [@swingley2000;@moore2024] during the first years after birth. Moreover, measures of children’s skill in the LWL task have also proven useful as an index of individual differences. Children who show more efficient language processing at 18 months show larger vocabulary size and more rapid vocabulary growth over the second and third years than children with less efficient processing [@fernald2012;@fernald2006;@frank2026;@peter2019]. Language processing efficiency has also been shown to link to later language, cognitive, and non-verbal outcomes in both typically-developing [@peter2019;@law2015] and preterm children [@marchman2016;@marchman2018;@marchman2023]. 
 
-One key reason for the success of this research is the care that has been invested in the development of the looking-while-listening method. Past work has articulated best practices in collecting and analyzing looking-while-listening measures, with a particular focus on stimulus and design choices that make looking preferences maximally informative about word recognition processes [@fernald2008]. However, despite widespread use of the looking-while-listening method in language development research, there is still limited consensus on how to best process and analyze time-series data of this type [from either adults or infants, @mirman2008; @bergelson2012; @peelle2021; @vonholzen2012; @weaver2026b]. 
+LWL has been a key tool for enhancing our understanding of the continuous processes of growth in incremental language processing [@golinkoff2013]. For example, using LWL methods, we can measure developmental increases in the speed and accuracy of children’s recognition of  familiar words [@fernald2006;@frank2026] and in their sensitivity to detailed  phonological information during the first years after birth [@swingley2000;@moore2024]. Moreover, measures of children’s skill in the LWL task have proven useful as an index of individual differences. Children who show more efficient language processing of familiar words at 18 months show larger vocabulary size and more rapid vocabulary growth over the second and third years of life than children with less efficient processing [@fernald2012;@fernald2006;@frank2026;@peter2019]. Variation in language processing efficiency has also been shown to be associated with later language, cognitive, and non-verbal outcomes in both typically-developing [@peter2019;@law2015] and preterm children [@marchman2016;@marchman2018;@loi2017].
 
-In the developmental field especially, this lack of consensus likely stems from structural factors: infant recruitment is time- and cost-intensive and datasets collected by individual labs are often small [@frank2017;@bergmann2018]. These issues make it difficult for any one researcher to systematically evaluate the consequences of specific analytic choices independently of the data collected for a particular study [cf. @peelle2021]. Instead, researchers are often forced to make ad-hoc decisions or to adopt idiosyncratic lab practices that themselves originate from subjective judgments of what "seems to work". By decreasing uniformity in the literature, this variation also increases the challenge of triangulating what precisely is being measured by LWL [@weaver2026b]. How can we put the measurement and analysis of infant word recognition and online language processing on firmer empirical footing?
+One key reason for the success of this research is the care that has been invested in the development of the LWL method. Past work has articulated best practices in collecting and analyzing LWL measures, with a particular focus on stimulus and design choices that are assumed to ensure that looking preferences are maximally informative about word recognition processes [@fernald2008]. However, despite widespread use of the LWL method in language development research, there is still limited consensus on how to best process and analyze time-series data of this type [from either adults or infants, @mirman2008; @bergelson2012; @peelle2021; @vonholzen2012; @weaver2026b].
 
-Peekbank is a new data resource that offers a potential solution to this core issue by providing a large database of infant eye-tracking data from the looking-while-listening paradigm for exploring methodological questions [@zettersten2022]. The most recent release of Peekbank (version 2026.1) houses 44 datasets from infants across a wide age range [6 months - 5 years] and across a broad set of test words and materials, resulting in observations from over 3915 infants participating in the looking-while-listening task. The goal of the current manuscript is to use these data to systematically explore key analytic decisions that researchers make when using this paradigm, offering best-practices guidance for measurement. 
 
-Our approach throughout is to seek analytic choices that distill the best possible measures from the rich time course of behavior in the LWL task. Recent reviews of the LWL literature highlight open questions about both the reliability and validity of looking-based measures of word recognition [@weaver2026b]. Starting with reliability, we aim for analyses that yield the maximal signal about individual children relative to both measurement error and irrelevant artifacts [@byers-heinlein2022;@schreiner2024limited;@rhemtulla2022reliability].  Here, to measure reliability, we compute both within-dataset inter-item reliability (ICC) and test-retest reliability for datasets with multiple LWL sessions close in time for the same children. 
+In the developmental field especially, this lack of consensus likely stems from structural factors: infant recruitment is time- and cost-intensive and datasets collected by individual labs are often small [@frank2017;@bergmann2018]. These issues make it difficult for any one researcher to systematically evaluate the consequences of specific analytic choices independently of the data collected for a particular study [cf. @peelle2021]. Instead, researchers are often forced to make ad-hoc decisions or to adopt idiosyncratic lab practices that themselves originate from subjective judgments of what “seems to work”. By decreasing uniformity in the literature, this variation also increases the challenge of triangulating what precisely is being measured by LWL [@weaver2026b]. How can we put the measurement and analysis of infant word recognition and online language processing on firmer empirical footing?
 
-Turning to validity, the goal is to make analytic decisions that maximize the relationship with other measures that are thought to reflect related constructs [@kominsky2022simplicity;@flake2020]. Here, we select as our primary measure the correlations between LWL measures and parent reports of vocabulary measured with the MacArthur-Bates Communicative Development Inventories [MB-CDI, a popular parent report measure of early vocabulary that is widely used in conjunction with LWL tasks, @frank2021; @fenson1994variability]. We focus specifically on the relationships between aggregate measures of vocabulary size from the MB-CDI and LWL data, given both the documented relationships between these measures [reviewed in @marchman2023] and the mixed evidence on item-level alignment between LWL and MB-CDI data [@lopezperez2024;@weaver2026]. This correspondence reflects the general relationship between word recognition in the moment (indexed by LWL) and the growth of early vocabulary over time (indexed by the MB-CDI) [@frank2026]. 
+Peekbank is a new data resource that offers a potential solution to this core issue by providing a large database of infant eye-tracking data from the LWL paradigm for exploring methodological questions [@zettersten2022]. The most recent release of Peekbank (version 2026.1) houses 44 datasets from infants across a wide age range (6 months – 5 years) and across a broad set of test words and materials, resulting in observations from over 3915 infants participating in the LWL task. The goal of the current manuscript is to use these data to systematically explore key analytic decisions that researchers make when using this paradigm, offering best-practices guidance for measurement.
 
+Our approach throughout is to seek analytic choices that distill the best possible measures from the rich time course of behavior in the LWL task. Recent reviews of the LWL literature highlight open questions about both the reliability and validity of looking-based measures of word recognition [@weaver2026b]. Starting with reliability, we aim for analyses that yield the maximal signal about individual children relative to both measurement error and irrelevant artifacts [@byers-heinlein2022;@schreiner2024limited;@rhemtulla2022reliability]. Here, to measure reliability, we compute both within-dataset inter-item reliability and test-retest reliability for datasets with multiple LWL sessions close in time for the same children.
+
+Turning to validity, the goal is to make analytic decisions that maximize the relationship with other measures that are thought to reflect related constructs [@kominsky2022simplicity;@flake2020]. Here, we select as our primary measure the correlations between LWL measures and parent reports of vocabulary measured with the MacArthur-Bates Communicative Development Inventories (MB-CDI), a popular parent report measure of early vocabulary  [@frank2021; @marchman2023] that is widely used in conjunction with LWL tasks (CITE Fernald etc). We focus specifically on the relationships between aggregate measures of receptive and expressive vocabulary size from the MB-CDI and LWL task, given the documented relationships between these measures [e.g., @fernald2012; @peter2019]. This correspondence reflects the general relationship between familiar word recognition in the moment (indexed by LWL) and either concurrent vocabulary size or the growth of early vocabulary over time (indexed by the MB-CDI) [@frank2026]. We do not explore relations at the item-level (e.g., speed of processing of a particular word and a child’s reported knowledge of that word) given the mixed evidence for item-level alignment between LWL and MB-CDI data  [@lopezperez2024;@weaver2026]. 
+
+
+<!-- got to here in integrating changes -->
 Our focus in this paper is on providing guidance for navigating some of the many decisions facing an investigator analyzing LWL data. Recent work using an earlier version of Peekbank (as well as other datasets) has investigated the psychometric properties of a range of different dependent measures in LWL tasks and their general construct structure [@sander-montant2025]. We focus instead on the consequences of varying analytic choices for two main measures, which tend to have the strongest psychometric properties [@sander-montant2025]. The first is *accuracy*: how much of the time a child looks at the target image compared to looking at either the target or distractor image over some period of time after the auditory stimulus. Children's responses unfold over time, but it is not known what start and end time maximizes the signal of children's response to the stimulus [@peelle2021]. The second measure we focus on is *reaction time* (RT): how long it takes a child to change where they are looking in response to the stimulus [@fernald2008]. There are even more analytic options available for this metric --- whether to measure RT as when a child shifts attention away from the distractor (launch-based RT) or when a child completes this shift and fixates the target (land-based RT), whether to measure RT on a log or raw scale, and how long after the start of the target onset to start counting the RTs. For all measures, there are also questions about whether and when to exclude either children or trials. 
 
 While the LWL task is used for a wide variety of purposes, including measurements of individual differences [e.g., @peter2019] as well as measurements of experimentally-induced condition differences [e.g., @swingley2000], here we focus only on what we refer to as "vanilla" word recognition items. These are items that test vocabulary directly with familiar targets, familiar distractors, and no informative carrier phrases or experimental manipulations. We focus on these items both because they are the most commonly used LWL items and because they are measurements in which reliability and validity are most clearly defined. Vanilla trials are expected to reflect the construct of word knowledge and correlate with other measures of word knowledge, including vocabulary size.
@@ -305,7 +316,7 @@ All the code and data to reproduce the analyses is available at https://github.c
 
 # Data processing recommendations
 
-Our first set of recommendations focuses on data processing decisions. Looking while listening data undergoes significant post-processing.. Experiment design, eye-tracking, and eye-gaze coding considerations are covered elsewhere [@fernald2008; @pomper2020; @wass2013; @venker2020], so we focus here on the process of going from a series of timepoints to the measures of accuracy and reaction time that are analysed. There are a number of decisions involved, including what windows and time cutoffs to use, and what exclusions to make around missing or low amounts of data. 
+Our first set of recommendations focuses on data processing decisions. LWL data undergoes significant post-processing.. Experiment design, eye-tracking, and eye-gaze coding considerations are covered elsewhere [@fernald2008; @pomper2020; @wass2013; @venker2020], so we focus here on the process of going from a series of timepoints to the measures of accuracy and reaction time that are analysed. There are a number of decisions involved, including what windows and time cutoffs to use, and what exclusions to make around missing or low amounts of data. 
 
 
 ## Recommendation 1: Measure accuracy over a long window. 
@@ -349,11 +360,11 @@ acc_include <- function(df) {
   ))
 }
 
-set_of_lollis(readRDS(here("cached_intermediates/1_acc_icc.rds")), readRDS(here("cached_intermediates/1_acc_cdi.rds")), readRDS(here("cached_intermediates/1_acc_test_retest.rds")), acc_include)
+set_of_lollis(readRDS(here("cached_intermediates/1_acc_icc.rds")), readRDS(here("cached_intermediates/1_acc_cdi.rds")), readRDS(here("cached_intermediates/1_acc_test_retest.rds")), acc_include, use_icc_order = TRUE)
 ```
 
-```{r acc-lolli-age, fig.height=4, fig.width=6, fig.pos="t", fig.cap="Per dataset outcome measures for two window options: 300ms-1800ms (red) and 600ms-4000ms (blue), shown split by age category. Dot size is proportional within each panel to the number of administrations." }
-set_of_age_lollis(readRDS(here("cached_intermediates/1_acc_icc_byage.rds")) |> order_age(), readRDS(here("cached_intermediates/1_acc_cdi_byage.rds")) |> order_age(), acc_include)
+```{r acc-lolli-age, fig.height=3, fig.width=6, fig.pos="t", fig.cap="Per dataset ICC measures for two window options: 300ms-1800ms (red) and 600ms-4000ms (blue), shown split by age category. Dot size is proportional within each panel to the number of administrations." }
+set_of_age_lollis(readRDS(here("cached_intermediates/1_acc_icc_byage.rds")) |> order_age(), acc_include, use_icc_order = TRUE)
 
 
 ```
@@ -421,7 +432,7 @@ acc_comp_mod <- do_model(
 Average ICCs across windows are shown in Figure \ref{fig:acc-heat-map}. As expected, including time points from before the point of disambiguation decreases reliability. Our initial exploration found a region of high reliability with onsets around 600-800ms and offsets around 2800-4000ms. A dataset by dataset comparison of the differences between a 300-1800ms window (representative of common practice) and a 600-4000 ms window are shown in Figure \ref{fig:acc-lolli}. Nearly all datasets have higher ICC reliability for the later and longer window. All 5 test-retest reliability datasets with close in time pairs of administrations also show increased reliability on this later and longer window. Our mixed effect model confirms that there are expected reliability gains from switching from a 300-1800ms window to a 600-4000ms one. ICC reliability is expected to increase by `r acc_icc_mod |> filter(t_start==300, t_end==1800) |> in_text_stats(sign_flip=T)` and test-retest reliability by `r acc_trt_mod |> filter(t_start==300, t_end==1800) |> in_text_stats(sign_flip=T)`. There is no evidence of differences in validity between these two windows (`r acc_comp_mod |> filter(t_start==300, t_end==1800) |> in_text_stats(sign_flip=T)` for vocabulary comprehension or `r acc_prod_mod |> filter(t_start==300, t_end==1800) |> in_text_stats(sign_flip=T)` for vocabulary production).
 
 <!-- Age -->
-These patterns generally hold across age (Figure \ref{fig:acc-lolli-age}). The overall level of reliability rises with age, as older children generally fixate target images more consistently and experiments with younger children typically use fewer trials (Figure S3). However, the overall pattern of which time windows maximize reliability and validity at any given age is remarkably consistent across the different age groups (Figure S5). For instance, across different ages there is an improvement in ICC for using a 600-4000 window compared to a 300-1800ms one. For <18 months, the ICC difference is `r acc_icc_mod_age |> filter(t_start==300, t_end==1800, age_bin=="<18") |> in_text_stats(sign_flip=T)`; for 18-24 months, `r acc_icc_mod_age |> filter(t_start==300, t_end==1800, age_bin=="18-24") |> in_text_stats(sign_flip=T)`; for 24-36 months,  `r acc_icc_mod_age |> filter(t_start==300, t_end==1800, age_bin=="24-36") |> in_text_stats(sign_flip=T)`; and for 36+ months `r acc_icc_mod_age |> filter(t_start==300, t_end==1800, age_bin==">=36") |> in_text_stats(sign_flip=T)`. 
+These patterns generally hold across age. The overall level of reliability rises with age, as older children generally fixate target images more consistently and experiments with younger children typically use fewer trials (Figure S3). However, the overall pattern of which time windows maximize reliability and validity at any given age is remarkably consistent across the different age groups (Figure S5). For instance, across different ages there is an improvement in ICC for using a 600-4000 window compared to a 300-1800ms one (Figure \ref{fig:acc-lolli-age}). For <18 months, the ICC difference is `r acc_icc_mod_age |> filter(t_start==300, t_end==1800, age_bin=="<18") |> in_text_stats(sign_flip=T)`; for 18-24 months, `r acc_icc_mod_age |> filter(t_start==300, t_end==1800, age_bin=="18-24") |> in_text_stats(sign_flip=T)`; for 24-36 months,  `r acc_icc_mod_age |> filter(t_start==300, t_end==1800, age_bin=="24-36") |> in_text_stats(sign_flip=T)`; and for 36+ months `r acc_icc_mod_age |> filter(t_start==300, t_end==1800, age_bin==">=36") |> in_text_stats(sign_flip=T)`. 
 
 While we focused our analyses on the window that maximized reliability numerically (600 - 4000 ms), there are a wide range of window options with generally comparable reliability and validity measures (Figure S4). 
 For instance, a 400 - 3000 ms window is not significantly different from a 600 - 4000 ms window on any of the outcome measures.
@@ -481,7 +492,7 @@ bc_include <- function(df) {
   )
 }
 
-set_of_lollis(bc_icc, bc_cdi, bc_test_retest, bc_include)
+set_of_lollis(bc_icc, bc_cdi, bc_test_retest, bc_include, use_icc_order = TRUE)
 ```
 
 ```{r}
@@ -605,7 +616,7 @@ rt_include <- function(df) {
   combined=relevel(combined, "launch RT, raw-scale, 300-1800ms range"))
 }
 
-set_of_lollis(rt_icc, rt_cdi, rt_trt, rt_include, is_rt=T)
+set_of_lollis(rt_icc, rt_cdi, rt_trt, rt_include, is_rt=T, use_icc_order = TRUE)
 ```
 
 
@@ -977,7 +988,7 @@ For this analysis, we treat distinct sessions separately in order to calculate t
 One concern with LWL trial design is that children may have preferences for which image to look at separate from the auditory stimuli, and some of their looking behavior may be independent of the auditory stimulus. One approach is to decrease the preference discrepancy between a pair of images, so that in the absence of auditory cues, children prefer to look at both images approximately equally. While there are a number of factors that could play into children's image preferences [@fernald2008;@pomper2019; @nothdurft2000salience], one factor that stood out in the data was animacy. Children have a strong preference for looking at animals and humans. When trials have one animate and one inanimate, children look more at the animate in the pre-stimulus period (Figure \ref{fig:animacy}A) and are slower to respond when the inanimate is named. In contrast, for trials with target and distractor items matched on animacy, children's early looking patterns for animate and inanimate targets are highly similar. This difference is particularly relevant for the younger children, whose stimulus-contingent looking behavior is weakest, so more of the looking behavior is driven by animacy; however, effects of animacy were apparent in children up to the age of three (Figure \ref{fig:animacy}B). 
 
 
-```{r animacy, fig.cap="Looking time profiles for different combinations of target and distractor animacy. Panel A shows overall; Panel B shows split by age category. ", fig.height=2.5, fig.width=8}
+```{r animacy, fig.cap="Looking time profiles for different combinations of target and distractor animacy. Panel A shows overall; Panel B shows split by age category. ", fig.height=3, fig.width=6}
 all <- readRDS(here("cached_intermediates/6_animacy.rds")) |>
   mutate(type = case_when(
     animate_target == "yes" & animate_distractor == "yes" ~ "both animate",
@@ -993,6 +1004,7 @@ all <- readRDS(here("cached_intermediates/6_animacy.rds")) |>
   geom_vline(xintercept = 600, lty = "dashed") +
   geom_vline(xintercept = 4000, lty = "dashed") +
   scale_fill_brewer(aesthetics=c("color", "fill"), palette = "Set1") +
+  theme(legend.position = "none")+
   labs(x = "Time", y = "Looking to target", fill = "Target/Distractor animacy", color= "Target/Distractor animacy")
 
 age_split <- readRDS(here("cached_intermediates/6_animacy_byage.rds")) |>
@@ -1013,7 +1025,12 @@ age_split <- readRDS(here("cached_intermediates/6_animacy_byage.rds")) |>
   scale_fill_brewer(aesthetics=c("color", "fill"), palette = "Set1") +
   labs(x = "Time", y = "Looking to target", fill = "Target/Distractor animacy", color= "Target/Distractor animacy")+facet_wrap(~age_bin)+theme(legend.position = "none", axis.text.x=element_text(size=6))
 
-plot_grid(all, age_split, rel_widths = c(1, .7), labels = "AUTO")
+
+
+  g <- ggplotGrob(all + guides(color = guide_legend(nrow = 2), fill = guide_legend(nrow = 2))+theme(legend.position = "bottom",legend.title = element_blank()))
+  leg <- g$grobs[[which(g$layout$name == "guide-box-bottom")]]
+  
+plot_grid(plot_grid(all, age_split, rel_widths = c(1, 1.5), labels = "AUTO"), leg, nrow=2, rel_heights=c(1, .3))
 ```
 
 <!--MZ comment: only refer briefly to order effects in design intro para?-->
@@ -1050,7 +1067,7 @@ agg_acc_trt <- readRDS(here("cached_intermediates/8_acc_test_retest.rds")) |>
 
 ```{r how-much-matters, fig.cap="Differences in dependent measures between the recommended accuracy measurement and a sensible-sounding, but unfortunate alternative set of parameters.", fig.height=3}
 level_all_acc <- function(df){df}
-set_of_lollis(agg_acc_icc, agg_acc_cdi, agg_acc_trt, level_all_acc )
+set_of_lollis(agg_acc_icc, agg_acc_cdi, agg_acc_trt, level_all_acc, use_icc_order = TRUE)
 ```
 
 ```{r}
@@ -1099,7 +1116,7 @@ To quantify the potential cumulative consequences of different combinations of c
 # General Discussion
 
 Children's early word recognition is a central construct for the study of language learning, meaning that improving recognition measures can have widespread benefits for our understanding of language development. How can we maximize reliable, valid signal in the analysis of data in the LWL paradigm?
-We took a practical, data-driven approach to this question, using a large-scale dataset of infant looking-while-listening data to quantify the impact of different analysis choices on measurement properties, leading to six core recommendations for data processing and experimental design.
+We took a practical, data-driven approach to this question, using a large-scale dataset of infant LWL data to quantify the impact of different analysis choices on measurement properties, leading to six core recommendations for data processing and experimental design.
 
 For data processing, our strongest take-homes concern window choice and baseline correction.
 First, longer time windows (e.g., windows that end around 3000 ms post target word onset) maximize the reliability of accuracy measures, with no negative consequences for validity.
@@ -1119,16 +1136,16 @@ When an image of an animate referent was paired with an image of an inanimate re
 This finding has important consequences for estimating word recognition: accuracy for animate targets is substantially overestimated and accuracy for inanimate targets becomes substantially underestimated when animacy is not balanced in the target-distractor pairing.
 The results are especially dramatic for younger infants (under 18 months): looking for familiar inanimate targets can appear to be at chance when paired with an animate distractor.
 In other words, an improper balancing of saliency could make an infant appear to not know a word, even though they do.
-These results emphasize the importance of balancing saliency in image pairings as much as possible in looking-while-listening designs.
+These results emphasize the importance of balancing saliency in image pairings as much as possible in LWL designs.
 This is especially true given that many of the current analytic approaches to correcting for saliency imbalances post hoc rely on difference-based measures (baseline correction; item-pair correction) which decrease reliability.
 
  
 ## Limitations & Generalizability 
 
 The scope of our recommendations is fundamentally limited by the characteristics of the Peekbank dataset.
-First, while the Peekbank database is by far the largest dataset of its kind, it is not a comprehensive or representative set of looking-while-listening studies. 
+First, while the Peekbank database is by far the largest dataset of its kind, it is not a comprehensive or representative set of LWL studies. 
 To highlight just a few of these limitations, (1) the data is predominantly English word recognition collected from infants living in the U.S., and (2) the dataset is a convenience sample from labs who made their data openly available or otherwise accessible on request from the Peekbank team.
-Looking-while-listening studies as a whole are likely more heterogeneous than what is represented in Peekbank --- the datasets considered here come predominantly from a small group of labs or networks of researchers with similar training in looking-while-listening data collection.
+LWL studies as a whole are likely more heterogeneous than what is represented in Peekbank --- the datasets considered here come predominantly from a small group of labs or networks of researchers with similar training in LWL data collection.
 
 At the same time, there is also substantial heterogeneity in the studies included in Peekbank, due to many studies pursuing different research questions and therefore making a variety of distinct design choices.
 To mitigate this concern, our analyses focused exclusively on what we term “vanilla” trials, i.e., trials that present familiar words with familiar images with limited or no targeted manipulations of the stimuli.

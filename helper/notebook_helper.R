@@ -79,7 +79,7 @@ filter_icc <- function(data, col_est) {
   data |> semi_join(include |> filter(pct_0 < .5))
 }
 
-do_lollipop_plot <- function(df, name, include_condition, weights, flip = F) {
+do_lollipop_plot <- function(df, name, include_condition, weights, flip = F, fixed_order = NULL) {
   df <- df |>
     mutate(name = name) |>
     {{ include_condition }}() |>
@@ -89,7 +89,16 @@ do_lollipop_plot <- function(df, name, include_condition, weights, flip = F) {
     group_by(`Dataset Name`) |>
     mutate(winner = if (flip) combined[which.min(est)] else combined[which.max(est)]) |>
     ungroup() |>
-    ggplot(aes(x = if (flip) reorder(`Dataset Name`, -est) else reorder(`Dataset Name`, est), y = est)) +
+    mutate(`Dataset Name` = if (!is.null(fixed_order)) {
+      factor(`Dataset Name`, levels = fixed_order)
+    } else if (flip) {
+      reorder(`Dataset Name`, -est)
+    } else {
+      reorder(`Dataset Name`, est)
+    })
+
+  p <- df |>
+    ggplot(aes(x = `Dataset Name`, y = est)) +
     geom_line(aes(color = winner, group = `Dataset Name`), linewidth = 1.3, alpha = .5) +
     geom_point(aes(color = combined, size = n_admins)) +
     scale_size_area(max_size = 2) +
@@ -105,9 +114,12 @@ do_lollipop_plot <- function(df, name, include_condition, weights, flip = F) {
       axis.ticks.y = element_blank(),
       axis.title.x = element_blank()
     )
+
+  if (!is.null(fixed_order)) p <- p + scale_x_discrete(drop = FALSE)
+  p
 }
 
-do_lollipop_plot_age <- function(df, name, include_condition, weights, flip = F, xlim = NULL) {
+do_lollipop_plot_age <- function(df, name, include_condition, weights, flip = F, xlim = NULL, fixed_order = NULL) {
   df <- df |>
     mutate(name = name) |>
     {{ include_condition }}() |>
@@ -117,8 +129,27 @@ do_lollipop_plot_age <- function(df, name, include_condition, weights, flip = F,
     order_age() |>
     group_by(`Dataset Name`, age_bin) |>
     mutate(winner = if (flip) combined[which.min(est)] else combined[which.max(est)]) |>
-    ungroup() |>
-    mutate(dataset_ordered = reorder_within(`Dataset Name`, if (flip) -est else est, age_bin))
+    ungroup()
+
+  if (!is.null(fixed_order)) {
+    age_levels <- levels(df$age_bin)
+    combined_levels <- c(outer(fixed_order, age_levels, paste, sep = "___"))
+
+    # Add placeholder rows for missing dataset×age_bin combos so every facet has the same rows
+    existing <- df |> distinct(`Dataset Name`, age_bin) |> filter(!is.na(`Dataset Name`))
+    missing_combos <- crossing(`Dataset Name` = fixed_order, age_bin = age_levels) |>
+      mutate(age_bin = factor(age_bin, levels = age_levels)) |>
+      anti_join(existing, by = c("Dataset Name", "age_bin"))
+
+    df <- bind_rows(df, missing_combos) |>
+      mutate(
+        age_bin = factor(age_bin, levels = age_levels),
+        dataset_ordered = factor(paste(`Dataset Name`, age_bin, sep = "___"), levels = combined_levels)
+      )
+  } else {
+    df <- df |>
+      mutate(dataset_ordered = reorder_within(`Dataset Name`, if (flip) -est else est, age_bin))
+  }
 
   missing_bins <- setdiff(levels(df$age_bin), as.character(unique(df$age_bin)))
   if (length(missing_bins) > 0) {
@@ -135,7 +166,7 @@ do_lollipop_plot_age <- function(df, name, include_condition, weights, flip = F,
     coord_cartesian(xlim = xlim) +
     labs(title = name) +
     scale_color_solarized(accent = "red") +
-    facet_wrap(~age_bin, scales = "free_y", ncol = 1, drop = FALSE, strip.position = "right") +
+    facet_wrap(~age_bin, scales = "free_y", ncol = 4, drop = FALSE, strip.position = "top") +
     annotate("segment", x = 0, xend = 0, y = -Inf, yend = Inf, lty = "dashed") +
     theme(
       legend.position = "none",
@@ -148,51 +179,78 @@ do_lollipop_plot_age <- function(df, name, include_condition, weights, flip = F,
     )
 }
 
-set_of_age_lollis <- function(icc, cdi, include_func, is_rt = F) {
-  xlim <- range(c(icc$est, cdi$comp_est, cdi$prod_est), na.rm = TRUE)
+set_of_age_lollis <- function(icc, include_func, is_rt = F, use_icc_order = FALSE) {
+  fixed_order <- if (use_icc_order) {
+    icc_means <- icc |>
+      filter_icc("est") |>
+      include_func() |>
+      filter(!is.na(combined), !is.na(est)) |>
+      left_join(clean_names) |>
+      group_by(`Dataset Name`) |>
+      summarize(mean_est = mean(est, na.rm = TRUE))
+
+    icc |>
+      distinct(dataset_name) |>
+      left_join(clean_names) |>
+      left_join(icc_means, by = "Dataset Name") |>
+      mutate(mean_est = replace_na(mean_est, 0)) |>
+      arrange(mean_est) |>
+      pull(`Dataset Name`)
+  } else NULL
 
   a <- do_lollipop_plot_age(
     icc |> filter_icc("est"), "ICC reliability", {{ include_func }},
     dataset_summ |> group_by(dataset_name) |> summarize(n_admins = n_distinct(administration_id)),
-    xlim = xlim
+    fixed_order = fixed_order
   )
-  b <- do_lollipop_plot_age(
-    cdi |> filter(!is.na(comp_est)) |> rename(est = comp_est), "CDI Comprehension", {{ include_func }},
-    dataset_summ |> group_by(dataset_name) |> filter(!is.na(comp)) |> summarize(n_admins = n_distinct(administration_id)),
-    flip = is_rt,
-    xlim = xlim
-  )
-  c <- do_lollipop_plot_age(
-    cdi |> filter(!is.na(prod_est)) |> rename(est = prod_est), "CDI Production", {{ include_func }},
-    dataset_summ |> group_by(dataset_name) |> filter(!is.na(prod)) |> summarize(n_admins = n_distinct(administration_id)),
-    flip = is_rt,
-    xlim = xlim
-  )
-
   g <- ggplotGrob(a + theme(legend.position = "bottom", legend.title = element_blank()))
   leg <- g$grobs[[which(g$layout$name == "guide-box-bottom")]]
 
-  plot_grid(plot_grid(a, b, c, nrow = 1), leg, nrow = 2, rel_heights = c(2, .1))
+  plot_grid(plot_grid(a, nrow = 1), leg, nrow = 2, rel_heights = c(2, .1))
 }
 
-set_of_lollis <- function(icc, cdi, trt, include_func, is_rt = F) {
+set_of_lollis <- function(icc, cdi, trt, include_func, is_rt = F, use_icc_order = FALSE) {
+  fixed_order <- if (use_icc_order) {
+    icc_means <- icc |>
+      filter_icc("est") |>
+      include_func() |>
+      filter(!is.na(combined), !is.na(est)) |>
+      left_join(clean_names) |>
+      group_by(`Dataset Name`) |>
+      summarize(mean_est = mean(est, na.rm = TRUE))
+
+    bind_rows(
+      icc |> select(dataset_name),
+      cdi |> select(dataset_name),
+      trt |> select(dataset_name)
+    ) |>
+      distinct(dataset_name) |>
+      left_join(clean_names) |>
+      left_join(icc_means, by = "Dataset Name") |>
+      mutate(mean_est = replace_na(mean_est, 0)) |>
+      arrange(mean_est) |>
+      pull(`Dataset Name`)
+  } else NULL
+
   a <- do_lollipop_plot(
     icc |> filter_icc("est"), "ICC reliability", {{ include_func }},
-    dataset_summ |> group_by(dataset_name) |> summarize(n_admins = n_distinct(administration_id))
+    dataset_summ |> group_by(dataset_name) |> summarize(n_admins = n_distinct(administration_id)),
+    fixed_order = fixed_order
   )
   b <- do_lollipop_plot(
     cdi |> filter(!is.na(comp_est)) |> rename(est = comp_est), "CDI Comprehension", {{ include_func }},
     dataset_summ |> group_by(dataset_name) |> filter(!is.na(comp)) |> summarize(n_admins = n_distinct(administration_id)),
-    flip = is_rt
+    flip = is_rt, fixed_order = fixed_order
   )
   c <- do_lollipop_plot(cdi |> filter(!is.na(prod_est)) |> rename(est = prod_est), "CDI Production", {{ include_func }},
     dataset_summ |> group_by(dataset_name) |> filter(!is.na(prod)) |> summarize(n_admins = n_distinct(administration_id)),
-    flip = is_rt
+    flip = is_rt, fixed_order = fixed_order
   )
   d <- do_lollipop_plot(
     trt |> filter(!is.na(est)), "Test-retest reliability", {{ include_func }},
     dataset_summ |> make_test_retest_pairs() |> group_by(dataset_name) |>
-      summarize(n_admins = n_distinct(pair_number))
+      summarize(n_admins = n_distinct(pair_number)),
+    fixed_order = fixed_order
   )
 
   g <- ggplotGrob(a + theme(legend.position = "bottom", legend.title = element_blank()))
@@ -215,7 +273,8 @@ do_model <- function(df, make_baseline, weight_df, form) {
 }
 
 
-make_model_plot <- function(df, x, col = NULL, facet = NULL, fix_function, lab, breaks = c(-.1, 0, .1), limits = c(-.2, .2), dodge = 0) {
+make_model_plot <- function(df, x, col = NULL, facet = NULL, fix_function, lab, breaks = c(-.1, 0, .1), limits = c(-.2, .2), dodge = 0, ref = NULL) {
+  x_quo <- rlang::enquo(x)
   facet_quo <- rlang::enquo(facet)
   col_quo <- rlang::enquo(col)
 
@@ -252,17 +311,27 @@ make_model_plot <- function(df, x, col = NULL, facet = NULL, fix_function, lab, 
       stop("Unsupported color column type")
     }
   }
+
+  if (!is.null(ref)) {
+    x_name <- rlang::as_name(x_quo)
+    ref_df <- tibble(!!x_name := ref, estimate = 0)
+    p <- p + geom_point(
+      data = ref_df, aes(x = .data[[x_name]], y = estimate),
+      inherit.aes = FALSE, shape = 1, size = 3
+    )
+  }
+
   p
 }
 
-make_model_grid_plot <- function(icc, cdi, trt, make_baseline, form, x, col = NULL, facet = NULL, fix_function, breaks = c(-.1, 0, .1), limits = c(-.2, .2), dodge = 0, legend_height = .1) {
+make_model_grid_plot <- function(icc, cdi, trt, make_baseline, form, x, col = NULL, facet = NULL, fix_function, breaks = c(-.1, 0, .1), limits = c(-.2, .2), dodge = 0, legend_height = .1, ref = NULL) {
   icc_plot <- do_model(
     icc |> filter_icc("est"), {{ make_baseline }},
     dataset_summ |> group_by(dataset_name) |> summarize(n_admins = n_distinct(administration_id)),
     form
   ) |> make_model_plot({{ x }},
     col = {{ col }}, facet = {{ facet }}, fix_function = {{ fix_function }},
-    lab = "ICC reliability", breaks = breaks, limits = limits, dodge = dodge
+    lab = "ICC reliability", breaks = breaks, limits = limits, dodge = dodge, ref = ref
   )
   comp_plot <- do_model(
     cdi |> filter(!is.na(comp_est)) |> rename(est = comp_est), {{ make_baseline }},
@@ -270,7 +339,7 @@ make_model_grid_plot <- function(icc, cdi, trt, make_baseline, form, x, col = NU
     form
   ) |> make_model_plot({{ x }},
     col = {{ col }}, facet = {{ facet }}, fix_function = {{ fix_function }},
-    lab = "Corr. w/ CDI Comprehension", breaks = breaks, limits = limits, dodge = dodge
+    lab = "Corr. w/ CDI Comprehension", breaks = breaks, limits = limits, dodge = dodge, ref = ref
   )
   prod_plot <- do_model(
     cdi |> filter(!is.na(prod_est)) |> rename(est = prod_est), {{ make_baseline }},
@@ -278,7 +347,7 @@ make_model_grid_plot <- function(icc, cdi, trt, make_baseline, form, x, col = NU
     form
   ) |> make_model_plot({{ x }},
     col = {{ col }}, facet = {{ facet }}, fix_function = {{ fix_function }},
-    lab = "Corr. w/ CDI Production", breaks = breaks, limits = limits, dodge = dodge
+    lab = "Corr. w/ CDI Production", breaks = breaks, limits = limits, dodge = dodge, ref = ref
   )
   trt_plot <- do_model(
     trt |> filter(!is.na(est)), {{ make_baseline }},
@@ -287,7 +356,7 @@ make_model_grid_plot <- function(icc, cdi, trt, make_baseline, form, x, col = NU
     form
   ) |> make_model_plot({{ x }},
     col = {{ col }}, facet = {{ facet }}, fix_function = {{ fix_function }},
-    lab = "Test-retest reliability", breaks = breaks, limits = limits, dodge = dodge
+    lab = "Test-retest reliability", breaks = breaks, limits = limits, dodge = dodge, ref = ref
   )
 
   g <- ggplotGrob(icc_plot + theme(legend.position = "bottom", legend.title = element_blank()))
@@ -347,7 +416,8 @@ do_model_age <- function(df, make_baseline, weight_df, form) {
 }
 
 
-make_model_plot_age <- function(df, x, col = NULL, facet = NULL, fix_function, lab, breaks = c(-.1, 0, .1), limits = c(-.2, .2), dodge = .5) {
+make_model_plot_age <- function(df, x, col = NULL, facet = NULL, fix_function, lab, breaks = c(-.1, 0, .1), limits = c(-.2, .2), dodge = .5, ref = NULL) {
+  x_quo <- rlang::enquo(x)
   facet_quo <- rlang::enquo(facet)
   p <- df |>
     {{ fix_function }}() |>
@@ -365,10 +435,19 @@ make_model_plot_age <- function(df, x, col = NULL, facet = NULL, fix_function, l
     p <- p + facet_wrap(vars(!!facet_quo))
   }
 
+  if (!is.null(ref)) {
+    x_name <- rlang::as_name(x_quo)
+    ref_df <- tibble(!!x_name := ref, estimate = 0)
+    p <- p + geom_point(
+      data = ref_df, aes(x = .data[[x_name]], y = estimate),
+      inherit.aes = FALSE, shape = 1, size = 3
+    )
+  }
+
   p
 }
 
-make_model_grid_plot_age <- function(icc, cdi, make_baseline, form, x, facet = NULL, fix_function, dodge = .5, breaks = c(-.1, 0, .1), limits = c(-.2, .2)) {
+make_model_grid_plot_age <- function(icc, cdi, make_baseline, form, x, facet = NULL, fix_function, dodge = .5, breaks = c(-.1, 0, .1), limits = c(-.2, .2), ref = NULL) {
   icc_plot <- do_model_age(
     icc |> filter_icc("est"), {{ make_baseline }},
     dataset_summ |> bin_ages() |> group_by(dataset_name, age_bin) |> summarize(n_admins = n_distinct(administration_id)),
@@ -376,7 +455,7 @@ make_model_grid_plot_age <- function(icc, cdi, make_baseline, form, x, facet = N
   ) |>
     make_model_plot_age({{ x }},
       facet = {{ facet }}, fix_function = {{ fix_function }},
-      lab = "ICC reliability", breaks = breaks, limits = limits, dodge = dodge
+      lab = "ICC reliability", breaks = breaks, limits = limits, dodge = dodge, ref = ref
     )
 
   comp_plot <- do_model_age(
@@ -385,7 +464,7 @@ make_model_grid_plot_age <- function(icc, cdi, make_baseline, form, x, facet = N
     form
   ) |> make_model_plot_age({{ x }},
     facet = {{ facet }}, fix_function = {{ fix_function }},
-    lab = "Corr. w/ CDI Comprehension", breaks = breaks, limits = limits, dodge = dodge
+    lab = "Corr. w/ CDI Comprehension", breaks = breaks, limits = limits, dodge = dodge, ref = ref
   )
   prod_plot <- do_model_age(
     cdi |> filter(!is.na(prod_est)) |> rename(est = prod_est), {{ make_baseline }},
@@ -393,7 +472,7 @@ make_model_grid_plot_age <- function(icc, cdi, make_baseline, form, x, facet = N
     form
   ) |> make_model_plot_age({{ x }},
     facet = {{ facet }}, fix_function = {{ fix_function }},
-    lab = "Corr. w/ CDI Production", breaks = breaks, limits = limits, dodge = dodge
+    lab = "Corr. w/ CDI Production", breaks = breaks, limits = limits, dodge = dodge, ref = ref
   )
 
   g <- ggplotGrob(icc_plot + theme(legend.position = "right"))

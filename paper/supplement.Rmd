@@ -80,7 +80,7 @@ readRDS(here("cached_intermediates/0_d_aoi.rds")) |>
 
 
 
-```{r timecourse, fig.cap="Distribution of AOIs across timepoints and datasets. Solid vertical line at point if disambiguation, Dashed lines at 4000ms, and dotted line at -2000ms and 2000ms.", fig.width=10, fig.height=8}
+```{r timecourse, fig.cap="Distribution of AOIs across timepoints and datasets. Solid vertical line at point of disambiguation, Dashed lines at 4000ms, and dotted line at -2000ms and 2000ms.", fig.width=10, fig.height=8}
 readRDS(here("cached_intermediates/supplement_timecourse.rds")) |>
   group_by(dataset_name) |>
   mutate(aoi = ifelse(aoi %in% c("missing", "other"), "missing/other", aoi)) |>
@@ -104,14 +104,14 @@ readRDS(here("cached_intermediates/supplement_timecourse.rds")) |>
 # Methods details
 
 ## Criteria for inclusion 
-The "vanilla" status of a trial is coded in the Peekbank dataset. As part of the 2026.1 release, we implemented an updated set of "vanilla" criteria. Multiple coders systematically inspected the coding of each dataset to identify vanilla trials and ensured that the application of the vanilla criteria was consistent across all datasets. Cases where there was potential ambiguity were discussed and documented in the ReadME associated with each dataset, to ensure that the criteria used were consistent and explainable. The criteria used were as follows: 
+The "vanilla" status of a trial is coded in the Peekbank dataset. As part of the 2026.1 release, we implemented an updated set of "vanilla" criteria. Multiple coders systematically inspected the coding of each dataset to identify vanilla trials and ensured that the application of the vanilla criteria was consistent across all datasets. Cases where there was potential ambiguity were discussed and documented in the README associated with each dataset, to ensure that the criteria used were consistent and explainable. The criteria used were as follows: 
 
 Auditory Stimulus:
 
 * familiar words/ target word is a real noun (no part words)
 * target word is the first point of disambiguation
 * no duplicated target words (i.e., repeating the target word multiple times was deemed non-vanilla)
-* well-formed/ grammatical carrier phrase (no restrictions on carrier vocabulary -- "examine the ..." ok; target word NP can appear anywhere: sentence-final, sentence-initial, medial)
+* well-formed and grammatical carrier phrase (there were no restrictions on carrier vocabulary, and the target NP could appear anywhere in the sentence.) 
 * no informative structure prenominally or postnominally (informative verb or adjective; an uninformative verb or adjective is OK)
 * no nonsense words anywhere (including the carrier phrase)
 * no language/ speaker/ accent switching within the trial
@@ -126,27 +126,27 @@ Visual stimuli:
 
 ## Details about ICC
 
-There are a number of different correlations that all go by the name ICC.
+A number of different correlation metrics are all abbreviated as ICC. In this study, we use the ICC for  *inter*-rater reliability for a "random factorial model without interaction" measuring consistency and looking for the reliability of an average of raters. We use the implementation in the "agreement" package, but we are not aware of this specific combination being fully documented anywhere. 
 
-We are using the ICC for *inter*-rater reliability for a "random factorial model without interaction" measuring consistency and looking for the reliability of an average of raters. This is provided by the "agreement" package we use, but I don't think it is fully documented anywhere. 
+This ICC looks at the ratio between by-subject variance (by-subject variance + by-rater variance + error variance)
 
-Basically, this ICC looks at the ratio between by-subject variance (by-subject variance + by-rater variance + error variance) 
+Here's what this ICC means in comparison to other possible ICCs:
 
-* inter-rater reliability means we want to know how well raters (i.e.) items correlate with each other (as opposed to with themselves)
+* It is an inter-rater reliability measure, meaning that it measures how well raters (or in our case items) correlate with each other as opposed to with themselves. 
 
-* the "random factorial model" (type 2 in standard ICC classification) is for when all raters rate all subjects (not quite true for us), but may have varying numbers of measures on each combination. Both raters and subjects are assumed to be sampled from a larger population of interest. 
+* It uses the "random factorial model" (sometimes called Type 2). This is for when all raters rate all subjects, but some raters may rate some subjects more than once. Both raters and subjects are assumed to be sampled from a larger population of interest. 
 
-* the "without interaction" is a variant for when there are (or may frequently be) single ratings per subject and per rater and/or when subject-rater interactions are not of interest (and can be lumped into the overall error). (Using interaction or not can be a bias-variance trade-off; adding the interactions decreases bias but increases variance.) This version is documented in Gwet 2014 (Handbook of Inter-Rater Reliability, page 256) This measures the ratio of by-subject variance / (by-subject variance + by-rater variance + error variance) 
+* It is "without interaction". This variant can be used when there are single ratings for a subject-rater combination (preventing the accurate determination of subject-rater interaction effects), or when subject-rater interactions are not of interest (and can be lumped into the overall error). This version is documented in Gwet's Handbook of Inter-Rater Reliability (2014 page 256). This measures the ratio of by-subject variance / (by-subject variance + by-rater variance + error variance). 
 
-* consistency. We aren't interested in exact agreement between raters but rather whether the slopes across raters for different subjects are the same, so it's okay if one rater is consistently lower (i.e. a later-learned word). This omits the by-rater variance from the denominator (I don't know that this is ever explicitly documented for the random factorial model, but it aligns with later discussion of consistency on 272 of Gwet 2014)
+* It is a consistency measure rather than an agreement measure. Rather than measure the exact agreement between raters, it instead measures whether the slopes across raters for different subjects are the same. It does not penalize situations where one rater is consistently lower (i.e. a later-learned word). This omits the by-rater variance from the denominator. We are unaware of the combination of random-factorial model and consistency being explicitly documented, but this formula aligns with the discussion of consistency on Gwet (2014, page 274). 
 
-* average across raters divides the error term by the number of raters
+* It measures consistency on average across a pool of raters by dividing the error term by the number of raters. 
 
-The overall formula for ICC is then by-subject variance / (by-subject variance + error variance / number of raters) 
+The overall formula for ICC is then by-subject variance / (by-subject variance + (error variance / number of raters))
 
-The package "agreement" that we use seems to be one of few that (by using Gwet's formulation) handles cases where there is missing or uneven data (very common in peekbank, especially for post-exclusion or RT data).
+We use the package "agreement" because it, unlike other ICC packages, handles cases where there is missing or uneven data (by using Gwet's formulations). This is essential because peekbank has uneven data, especially for cases involving RT or post-exclusion data. 
 
-The main point is to have an ICC measure can be used for comparison across the same datasets for different methodological questions. We don't try to interpret the ICC against external cutoffs for reliability. 
+We only use the ICC measure to compare across the same datasets with different processing methods applied. We do not interpet the ICC valaues against any external cutoffs of reliability. 
 
 \FloatBarrier
 
@@ -156,9 +156,9 @@ The main point is to have an ICC measure can be used for comparison across the s
 
 
 
-Fig \ref{fig:acc-heat-map-age} shows a version of Figure 1 split by age bin categories. Older children have overall higher ICC reliability, but different ages do not show different regions of high reliability. 
+Figure \ref{fig:acc-heat-map-age} shows a version of Figure 1 split by age bin categories. Older children have overall higher ICC reliability, but different ages do not show different regions of high reliability. 
 Figure \ref{fig:acc-model} shows the model estimates and 95% CIs for the effect of different windowing options (comparing to 600-4000ms as the index condition). Negative numbers indicate that the value is lower in the given window than for the index condition; higher numbers indicate that the value is higher in the given window than in the index condition. 
-Figure \ref{fig:acc-mod-age} shows the model coefficients and 95% CIs for linear mixed effect models run separately for each age bin. While the degrees of different vary across ages, the overall patterns are the same. 
+Figure \ref{fig:acc-mod-age} shows the model coefficients and 95% CIs for linear mixed effect models run separately for each age bin. While the degrees of difference vary across ages, the overall patterns are the same. 
 
 ```{r acc-heat-map-age, fig.cap="A heat map showing the average ICC across datasets for different start and end points for the accuracy window, split by age bins. A region with the cross-age highest ICC (best reliability) is outlined.", fig.width=6, fig.height=3}
 acc_icc <- readRDS(here("cached_intermediates", "1_acc_icc_byage.rds"))
@@ -186,7 +186,7 @@ ggplot(acc_icc_summary, aes(x = t_start, y = t_end, fill = mean_icc)) +
 
 
 
-```{r acc-model, fig.height=4, fig.width=8, fig.cap="Model results comparing the effects different accuracy windows to the index length of 600-4000ms for different DVs. "}
+```{r acc-model, fig.height=4, fig.width=8, fig.cap="Model results comparing the effects different accuracy windows to the index length of 600-4000ms for different dependent variables. "}
 baseline_acc <- function(df) {
   df |> mutate(
     t_start = relevel(t_start, "600"),
@@ -206,13 +206,13 @@ fix_acc_interact <- function(df) {
                     End=str_c("End: ", t_end))
 }
 
-make_model_grid_plot(readRDS(here("cached_intermediates/1_acc_icc.rds")) |> filter(t_start %in% seq(0, 1000, 100) & t_end %in% seq(1800, 4000, 200)), readRDS(here("cached_intermediates/1_acc_cdi.rds")) |> filter(t_start %in% seq(0, 1000, 100) & t_end %in% seq(1800, 4000, 200)), readRDS(here("cached_intermediates/1_acc_test_retest.rds")) |> filter(t_start %in% seq(0, 1000, 100) & t_end %in% seq(1800, 4000, 200)), baseline_acc, "t_start * t_end", x = Start, facet = End, fix_function = fix_acc_interact, limits=c(-.3, .2))
+make_model_grid_plot(readRDS(here("cached_intermediates/1_acc_icc.rds")) |> filter(t_start %in% seq(0, 1000, 100) & t_end %in% seq(1800, 4000, 200)), readRDS(here("cached_intermediates/1_acc_cdi.rds")) |> filter(t_start %in% seq(0, 1000, 100) & t_end %in% seq(1800, 4000, 200)), readRDS(here("cached_intermediates/1_acc_test_retest.rds")) |> filter(t_start %in% seq(0, 1000, 100) & t_end %in% seq(1800, 4000, 200)), baseline_acc, "t_start * t_end", x = Start, facet = End, fix_function = fix_acc_interact, limits=c(-.3, .2), ref = 600)
 ```
 
 
 
 
-```{r acc-mod-age, fig.height=4, fig.width=8, fig.cap = "Model results split out by age comparing the effects different accuracy windows to the index length of 600-4000ms for different DVs."}
+```{r acc-mod-age, fig.height=4, fig.width=8, fig.cap = "Model results split out by age comparing the effects different accuracy windows to the index length of 600-4000ms for different dependent variables."}
 baseline_acc <- function(df) {
   df |> mutate(
     t_start = relevel(t_start, "600"),
@@ -221,7 +221,7 @@ baseline_acc <- function(df) {
 }
 
 
-make_model_grid_plot_age(readRDS(here("cached_intermediates/1_acc_icc_byage.rds")) |> filter(t_start %in% seq(0, 1000, 100) & t_end %in% seq(1800, 4000, 200)), readRDS(here("cached_intermediates/1_acc_cdi_byage.rds")) |> filter(t_start %in% seq(0, 1000, 100) & t_end %in% seq(1800, 4000, 200)), baseline_acc, "t_start * t_end", x = Start, facet = End, fix_function = fix_acc_interact, dodge = 50, limits = c(-.3, .2))
+make_model_grid_plot_age(readRDS(here("cached_intermediates/1_acc_icc_byage.rds")) |> filter(t_start %in% seq(0, 1000, 100) & t_end %in% seq(1800, 4000, 200)), readRDS(here("cached_intermediates/1_acc_cdi_byage.rds")) |> filter(t_start %in% seq(0, 1000, 100) & t_end %in% seq(1800, 4000, 200)), baseline_acc, "t_start * t_end", x = Start, facet = End, fix_function = fix_acc_interact, dodge = 50, limits = c(-.3, .2), ref = 600)
 ```
 
 
@@ -278,7 +278,7 @@ bc_include <- function(df) {
   combined = relevel(combined, "baseline-corrected accuracy"))
 }
 
-set_of_lollis(bc_icc_200, bc_cdi_200, bc_test_retest_200, bc_include)
+set_of_lollis(bc_icc_200, bc_cdi_200, bc_test_retest_200, bc_include, use_icc_order = TRUE)
 ```
 
 
@@ -328,7 +328,7 @@ fix_bc_interact <- function(df) {
       b_end = str_replace(end, "b_end", "")
     )
 }
-make_model_grid_plot(bc_icc, bc_cdi, bc_test_retest, baseline_bc, "b_all", x = `Baseline start`, fix_function = fix_bc_interact, breaks = c(-.2, 0), limits = c(-.4, .1), dodge = .5)
+make_model_grid_plot(bc_icc, bc_cdi, bc_test_retest, baseline_bc, "b_all", x = `Baseline start`, fix_function = fix_bc_interact, breaks = c(-.2, 0), limits = c(-.4, .1), dodge = .5, ref = "none")
 ```
 
 
@@ -352,16 +352,16 @@ bc_cdi_age <- readRDS(here("cached_intermediates", "2_bc_cdi_byage.rds")) |>
     b_end = ifelse(is.na(b_end), "none", as.character(b_end))
   )
 
-make_model_grid_plot_age(bc_icc_age, bc_cdi_age, baseline_bc, "b_all", x = `Baseline start`, fix_function = fix_bc_interact, breaks = c(-.2, 0), limits = c(-.4, .2))
+make_model_grid_plot_age(bc_icc_age, bc_cdi_age, baseline_bc, "b_all", x = `Baseline start`, fix_function = fix_bc_interact, breaks = c(-.2, 0), limits = c(-.4, .2), ref = "none")
 ```
 
 
 
 \FloatBarrier
 
-# Reaction Time
+# Reaction time
 
-Figure \ref{fig:rt-heat-age} shows a heat map of ICC relability across different RT conditions, split by age. 
+Figure \ref{fig:rt-heat-age} shows a heat map of ICC relability across different RT conditions, split by age. Younger children are less reliable overall, but there are not strong age-specific trends in what measurements are most reliable. 
 
 ```{r rt-heat-age,  fig.width=6, fig.height=3.5, fig.cap="Heat map of different parameter options for measuring RT and how they on average affected ICC."}
 
@@ -425,7 +425,7 @@ fix_rt_interact <- function(df) {
     filter(logged=="log", trimming=="untrimmed")
 }
 
-make_model_grid_plot(rt_icc, rt_cdi, rt_trt, baseline_rt, "min_rt * max_rt * trimming * logged * type", x = `Min RT`, col = type, facet = `Max RT`, fix_function = fix_rt_interact, dodge = 50, limits=c(-.5, .3), breaks=c(-.2, 0, .2))
+make_model_grid_plot(rt_icc, rt_cdi, rt_trt, baseline_rt, "min_rt * max_rt * trimming * logged * type", x = `Min RT`, col = type, facet = `Max RT`, fix_function = fix_rt_interact, dodge = 50, limits=c(-.5, .3), breaks=c(-.2, 0, .2), ref = 400)
 ```
 
 
@@ -453,7 +453,7 @@ baseline_rt <- function(df) {
 }
 
 
-make_model_grid_plot_age(rt_icc_age, rt_cdi_age,  baseline_rt, "min_rt * max_rt * trimming * logged * type", x = `Min RT`, facet = str_c(type, " " ,`Max RT`), fix_function = fix_rt_interact, dodge = 50, limits=c(-.6, .4), breaks=c(-.2, 0, .2))
+make_model_grid_plot_age(rt_icc_age, rt_cdi_age,  baseline_rt, "min_rt * max_rt * trimming * logged * type", x = `Min RT`, facet = str_c(type, " " ,`Max RT`), fix_function = fix_rt_interact, dodge = 50, limits=c(-.6, .4), breaks=c(-.2, 0, .2), ref = 400)
 ```
 
 
@@ -475,7 +475,7 @@ fix_rt_interact_2 <- function(df) {
            Type=str_c(trimming, " ", type))
 }
 
-make_model_grid_plot(rt_icc, rt_cdi, rt_trt, baseline_rt, "min_rt * max_rt * trimming * logged * type", x = Type, col = logged, fix_function = fix_rt_interact_2,dodge=.5, limits=c(-.3, .3))
+make_model_grid_plot(rt_icc, rt_cdi, rt_trt, baseline_rt, "min_rt * max_rt * trimming * logged * type", x = Type, col = logged, fix_function = fix_rt_interact_2, dodge=.5, limits=c(-.3, .3), ref = " Land RT")
 ```
 
 
@@ -490,7 +490,7 @@ make_model_grid_plot(rt_icc, rt_cdi, rt_trt, baseline_rt, "min_rt * max_rt * tri
 
 Figure \ref{fig:acc-trial-mod} shows effects of different trial-level exclusions on outcomes. Figure \ref{fig:acc-trial-age} shows age splits of the same. 
 
-Excessive requirements lead to an increase in ICC, but a decrease in other metrics. A requirements to look at the stimulus onset just leads to dataloss without counterbalancing reliability or validity gains. 
+Excessive requirements lead to an increase in ICC, but a decrease in other metrics. A requirements to look at the time of auditory stimulus onset just leads to data loss without reliability or validity gains. 
 
 ```{r acc-trial-mod, fig.cap="Model results for possible trial-level exclusions, compared to no exclusions. Colors are overall rate of trial-level data retention. ", fig.height=4, fig.width=8, }
 
@@ -530,7 +530,7 @@ fix_trial_acc_interact <- function(df) {
     rename(`Min looking`=exclude_less_than)
   
 }
-make_model_grid_plot(trial_icc, trial_cdi, trial_trt, baseline_trial_acc, "exclude_less_than * look_at_start", x = `Min looking`, facet = look_at_start, col = pct, fix_function = fix_trial_acc_interact, legend_height=.2, limits=c(-.3, .2))
+make_model_grid_plot(trial_icc, trial_cdi, trial_trt, baseline_trial_acc, "exclude_less_than * look_at_start", x = `Min looking`, facet = look_at_start, col = pct, fix_function = fix_trial_acc_interact, legend_height=.2, limits=c(-.3, .2), ref = 0)
 
 ```
 
@@ -541,7 +541,7 @@ trial_icc_age <- readRDS(here("cached_intermediates/4_acc_trial_icc_byage.rds"))
 
 trial_cdi_age <- readRDS(here("cached_intermediates/4_acc_trial_cdi_byage.rds")) |> filter(t_start == 600, t_end == 4000)
 
-make_model_grid_plot_age(trial_icc_age, trial_cdi_age, baseline_trial_acc, "exclude_less_than * look_at_start", x =`Min looking`, facet = look_at_start, fix_function = fix_trial_acc_interact, limits = c(-.2, .2))
+make_model_grid_plot_age(trial_icc_age, trial_cdi_age, baseline_trial_acc, "exclude_less_than * look_at_start", x =`Min looking`, facet = look_at_start, fix_function = fix_trial_acc_interact, limits = c(-.2, .2), ref = 0)
 ```
 
 \FloatBarrier
@@ -602,12 +602,12 @@ fix_kid_acc_interact_2<- function(df) {
     filter(min_trial==1) |> 
     rename(`Min Frac` = min_frac)
 }
-make_model_grid_plot(kid_icc, kid_cdi, kid_trt, baseline_kid_acc, "min_trial + min_frac", x = `Min Trials`, fix_function = fix_kid_acc_interact, col=pct, legend_height = .2)
+make_model_grid_plot(kid_icc, kid_cdi, kid_trt, baseline_kid_acc, "min_trial + min_frac", x = `Min Trials`, fix_function = fix_kid_acc_interact, col=pct, legend_height = .2, ref = 1)
 ```
 
 
 ```{r kid-acc-trial-frac,  fig.cap="Model results for possible fraction of trial based exclusions, compared to no minimum. Colors indicate fraction of administrations retained. ",  fig.height=3, fig.width=8}
-make_model_grid_plot(kid_icc, kid_cdi, kid_trt, baseline_kid_acc, "min_trial + min_frac", x = `Min Frac`, fix_function = fix_kid_acc_interact_2, col=pct, legend_height = .3)
+make_model_grid_plot(kid_icc, kid_cdi, kid_trt, baseline_kid_acc, "min_trial + min_frac", x = `Min Frac`, fix_function = fix_kid_acc_interact_2, col=pct, legend_height = .3, ref = 0)
 ```
 
 ```{r, eval=F,  fig.height=5, fig.width=8, fig.cap="Model results for possible trial count based exclusions, compared to no minimum trial count. Colors indicate fraction of administrations retained. "}
@@ -654,7 +654,7 @@ fix_kid_acc_interact <- function(df) {
 
 
 
-make_model_grid_plot(kid_icc_with_trial, kid_cdi_with_trial, kid_trt_with_trial, baseline_kid_acc, "(min_trial + min_frac)*(exclude_less_than)", x = `Min Trials`, fix_function = fix_kid_acc_interact, col=exclude_less_than, legend_height = .2)
+make_model_grid_plot(kid_icc_with_trial, kid_cdi_with_trial, kid_trt_with_trial, baseline_kid_acc, "(min_trial + min_frac)*(exclude_less_than)", x = `Min Trials`, fix_function = fix_kid_acc_interact, col=exclude_less_than, legend_height = .2, ref = 1)
 ```
 
 ```{r kid-acc-trial-count-age,  fig.height=5, fig.width=8, fig.cap="Model results for different age groups for possible trial count based exclusions, compared to no minimum trial count."}
@@ -665,17 +665,17 @@ kid_icc_age <- readRDS(here("cached_intermediates/4_acc_kid_icc_byage.rds")) |>
 kid_cdi_age <- readRDS(here("cached_intermediates/4_acc_kid_cdi_byage.rds")) |> filter(t_start == 600, t_end == 4000, exclude_less_than == 0, look_at_start == "no")
 
 
-make_model_grid_plot_age(kid_icc_age, kid_cdi_age, baseline_kid_acc, "min_trial + min_frac", x = `Min Trials`, fix_function = fix_kid_acc_interact)
+make_model_grid_plot_age(kid_icc_age, kid_cdi_age, baseline_kid_acc, "min_trial + min_frac", x = `Min Trials`, fix_function = fix_kid_acc_interact, ref = 1)
 ```
 
 
 ```{r kid-acc-trial-frac-age,  fig.height=3, fig.width=8, fig.cap="Model results for different age groups for possible fraction of trial based exclusions, compared to no minimum. "}
-make_model_grid_plot_age(kid_icc_age, kid_cdi_age, baseline_kid_acc, "min_trial + min_frac", x = `Min Frac`, fix_function = fix_kid_acc_interact_2)
+make_model_grid_plot_age(kid_icc_age, kid_cdi_age, baseline_kid_acc, "min_trial + min_frac", x = `Min Frac`, fix_function = fix_kid_acc_interact_2, ref = 0)
 ```
 
 \FloatBarrier
 
-## RT Exclusions
+## Reaction time exclusions
 
 Excluding children who have fewer valid RT trials may increase test-retest reliability, and has unclear relationships with validity. Overall model results are shown in Figure \ref{fig:kid-rt-mod} and model results by age group are down in Figure \ref{fig:kid-rt-mod-age}. Minimum trial requirements do help for test-retest reliability, and CDI comprehension,  at the cost of reducing the number of included administrations. 
 
@@ -709,7 +709,7 @@ fix_kid_rt_interact <- function(df) {
     left_join(valid_rt_trials) |> 
     rename(`Min trial`=min_trial)
 }
-make_model_grid_plot(kid_rt_icc, kid_rt_cdi, kid_rt_trt, baseline_kid_rt, "min_trial", x = `Min trial`,col=pct, fix_function = fix_kid_rt_interact, legend_height=.3)
+make_model_grid_plot(kid_rt_icc, kid_rt_cdi, kid_rt_trt, baseline_kid_rt, "min_trial", x = `Min trial`,col=pct, fix_function = fix_kid_rt_interact, legend_height=.3, ref = 1)
 ```
 
 
@@ -720,17 +720,17 @@ kid_rt_icc_age <- readRDS(here("cached_intermediates/4_rt_icc_byage.rds")) |>
 kid_rt_cdi_age <- readRDS(here("cached_intermediates/4_rt_cdi_byage.rds")) |>
   regroup_rt() 
 
-make_model_grid_plot_age(kid_rt_icc_age, kid_rt_cdi_age, baseline_kid_rt, "min_trial", x = `Min trial`, fix_function = fix_kid_rt_interact, limits=c(-.2, .3))
+make_model_grid_plot_age(kid_rt_icc_age, kid_rt_cdi_age, baseline_kid_rt, "min_trial", x = `Min trial`, fix_function = fix_kid_rt_interact, limits=c(-.2, .3), ref = 1)
 ```
 
 
 \FloatBarrier
 
-# Order Effects
+# Order effects
 
-One potential concern, especially when children see a number of trials, is that the repetition of target and distractor images (or just the target nouns) may lead to order effects or preferences for familiarity, i.e. the image that was named last. It is unclear how these effects might manifest, so we looked for possible order effects in a combinatorial fashion. 
+One potential concern, especially when children see a number of trials, is that the repetition of target and distractor images (or just the target nouns) may lead to order effects or preferences for familiarity, i.e., the image that was named last. It is unclear how these effects might manifest, so we looked for possible order effects in a combinatorial fashion. 
 
-We considered 5 DVs:
+We considered 5 dependent variables:
 
 * "early looking" on the -2000 to 0 pre-window
 * "late looking" on the 0 to 600 window (between onset of stimulus name and when we start an accuracy window)
@@ -738,14 +738,19 @@ We considered 5 DVs:
 * RT (on 400-4000)
 * whether there is a valid RT (if children's looks at 0 are disproportionate, this could reduce the trials where RT is possible)
 
-We also considered a set of IVs across different models:
+We also considered a set of independent variables across different models:
 
 * trial order: for stimuli seen for the first time, how does position in order change viewing behavior?
-* seen prev (as distractor) -- for stimuli, how does being seen for the first time as the target compare to being the target when seen once previously as the distractor?  (We restrict to pairs of stimuli that are always each other's distractors.)
-* seen prev (as target) -- for stimuli, how does being seen for the first time as the target compare to being the target when seen once previously as the target?  (We restrict to pairs of stimuli that are always each other's distractors)
-* for datasets where the same items could be seen previously as either the target or distractor, we do a 3-way comparison between first time viewing and one previous viewing as either target or distractor. 
+* seen previously (as distractor) -- for stimuli, how does being seen for the first time as the target compare to being the target when seen once previously as the distractor?  (We restrict to pairs of stimuli that are always each other's distractors.)
+* seen previously (as distractor) x trial order
+* seen previously (as target) -- for stimuli, how does being seen for the first time as the target compare to being the target when seen once previously as the target?  (We restrict to pairs of stimuli that are always each other's distractors)
+* seen previously (as target) x trial order
+* seen previously (as either) -- for datasets where the same items could be seen previously as either the target or distractor, we do a 3-way comparison between first time viewing and one previous viewing as either target or distractor. 
+* seen previously (as either) x trial order
 
-The coefficients from all these models are shown in Figure \ref{fig:order}. Effects related to trial order were multiplied by 10 for the effect of a difference in 10 trials for viewability. The effects of having a target image that has been seen 1 time previously (as distractor or target), versus a target image that is being seen for the first time are (if they exist) have central estimates around 1% of the time more or less looking (both for windows around 0 and actual accuracy). These effects may well interact with trial order, although again, effects and interactions, if they exist, are small. Log RT has a larger scale than the other measures that are all on 0-1. Switches to target may be a bit faster if the target was previously seen, but only when interaction with trial order is considered in the model. If anything, there is more looking to previous distractors on the accuracy window. At least across datasets, we cannot detect reliable effects of previously seen items or trial order on any of the DVs. 
+We fully crossed the 5 dependent variables with the 7 model predictor structures. 
+
+The coefficients from all these models are shown in Figure \ref{fig:order}. Effects related to trial order were multiplied by 10 for the effect of a difference in 10 trials for viewability. The effects of having a target image that has been seen 1 time previously (as distractor or target), versus a target image that is being seen for the first time are (if they exist) have central estimates around 1% of the time more or less looking (both for windows around 0 and actual accuracy). These effects may well interact with trial order, although again, effects and interactions, if they exist, are small. Log RT has a larger scale than the other measures that are all on 0-1. Switches to target may be a bit faster if the target was previously seen, but only when interaction with trial order is considered in the model. If anything, there is more looking to previous distractors on the accuracy window. At least across datasets, we cannot detect reliable effects of previously seen items or trial order on any of the dependent variables. 
 
 ```{r order, fig.cap="Fitted coefficient estimates from a series of models investigating potential order and repetition effects. For scaling, trial order effects are shown for every 10 trials.", fig.width=6, fig.height=4}
 results_summ <- readRDS(here("cached_intermediates/7_model_summary.rds"))
