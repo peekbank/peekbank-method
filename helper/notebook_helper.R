@@ -238,11 +238,11 @@ set_of_lollis <- function(icc, cdi, trt, include_func, is_rt = F, use_icc_order 
     fixed_order = fixed_order
   )
   b <- do_lollipop_plot(
-    cdi |> filter(!is.na(comp_est)) |> rename(est = comp_est), "CDI Comprehension", {{ include_func }},
+    cdi |> filter(!is.na(comp_est)) |> rename(est = comp_est), "CDI comprehension", {{ include_func }},
     dataset_summ |> group_by(dataset_name) |> filter(!is.na(comp)) |> summarize(n_admins = n_distinct(administration_id)),
     flip = is_rt, fixed_order = fixed_order
   )
-  c <- do_lollipop_plot(cdi |> filter(!is.na(prod_est)) |> rename(est = prod_est), "CDI Production", {{ include_func }},
+  c <- do_lollipop_plot(cdi |> filter(!is.na(prod_est)) |> rename(est = prod_est), "CDI production", {{ include_func }},
     dataset_summ |> group_by(dataset_name) |> filter(!is.na(prod)) |> summarize(n_admins = n_distinct(administration_id)),
     flip = is_rt, fixed_order = fixed_order
   )
