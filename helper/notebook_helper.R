@@ -11,7 +11,7 @@ library(emmeans)
 knitr::opts_chunk$set(
   cache.extra = knitr::rand_seed, cache = FALSE,
   message = FALSE, warning = FALSE, error = FALSE, echo = F,
-  fig.height = 4, fig.width = 6
+  fig.height = 4, fig.width = 6, dev = "cairo_pdf"
 )
 options(dplyr.summarise.inform = FALSE)
 
@@ -55,7 +55,15 @@ regroup_rt <- function(df) {
 
 
 order_age <- function(df) {
-  df |> mutate(age_bin = factor(age_bin, levels = c("<18", "18-24", "24-36", ">=36")))
+  df |> mutate(
+    age_bin = case_when(
+      age_bin == "18-24" ~ "18–23 months",
+      age_bin == "24-36" ~ "24–35 months",
+      age_bin == "<18" ~ "<18 months",
+      age_bin == ">=36" ~ ">=36 months"
+    ),
+    age_bin = factor(age_bin, levels = c("<18 months", "18–23 months", "24–35 months", ">=36 months"))
+  )
 }
 
 reorder_within <- function(x, by, within) {
@@ -136,7 +144,9 @@ do_lollipop_plot_age <- function(df, name, include_condition, weights, flip = F,
     combined_levels <- c(outer(fixed_order, age_levels, paste, sep = "___"))
 
     # Add placeholder rows for missing dataset×age_bin combos so every facet has the same rows
-    existing <- df |> distinct(`Dataset Name`, age_bin) |> filter(!is.na(`Dataset Name`))
+    existing <- df |>
+      distinct(`Dataset Name`, age_bin) |>
+      filter(!is.na(`Dataset Name`))
     missing_combos <- crossing(`Dataset Name` = fixed_order, age_bin = age_levels) |>
       mutate(age_bin = factor(age_bin, levels = age_levels)) |>
       anti_join(existing, by = c("Dataset Name", "age_bin"))
@@ -196,7 +206,9 @@ set_of_age_lollis <- function(icc, include_func, is_rt = F, use_icc_order = FALS
       mutate(mean_est = replace_na(mean_est, 0)) |>
       arrange(mean_est) |>
       pull(`Dataset Name`)
-  } else NULL
+  } else {
+    NULL
+  }
 
   a <- do_lollipop_plot_age(
     icc |> filter_icc("est"), "ICC reliability", {{ include_func }},
@@ -206,7 +218,7 @@ set_of_age_lollis <- function(icc, include_func, is_rt = F, use_icc_order = FALS
   g <- ggplotGrob(a + theme(legend.position = "bottom", legend.title = element_blank()))
   leg <- g$grobs[[which(g$layout$name == "guide-box-bottom")]]
 
-  plot_grid(plot_grid(a, nrow = 1), leg, nrow = 2, rel_heights = c(2, .1))
+  plot_grid(plot_grid(a, nrow = 1), leg, nrow = 2, rel_heights = c(1, .2))
 }
 
 set_of_lollis <- function(icc, cdi, trt, include_func, is_rt = F, use_icc_order = FALSE) {
@@ -230,7 +242,9 @@ set_of_lollis <- function(icc, cdi, trt, include_func, is_rt = F, use_icc_order 
       mutate(mean_est = replace_na(mean_est, 0)) |>
       arrange(mean_est) |>
       pull(`Dataset Name`)
-  } else NULL
+  } else {
+    NULL
+  }
 
   a <- do_lollipop_plot(
     icc |> filter_icc("est"), "ICC reliability", {{ include_func }},
@@ -421,7 +435,8 @@ make_model_plot_age <- function(df, x, col = NULL, facet = NULL, fix_function, l
   facet_quo <- rlang::enquo(facet)
   p <- df |>
     {{ fix_function }}() |>
-    mutate(Ages = factor(age_bin, levels = c("<18", "18-24", "24-36", ">=36"))) |>
+    order_age() |>
+    rename(Ages = age_bin) |>
     ggplot(aes(x = {{ x }}, col = Ages, y = estimate, ymin = conf.low, ymax = conf.high)) +
     geom_pointrange(position = position_dodge2(width = dodge)) +
     coord_flip() +
@@ -429,7 +444,10 @@ make_model_plot_age <- function(df, x, col = NULL, facet = NULL, fix_function, l
     scale_y_continuous(breaks = breaks, limits = limits) +
     geom_hline(yintercept = 0, lty = "dashed") +
     theme(legend.position = "none") +
-    scale_color_manual(values = c("<18" = "#FDE725", "18-24" = "#35B779", "24-36" = "#31688E", ">=36" = "#440154"))
+    scale_color_manual(values = c(
+      "<18 months" = "#FDE725", "18–23 months" = "#35B779",
+      "24–35 months" = "#31688E", ">=36 months" = "#440154"
+    ))
 
   if (!rlang::quo_is_null(facet_quo)) {
     p <- p + facet_wrap(vars(!!facet_quo))
@@ -490,13 +508,13 @@ clean_names <- tribble(
   "frank_tablet_2016", "Frank et al. (2016)", "English",
   "fmw_2013", "Fernald et al. (2013)", "English",
   "adams_marchman_2018", "Adams et al. (2018)", "English",
-  "potter_canine", "Potter & Lew Williams (2023)", "English",
+  "potter_canine", "Potter & Lew-Williams (2023)", "English",
   "fernald_totlot", "Fernald et al. (2006)", "English",
   "pomper_prime", "Pomper & Saffran (2015)", "English",
   "pomper_saffran_2016", "Pomper & Saffran (2016)", "English",
   "swingley_aslin_2002", "Swingley & Aslin (2002)", "English",
   "pomper_salientme", "Pomper & Saffran (2019)", "English",
-  "perry_cowpig", "Perry & Saffan (2017)", "English",
+  "perry_cowpig", "Perry & Saffran (2017)", "English",
   "ronfard_2021", "Ronfard et al. (2022)", "English",
   "bacon_gendercues", "Bacon & Saffran (2022)", "English",
   "garrison_bergelson_2020", "Garrison et al. (2020)", "English",
@@ -533,5 +551,6 @@ in_text_stats <- function(df, sign_flip = F, places = 2) {
     low <- new_low
     high <- new_high
   }
-  str_c(round(est, places), " [", round(low, places), ", ", round(high, places), "]")
+  accuracy <- (1 / 10)**places
+  str_c(scales::comma(est, accuracy), " [", scales::comma(low, accuracy = accuracy), ", ", scales::comma(high, accuracy), "]")
 }

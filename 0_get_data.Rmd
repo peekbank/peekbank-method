@@ -47,6 +47,7 @@ peekbank_overall_properties <- tibble(
   n_subjects = unique(all_subjects$subject_id) %>% length(),
   n_datasets = unique(all_datasets$dataset_id) %>% length(),
   n_trials = unique(all_trials$trial_id) %>% length(),
+  n_admins = unique(all_administrations$administration_id) %>% length(),
 )
 saveRDS(peekbank_overall_properties, here("cached_intermediates","peekbank_overall_properties.rds"))
 ```

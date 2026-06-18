@@ -189,7 +189,7 @@ We only use the ICC measure to compare across the same datasets with different p
 
 
 Figure \ref{fig:acc-heat-map-age} shows a version of Figure 1 split by age bin categories. Older children have overall higher ICC reliability, but different ages do not show different regions of high reliability. 
-Figure \ref{fig:acc-model} shows the model estimates and 95% CIs for the effect of different windowing options (comparing to 600-4000ms as the index condition). Negative numbers indicate that the value is lower in the given window than for the index condition; higher numbers indicate that the value is higher in the given window than in the index condition. 
+Figure \ref{fig:acc-model} shows the model estimates and 95% CIs for the effect of different windowing options (comparing to 600--4000 ms as the index condition). Negative numbers indicate that the value is lower in the given window than for the index condition; higher numbers indicate that the value is higher in the given window than in the index condition. 
 Figure \ref{fig:acc-mod-age} shows the model coefficients and 95% CIs for linear mixed effect models run separately for each age bin. While the degrees of difference vary across ages, the overall patterns are the same. 
 
 ```{r acc-heat-map-age, fig.cap="A heat map showing the average ICC across datasets for different start and end points for the accuracy window, split by age bins. A region with the cross-age highest ICC (best reliability) is outlined.", fig.width=6, fig.height=3}
@@ -218,7 +218,7 @@ ggplot(acc_icc_summary, aes(x = t_start, y = t_end, fill = mean_icc)) +
 
 
 
-```{r acc-model, fig.height=4, fig.width=8, fig.cap="Model results comparing the effects different accuracy windows to the index length of 600-4000ms for different dependent variables. "}
+```{r acc-model, fig.height=4, fig.width=8, fig.cap="Model results comparing the effects different accuracy windows to the index length of 600--4000 ms for different dependent variables. "}
 baseline_acc <- function(df) {
   df |> mutate(
     t_start = relevel(t_start, "600"),
@@ -244,7 +244,7 @@ make_model_grid_plot(readRDS(here("cached_intermediates/1_acc_icc.rds")) |> filt
 
 
 
-```{r acc-mod-age, fig.height=4, fig.width=8, fig.cap = "Model results split out by age comparing the effects different accuracy windows to the index length of 600-4000ms for different dependent variables."}
+```{r acc-mod-age, fig.height=4, fig.width=8, fig.cap = "Model results split out by age comparing the effects different accuracy windows to the index length of 600--4000 ms for different dependent variables."}
 baseline_acc <- function(df) {
   df |> mutate(
     t_start = relevel(t_start, "600"),
@@ -265,7 +265,7 @@ make_model_grid_plot_age(readRDS(here("cached_intermediates/1_acc_icc_byage.rds"
 
 For baseline correction, we only considered datasets where the earliest time point was at or before -2000 ms, to ensure there was adequate per-onset data. 
 
-Figure \ref{fig:bc-lolli-short} shows how baseline corrected measures compare to normal accuracy measures for a 300-1800 window, as an example of generalization. Figure \ref{fig:bc-model} shows model results comparing different baseline correction options to a plain accuracy measure. Baseline correction is substantially worse. Figure \ref{fig:bc-mod-age} shows model results comparing baseline corrected accuracies to the index condition of normal accuracy for each of the age bins. Across age bins, baseline correction is often worse and in no case better than normal accuracy. 
+Figure \ref{fig:bc-lolli-short} shows how baseline corrected measures compare to normal accuracy measures for a 300--1800 ms window, as an example of generalization. Figure \ref{fig:bc-model} shows model results comparing different baseline correction options to a plain accuracy measure. Baseline correction is substantially worse. Figure \ref{fig:bc-mod-age} shows model results comparing baseline corrected accuracies to the index condition of normal accuracy for each of the age bins. Across age bins, baseline correction is often worse and in no case better than normal accuracy. 
 
 
 
@@ -314,7 +314,7 @@ set_of_lollis(bc_icc_200, bc_cdi_200, bc_test_retest_200, bc_include)
 ```
 
 
-```{r bc-model, fig.height=3, fig.width=8, fig.cap="Model results comparing the effect of different baseline windows for baseline correction to uncorrected accuracy. All use a post stimulus window of 600-4000ms. " }
+```{r bc-model, fig.height=3, fig.width=8, fig.cap="Model results comparing the effect of different baseline windows for baseline correction to uncorrected accuracy. All use a post stimulus window of 600--4000 ms. " }
 bc_icc <- readRDS(here("cached_intermediates", "2_bc_icc.rds")) |>
   bind_rows(readRDS(here("cached_intermediates", "1_acc_icc.rds"))) |> filter(t_start == 600) |>
   filter(t_end == 4000) |>
@@ -345,8 +345,8 @@ bc_test_retest <- readRDS(here("cached_intermediates", "2_bc_test_retest.rds")) 
 
 baseline_bc <- function(df) {
   df |> mutate(
-    b_all = str_c(b_start, " -- ", b_end) |> as.factor(),
-    b_all = relevel(b_all, "none -- none")
+    b_all = str_c(b_start, "--", b_end) |> as.factor(),
+    b_all = relevel(b_all, "none--none")
   )
 }
 
@@ -365,7 +365,7 @@ make_model_grid_plot(bc_icc, bc_cdi, bc_test_retest, baseline_bc, "b_all", x = `
 
 
 
-```{r bc-mod-age, fig.height=3, fig.width=8, fig.cap="Model results by age group comparing the effect of different baseline windows for baseline correction to uncorrected accuracy. All use a post stimulus window of 600-4000ms"}
+```{r bc-mod-age, fig.height=3, fig.width=8, fig.cap="Model results by age group comparing the effect of different baseline windows for baseline correction to uncorrected accuracy. All use a post stimulus window of 600--4000 ms"}
 bc_icc_age <- readRDS(here("cached_intermediates", "2_bc_icc_byage.rds")) |>
   bind_rows(readRDS(here("cached_intermediates", "1_acc_icc_byage.rds")) |> filter(t_start == 600)) |>
   filter(t_end == 4000) |>
@@ -421,7 +421,7 @@ rt_icc_age <- readRDS(here("cached_intermediates/3_rt_icc_byage.rds"))
 Figure \ref{fig:rt-mod} shows models estimates for different model parameters compared to the index condition of untrimmed log land with 400 minimum RT. Because faster RT tends to correlate with higher language skill and thus higher CDI measures, for the bottom two panels, positive numbers indicate worse correlations in the tested condition compared to index. Figure \ref{fig:rt-age} shows the reliability and validity of different reaction time parameters, split by age bin. 
 
 
-```{r rt-mod, fig.height=4, fig.width=8, fig.cap="Model results for RT. The index condition is a log Land RT from 400-4000ms. All RTs are shown log in this figure."}
+```{r rt-mod, fig.height=4, fig.width=8, fig.cap="Model results for RT. The index condition is a log Land RT from 400--4000 ms. All RTs are shown log in this figure."}
 rt_icc <- readRDS(here("cached_intermediates/3_rt_icc.rds")) |>
   filter(min_rt >=200, min_rt<=600) |> 
   filter(max_rt %in% c(1800, 3000, 4000)) |> 
@@ -462,7 +462,7 @@ make_model_grid_plot(rt_icc, rt_cdi, rt_trt, baseline_rt, "min_rt * max_rt * tri
 
 
 
-```{r rt-age, fig.height=5, fig.width=8, fig.cap="Model results for RT. The index condition is a log Land RT from 400-4000ms. All RTs are shown log in this figure."}
+```{r rt-age, fig.height=5, fig.width=8, fig.cap="Model results for RT. The index condition is a log Land RT from 400--4000 ms. All RTs are shown log in this figure."}
 rt_icc_age <- readRDS(here("cached_intermediates/3_rt_icc_byage.rds")) |>
   filter(min_rt >=200, min_rt<=600) |> 
   filter(max_rt %in% c(1800, 3000, 4000)) |> 
@@ -489,11 +489,11 @@ make_model_grid_plot_age(rt_icc_age, rt_cdi_age,  baseline_rt, "min_rt * max_rt 
 ```
 
 
-For thoroughness, we also considered other dimensions of RT parameters focused on the 400-4000ms RT range. 
+For thoroughness, we also considered other dimensions of RT parameters focused on the 400--4000 ms RT range. 
 
 In Figure \ref{fig:rt-mod-launch}, we consider land versus launch RT, log versus raw, and whether to exclude long shifts. While not formally mentioned, launch based RT is often restricted to RTs where the child's eyes make it to the target in a reasonable amount of time (ex. 600 ms). This restriction on shift-length can also be applied to land based RT. As shown in the figure, these differences in calculation do not make significant differences. 
 
-```{r rt-mod-launch, fig.height=4, fig.width=8, fig.cap="Model results for different ways of computing RT on the 400-4000ms window, focused on max-shift length and transformation. "}
+```{r rt-mod-launch, fig.height=4, fig.width=8, fig.cap="Model results for different ways of computing RT on the 400--4000 ms window, focused on max-shift length and transformation. "}
 fix_rt_interact_2 <- function(df) {
   df |>
     mutate(contrast = str_replace_all(contrast, "\\)", "") |> str_replace_all("\\(", "")) |>
@@ -766,8 +766,8 @@ We considered 5 dependent variables:
 
 * "early looking" on the -2000 to 0 pre-window
 * "late looking" on the 0 to 600 window (between onset of stimulus name and when we start an accuracy window)
-* accuracy on 600 to 4000
-* RT (on 400-4000)
+* accuracy on 600--4000 ms
+* RT on 400--4000 ms
 * whether there is a valid RT (if children's looks at 0 are disproportionate, this could reduce the trials where RT is possible)
 
 We also considered a set of independent variables across different models:
@@ -782,7 +782,7 @@ We also considered a set of independent variables across different models:
 
 We fully crossed the 5 dependent variables with the 7 model predictor structures. 
 
-The coefficients from all these models are shown in Figure \ref{fig:order}. Effects related to trial order were multiplied by 10 for the effect of a difference in 10 trials for viewability. The effects of having a target image that has been seen 1 time previously (as distractor or target), versus a target image that is being seen for the first time are (if they exist) have central estimates around 1% of the time more or less looking (both for windows around 0 and actual accuracy). These effects may well interact with trial order, although again, effects and interactions, if they exist, are small. Log RT has a larger scale than the other measures that are all on 0-1. Switches to target may be a bit faster if the target was previously seen, but only when interaction with trial order is considered in the model. If anything, there is more looking to previous distractors on the accuracy window. At least across datasets, we cannot detect reliable effects of previously seen items or trial order on any of the dependent variables. 
+The coefficients from all these models are shown in Figure \ref{fig:order}. Effects related to trial order were multiplied by 10 for the effect of a difference in 10 trials for viewability. The effects of having a target image that has been seen 1 time previously (as distractor or target), versus a target image that is being seen for the first time are (if they exist) have central estimates around 1% of the time more or less looking (both for windows around 0 and actual accuracy). These effects may well interact with trial order, although again, effects and interactions, if they exist, are small. Log RT has a larger scale than the other measures that are all on 0--1. Switches to target may be a bit faster if the target was previously seen, but only when interaction with trial order is considered in the model. If anything, there is more looking to previous distractors on the accuracy window. At least across datasets, we cannot detect reliable effects of previously seen items or trial order on any of the dependent variables. 
 
 ```{r order, fig.cap="Fitted coefficient estimates from a series of models investigating potential order and repetition effects. For scaling, trial order effects are shown for every 10 trials.", fig.width=6, fig.height=4}
 results_summ <- readRDS(here("cached_intermediates/7_model_summary.rds"))
