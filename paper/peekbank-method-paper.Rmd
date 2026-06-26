@@ -56,6 +56,7 @@ affiliation:
     institution: Department of Cognitive Science, University of California, San Diego, CA, USA
 
 authornote: |
+  We thank Kyle MacDonald and Tian Linger Xu for their critical role in establishing Peekbank and in the beginning stages of this project.
   AI Disclosure statement: Generative AI was used to do code refactoring, code review, and proofreading.  
 
 abstract: |
@@ -157,7 +158,7 @@ knitr::opts_chunk$set(cache.extra = knitr::rand_seed)
 
 ```
 
-Over the first few months of life, children become attuned to their native language, organizing the phonological system of speech input and parsing speech into meaningful units. Soon after, children begin to show early signs of comprehension of words or phrases through simple behaviors such reaching for an object that is named (e.g., “Where’s the ball?”). These everyday accomplishments mark important milestones in children’s development. Yet global assessments of these milestones do not capture the millisecond-level processes that take place during real-time language comprehension. Children, like adults, process speech incrementally, as it unfolds in time [@fernald1998;@snedeker2013;@frank2026], and use features of the speech signal to extract meaning that support language comprehension [@law2015;@weisleder2013]. These moment-to-moment processes are difficult to document without child-friendly procedures that precisely measure how children’s eye-movements are time-locked to speech. In particular, the "looking while listening" (LWL) procedure has emerged as a *de facto* standard for assessing language comprehension in infants and children [@frank2021].^[Here we adopt LWL as a convenient label while recognizing that the procedure goes by a number of different names in the literature including the "intermodal preferential looking procedure" [@hirsh-pasek1996;@reznick1990visual;@fernald2008].]  In the standard version of LWL, children see two pictures on a screen and hear speech directing their attention to one of the pictures, e.g., “look at the ball”. The accuracy and speed of fixating the named referent measure the efficiency of language comprehension [@fernald2008].
+Over the first few months of life, children become attuned to their native language, organizing the phonological system of speech input and parsing speech into meaningful units. Soon after, children begin to show early signs of comprehension of words or phrases through simple behaviors such reaching for an object that is named (e.g., “Where’s the ball?”). These everyday accomplishments mark important milestones in children’s development. Yet global assessments of these milestones do not capture the millisecond-level processes that take place during real-time language comprehension. Children, like adults, process speech incrementally, as it unfolds in time [@fernald1998;@snedeker2013;@frank2026], and use features of the speech signal to extract meaning that support language comprehension [@law2015;@weisleder2013]. One powerful, child-friendly method for tracking these moment-to-moment processes is to precisely measure children’s looking behavior in response to speech. In particular, the "looking while listening" (LWL) procedure has emerged as a *de facto* standard for assessing language comprehension in infants and children [@frank2021].^[Here we adopt LWL as a convenient label while recognizing that the procedure goes by a number of different names in the literature including the "intermodal preferential looking procedure" [@hirsh-pasek1996;@reznick1990visual;@fernald2008].]  In the standard version of LWL, children see two pictures on a screen and hear speech directing their attention to one of the pictures, e.g., “look at the ball”. The accuracy and speed of fixating the named referent measure the efficiency of language comprehension [@fernald2008].
 
 LWL has been a key tool for enhancing our understanding of the continuous processes of growth in incremental language processing [@golinkoff2013]. For example, using LWL methods, we can measure developmental increases in the speed and accuracy of children’s recognition of familiar words [@fernald2006;@frank2026] and in their sensitivity to detailed phonological information during the first years after birth [@swingley2000;@moore2024]. Moreover, measures of children’s skill in the LWL task have proven useful as an index of individual differences. Children who show more efficient language processing of familiar words at 18 months show larger vocabulary size and more rapid vocabulary growth over the second and third years of life than children with less efficient processing [@fernald2012;@fernald2006;@frank2026;@peter2019]. Variation in language processing efficiency has also been shown to be associated with later language, cognitive, and non-verbal outcomes in both typically-developing [@peter2019;@law2015] and preterm children [@marchman2016;@marchman2018;@loi2017].
 
@@ -175,13 +176,13 @@ Our focus in this paper is to provide guidance for navigating some of the many d
 
 We begin by overviewing the subset of the Peekbank database we selected for our analyses. Considering these measures, we address a set of research questions for each, including:
 
-1. Accuracy: What start and end time maximize the signal of children’s response to the stimulus [@peelle2021]?
+1. For accuracy, what start and end time maximize the signal of children’s response to the stimulus [@peelle2021]?
 
-2. Accuracy: Should analysts correct for baseline preferences in looking to the target image prior to the onset of the target word? 
+2. For accuracy, should analysts correct for baseline preferences in looking to the target image prior to the onset of the target word? 
 
-3. Reaction times: Is it best to operationalize RT as the latency from target word onset to when the child initiates an eye movement away from the distractor picture (launch RT) or to when a child completes this shift and fixates the target picture (landing RT)? What analytic window should be used? And should RTs be subject to a logarithmic transformation [@csibra2016;@frank2026]?
+3. When computing RTs, it best to operationalize RT as the latency from target word onset to when the child initiates an eye movement away from the distractor picture (launch RT) or to when a child completes this shift and fixates the target picture (landing RT)? What analytic window should be used? And should RTs be subject to a logarithmic transformation [@csibra2016;@frank2026]?
 
-4. Both measures: when should participants and trials be excluded from the analysis?
+4. For both accuracy and RT, when should participants and trials be excluded from the analysis?
 
 We examine whether these recommendations are modulated by age. Additionally, we consider a set of design questions that lead to broader recommendations:
 
@@ -321,7 +322,7 @@ Validity refers to whether measures correspond to the construct of interest (in 
 We focus specifically on the relationships between aggregate measures of receptive and expressive vocabulary size from the MB-CDI and LWL task, given the documented relationships between these measures [e.g., @fernald2012; @peter2019]. This correspondence reflects the general relationship between familiar word recognition in the moment (indexed by LWL) and either concurrent vocabulary size or the growth of early vocabulary over time (indexed by the MB-CDI) [@frank2026].^[We do not explore relations at the item-level (e.g., speed of processing of a particular word and a child’s reported knowledge of that word) given the mixed evidence for item-level alignment between LWL and MB-CDI data  [@lopezperez2024;@weaver2026].]
 Since some studies used different versions of the CDIs (e.g., short vs. long forms), all scores were converted to a proportion of the possible items. 
 
-All the code and data to reproduce the analyses is available at https://github.com/peekbank/peekbank-method [TODO: anonymize for review if needed].
+All the code and data to reproduce the analyses is available at https://github.com/peekbank/peekbank-method.
 
 # Data processing recommendations
 
@@ -354,7 +355,7 @@ ggplot(acc_icc_summary, aes(x = t_start, y = t_end, fill = mean_icc)) +
 
 ### Analytic approach
 
-We first calculated the ICC reliability for accuracy across datasets, computing average ICC across a range of different window start and end points. Next, we added the additional metrics of test-retest reliability and -- to assess validity -- CDI correlations, which were calculated by dataset for each combination of parameter values. To aggregate across datasets, we used a linear mixed-effects model with random intercepts by dataset, weighted by the number of sessions. We interpret the fixed-effect contrasts as what differences in outcome measure would be expected from switching from one set of parameters to another on a generic dataset. The best data-processing options might be different for children of different ages, so we ran the same linear mixed effect models separately for data just on children in each of 4 age groups: <18 months, 18--23 months, 24--35 months, and >=36 months. 
+We first calculated the ICC reliability for accuracy across datasets, computing average ICC across a range of different analysis window start and end points. The standardized Peekbank format allowed us to apply each combination of window start and end points consistently within each dataset. Next, we added the additional metrics of test-retest reliability and -- to assess validity -- CDI correlations, which were calculated by dataset for each combination of parameter values. To aggregate across datasets, we used a linear mixed-effects model with random intercepts by dataset, weighted by the number of sessions. We interpret the fixed-effect contrasts as what differences in outcome measure would be expected from switching from one set of parameters to another on a generic dataset. The best data-processing options might be different for children of different ages, so we ran the same linear mixed effect models separately for data just on children in each of 4 age groups: <18 months, 18--23 months, 24--35 months, and >=36 months. 
 
 
 ```{r acc-lolli, fig.height=3, fig.width=6, fig.pos="t", fig.cap="Per dataset outcome measures for two window options: 300--1800 ms (red) and 600--4000 ms (blue). Dot size is proportional within each panel to the number of sessions." }
@@ -707,7 +708,7 @@ In addition, studies also implement session-level exclusions based on the minimu
 
 We consider 3 types of exclusions: trial-level exclusions for accuracy, session-level exclusions for accuracy, and session-level exclusions for RT. 
 We first explored trial-level accuracy exclusions, both on the basis of proportion of off-screen looks and on the basis of where the child was looking at stimulus onset. 
-For accuracy, we then considered per-session minimums either based on the number of valid trials, or based on the fraction of valid trials in a session. The fraction of valid trials is the more common exclusion in the literature, but when drawing from many datasets that vary in the total number of trials, minimum trial count may represent a more comparable metric. For RT, we considered different cutoffs for the minimum number of valid trials required for inclusion. 
+For accuracy, we then considered per-session minimums either based on the number of valid trials, or based on the fraction of valid trials in a session. The fraction of valid trials is the more common exclusion in the literature, but when drawing from many datasets that vary in the total number of trials, minimum trial count likely represents a more comparable metric. For example, a 50% exclusion criterion implies a different number of valid trials for an experiment with 16 vs. 32 total trials; criteria based on valid trial counts therefore result in a more consistent approach to exclusions across datasets. For RT, we considered different cutoffs for the minimum number of valid trials required for inclusion. 
 
 We note that datasets contributed to Peekbank vary in whether excluded data was contributed, or whether only cleaned post-exclusion data was contributed. Thus, some datasets may not show effects of exclusions if those trials or sessions that would be excluded are missing from Peekbank. 
 
