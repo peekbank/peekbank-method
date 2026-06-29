@@ -16,23 +16,23 @@ author:
   - name: Federico Giovannetti
     affiliation: d
   - name: George Kachergis
-    affiliation: e
+    affiliation: b
   - name: Jess Mankewitz
-    affiliation: f
+    affiliation: e
   - name: Stephan Meylan
-    affiliation: g
+    affiliation: f
   - name: Ben Prystawski
     affiliation: b
   - name: Robert Z. Sparks
-    affiliation: b,h
+    affiliation: b,g
   - name: Adrian Steffan
-    affiliation: i
+    affiliation: h
   - name: Alvin Wei Ming Tan
     affiliation: b
   - name: Michael C. Frank
     affiliation: b
   - name: Martin Zettersten
-    affiliation: j
+    affiliation: i
 affiliation:
   - id: a
     institution: Department of Brain and Cognitive Sciences, Massachusetts Institute of Technology, Cambridge, MA, USA
@@ -43,20 +43,19 @@ affiliation:
   - id: d
     institution: Unidad de Neurobiología Aplicada (UNA, CEMIC-CONICET), Buenos Aires, Argentina
   - id: e
-    institution: Cognition, Behavior & Information, Arizona State University, Tempe, AZ, USA
-  - id: f
     institution: Department of Psychology, University of Wisconsin, Madison, WI, USA
-  - id: g
+  - id: f
     institution: Department of Linguistics, University of California, Berkeley, CA, USA
-  - id: h
+  - id: g
     institution: Department of Psychology, Harvard University, Cambridge, MA, USA
-  - id: i
+  - id: h
     institution: Department of Psychology, Ludwig Maximilian University, Munich, Germany
-  - id: j
+  - id: i
     institution: Department of Cognitive Science, University of California, San Diego, CA, USA
 
 authornote: |
   We thank Kyle MacDonald and Tian Linger Xu for their critical role in establishing Peekbank and in the beginning stages of this project.
+  
   AI Disclosure statement: Generative AI was used to do code refactoring, code review, and proofreading.  
 
 abstract: |
@@ -1180,7 +1179,9 @@ At the same time, there is also substantial heterogeneity in the studies include
 To mitigate this concern, our analyses focused exclusively on standard trials that present familiar words with familiar images with limited or no targeted manipulations of the stimuli.
 The main benefit of focusing on standard trials is that it allows for a clear interpretation of reliability and validity -- trials are truly designed to measure word recognition, rather than some other aspect of language processing.
 We view the remaining heterogeneity of study properties (e.g., specific words; differences in age) as a strength of our approach -- our findings generalize broadly across a wide range of items and ages.
-However, by focusing on standard trials only, we also limit our conclusions to measuring familiar word recognition; our findings do not address how data processing and design practices would generalize to other estimation goals, e.g., estimating the magnitude of differences between two experimental conditions (though there is good reason to think that some of the more consequential choices, e.g. baseline correction, are likely have a similar impact).
+However, by focusing on standard trials only, we also limit our conclusions to measuring familiar word recognition; our findings do not address how data processing and design practices would generalize to other estimation goals, e.g., estimating the magnitude of differences between two experimental conditions.
+However, some of the more consequential choices, e.g. baseline correction, are likely have a similar impact given general analysis principles known to affect reliability (e.g., computing difference scores).
+In general, our recommendations can be seen as a reasonable default choice when analyzing looking-while-listening data in the absence of data-driven guidance tuned to one's specific estimation goal.
 
 While we summarize the choices that typically maximize reliability, we note that we often see a range of choices with similar outcomes in our analyses. 
 There is no one choice of time window that we can definitively infer as the "best" for maximizing reliability -- instead, we see a pattern of graded improvements in reliability that follow a predictable pattern. For example, longer time windows tend to increase reliability holding the start of the accuracy window constant.
