@@ -5,6 +5,7 @@ output:
     fig_caption: yes
     keep_tex: yes
     toc: true
+bibliography: ["peekbank-methods-ref.bib"]
 header-includes:
   - \usepackage{threeparttablex}
   - \usepackage{booktabs}
@@ -158,7 +159,7 @@ Visual stimuli:
 
 ## Details about ICC
 
-A number of different correlation metrics are all abbreviated as ICC. In this study, we use the ICC for  *inter*-rater reliability for a "random factorial model without interaction" measuring consistency and looking for the reliability of an average of raters. We use the implementation in the "agreement" package, but we are not aware of this specific combination being fully documented anywhere. 
+A number of different correlation metrics are all abbreviated as ICC. In this study, we use the ICC for  *inter*-rater reliability for a "random factorial model without interaction" measuring consistency and looking for the reliability of an average of raters. We use the implementation in the "agreement" package [@Girard2019], but we are not aware of this specific combination being fully documented anywhere. 
 
 This ICC looks at the ratio between by-subject variance (by-subject variance + by-rater variance + error variance)
 
@@ -168,9 +169,9 @@ Here's what this ICC means in comparison to other possible ICCs:
 
 * It uses the "random factorial model" (sometimes called Type 2). This is for when all raters rate all subjects, but some raters may rate some subjects more than once. Both raters and subjects are assumed to be sampled from a larger population of interest. 
 
-* It is "without interaction". This variant can be used when there are single ratings for a subject-rater combination (preventing the accurate determination of subject-rater interaction effects), or when subject-rater interactions are not of interest (and can be lumped into the overall error). This version is documented in Gwet's Handbook of Inter-Rater Reliability (2014 page 256). This measures the ratio of by-subject variance / (by-subject variance + by-rater variance + error variance). 
+* It is "without interaction". This variant can be used when there are single ratings for a subject-rater combination (preventing the accurate determination of subject-rater interaction effects), or when subject-rater interactions are not of interest (and can be lumped into the overall error). This version is documented in @gwet2014handbook (p. 256). This measures the ratio of by-subject variance / (by-subject variance + by-rater variance + error variance). 
 
-* It is a consistency measure rather than an agreement measure. Rather than measure the exact agreement between raters, it instead measures whether the slopes across raters for different subjects are the same. It does not penalize situations where one rater is consistently lower (i.e. a later-learned word). This omits the by-rater variance from the denominator. We are unaware of the combination of random-factorial model and consistency being explicitly documented, but this formula aligns with the discussion of consistency on Gwet (2014, page 274). 
+* It is a consistency measure rather than an agreement measure. Rather than measure the exact agreement between raters, it instead measures whether the slopes across raters for different subjects are the same. It does not penalize situations where one rater is consistently lower (i.e. a later-learned word). This omits the by-rater variance from the denominator. We are unaware of the combination of random-factorial model and consistency being explicitly documented, but this formula aligns with the discussion of consistency in @gwet2014handbook (p. 274). 
 
 * It measures consistency on average across a pool of raters by dividing the error term by the number of raters. 
 
@@ -178,7 +179,7 @@ The overall formula for ICC is then by-subject variance / (by-subject variance +
 
 We use the package "agreement" because it, unlike other ICC packages, handles cases where there is missing or uneven data (by using Gwet's formulations). This is essential because peekbank has uneven data, especially for cases involving RT or post-exclusion data. 
 
-We only use the ICC measure to compare across the same datasets with different processing methods applied. We do not interpet the ICC valaues against any external cutoffs of reliability. 
+We only use the ICC measure to compare across the same datasets with different processing methods applied. We do not interpet the ICC values against any external cutoffs of reliability. 
 
 \FloatBarrier
 
@@ -813,3 +814,7 @@ results_summ |>
   theme(legend.position = "bottom") +
   scale_color_brewer(palette = "Accent")
 ```
+
+\pagebreak
+
+# References
