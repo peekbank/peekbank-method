@@ -287,7 +287,7 @@ do_model <- function(df, make_baseline, weight_df, form) {
 }
 
 
-make_model_plot <- function(df, x, col = NULL, facet = NULL, fix_function, lab, breaks = c(-.1, 0, .1), limits = c(-.2, .2), dodge = 0, ref = NULL) {
+make_model_plot <- function(df, x, col = NULL, facet = NULL, fix_function, lab, breaks = c(-.1, 0, .1), limits = c(-.2, .2), dodge = 0, ref = NULL, ref_facet = NULL) {
   x_quo <- rlang::enquo(x)
   facet_quo <- rlang::enquo(facet)
   col_quo <- rlang::enquo(col)
@@ -329,6 +329,9 @@ make_model_plot <- function(df, x, col = NULL, facet = NULL, fix_function, lab, 
   if (!is.null(ref)) {
     x_name <- rlang::as_name(x_quo)
     ref_df <- tibble(!!x_name := ref, estimate = 0)
+    for (facet_col in names(ref_facet)) {
+      ref_df[[facet_col]] <- ref_facet[[facet_col]]
+    }
     p <- p + geom_point(
       data = ref_df, aes(x = .data[[x_name]], y = estimate),
       inherit.aes = FALSE, shape = 1, size = 3
@@ -338,14 +341,14 @@ make_model_plot <- function(df, x, col = NULL, facet = NULL, fix_function, lab, 
   p
 }
 
-make_model_grid_plot <- function(icc, cdi, trt, make_baseline, form, x, col = NULL, facet = NULL, fix_function, breaks = c(-.1, 0, .1), limits = c(-.2, .2), dodge = 0, legend_height = .1, ref = NULL) {
+make_model_grid_plot <- function(icc, cdi, trt, make_baseline, form, x, col = NULL, facet = NULL, fix_function, breaks = c(-.1, 0, .1), limits = c(-.2, .2), dodge = 0, legend_height = .1, ref = NULL, ref_facet = NULL) {
   icc_plot <- do_model(
     icc |> filter_icc("est"), {{ make_baseline }},
     dataset_summ |> group_by(dataset_name) |> summarize(n_admins = n_distinct(administration_id)),
     form
   ) |> make_model_plot({{ x }},
     col = {{ col }}, facet = {{ facet }}, fix_function = {{ fix_function }},
-    lab = "ICC reliability", breaks = breaks, limits = limits, dodge = dodge, ref = ref
+    lab = "ICC reliability", breaks = breaks, limits = limits, dodge = dodge, ref = ref, ref_facet = ref_facet
   )
   comp_plot <- do_model(
     cdi |> filter(!is.na(comp_est)) |> rename(est = comp_est), {{ make_baseline }},
@@ -353,7 +356,7 @@ make_model_grid_plot <- function(icc, cdi, trt, make_baseline, form, x, col = NU
     form
   ) |> make_model_plot({{ x }},
     col = {{ col }}, facet = {{ facet }}, fix_function = {{ fix_function }},
-    lab = "Corr. w/ CDI Comprehension", breaks = breaks, limits = limits, dodge = dodge, ref = ref
+    lab = "Corr. w/ CDI Comprehension", breaks = breaks, limits = limits, dodge = dodge, ref = ref, ref_facet = ref_facet
   )
   prod_plot <- do_model(
     cdi |> filter(!is.na(prod_est)) |> rename(est = prod_est), {{ make_baseline }},
@@ -361,7 +364,7 @@ make_model_grid_plot <- function(icc, cdi, trt, make_baseline, form, x, col = NU
     form
   ) |> make_model_plot({{ x }},
     col = {{ col }}, facet = {{ facet }}, fix_function = {{ fix_function }},
-    lab = "Corr. w/ CDI Production", breaks = breaks, limits = limits, dodge = dodge, ref = ref
+    lab = "Corr. w/ CDI Production", breaks = breaks, limits = limits, dodge = dodge, ref = ref, ref_facet = ref_facet
   )
   trt_plot <- do_model(
     trt |> filter(!is.na(est)), {{ make_baseline }},
@@ -370,7 +373,7 @@ make_model_grid_plot <- function(icc, cdi, trt, make_baseline, form, x, col = NU
     form
   ) |> make_model_plot({{ x }},
     col = {{ col }}, facet = {{ facet }}, fix_function = {{ fix_function }},
-    lab = "Test-retest reliability", breaks = breaks, limits = limits, dodge = dodge, ref = ref
+    lab = "Test-retest reliability", breaks = breaks, limits = limits, dodge = dodge, ref = ref, ref_facet = ref_facet
   )
 
   g <- ggplotGrob(icc_plot + theme(legend.position = "bottom", legend.title = element_blank()))
@@ -430,7 +433,7 @@ do_model_age <- function(df, make_baseline, weight_df, form) {
 }
 
 
-make_model_plot_age <- function(df, x, col = NULL, facet = NULL, fix_function, lab, breaks = c(-.1, 0, .1), limits = c(-.2, .2), dodge = .5, ref = NULL) {
+make_model_plot_age <- function(df, x, col = NULL, facet = NULL, fix_function, lab, breaks = c(-.1, 0, .1), limits = c(-.2, .2), dodge = .5, ref = NULL, ref_facet = NULL) {
   x_quo <- rlang::enquo(x)
   facet_quo <- rlang::enquo(facet)
   p <- df |>
@@ -456,6 +459,9 @@ make_model_plot_age <- function(df, x, col = NULL, facet = NULL, fix_function, l
   if (!is.null(ref)) {
     x_name <- rlang::as_name(x_quo)
     ref_df <- tibble(!!x_name := ref, estimate = 0)
+    for (facet_col in names(ref_facet)) {
+      ref_df[[facet_col]] <- ref_facet[[facet_col]]
+    }
     p <- p + geom_point(
       data = ref_df, aes(x = .data[[x_name]], y = estimate),
       inherit.aes = FALSE, shape = 1, size = 3
@@ -465,7 +471,7 @@ make_model_plot_age <- function(df, x, col = NULL, facet = NULL, fix_function, l
   p
 }
 
-make_model_grid_plot_age <- function(icc, cdi, make_baseline, form, x, facet = NULL, fix_function, dodge = .5, breaks = c(-.1, 0, .1), limits = c(-.2, .2), ref = NULL) {
+make_model_grid_plot_age <- function(icc, cdi, make_baseline, form, x, facet = NULL, fix_function, dodge = .5, breaks = c(-.1, 0, .1), limits = c(-.2, .2), ref = NULL, ref_facet = NULL) {
   icc_plot <- do_model_age(
     icc |> filter_icc("est"), {{ make_baseline }},
     dataset_summ |> bin_ages() |> group_by(dataset_name, age_bin) |> summarize(n_admins = n_distinct(administration_id)),
@@ -473,7 +479,7 @@ make_model_grid_plot_age <- function(icc, cdi, make_baseline, form, x, facet = N
   ) |>
     make_model_plot_age({{ x }},
       facet = {{ facet }}, fix_function = {{ fix_function }},
-      lab = "ICC reliability", breaks = breaks, limits = limits, dodge = dodge, ref = ref
+      lab = "ICC reliability", breaks = breaks, limits = limits, dodge = dodge, ref = ref, ref_facet = ref_facet
     )
 
   comp_plot <- do_model_age(
@@ -482,7 +488,7 @@ make_model_grid_plot_age <- function(icc, cdi, make_baseline, form, x, facet = N
     form
   ) |> make_model_plot_age({{ x }},
     facet = {{ facet }}, fix_function = {{ fix_function }},
-    lab = "Corr. w/ CDI Comprehension", breaks = breaks, limits = limits, dodge = dodge, ref = ref
+    lab = "Corr. w/ CDI Comprehension", breaks = breaks, limits = limits, dodge = dodge, ref = ref, ref_facet = ref_facet
   )
   prod_plot <- do_model_age(
     cdi |> filter(!is.na(prod_est)) |> rename(est = prod_est), {{ make_baseline }},
@@ -490,7 +496,7 @@ make_model_grid_plot_age <- function(icc, cdi, make_baseline, form, x, facet = N
     form
   ) |> make_model_plot_age({{ x }},
     facet = {{ facet }}, fix_function = {{ fix_function }},
-    lab = "Corr. w/ CDI Production", breaks = breaks, limits = limits, dodge = dodge, ref = ref
+    lab = "Corr. w/ CDI Production", breaks = breaks, limits = limits, dodge = dodge, ref = ref, ref_facet = ref_facet
   )
 
   g <- ggplotGrob(icc_plot + theme(legend.position = "right"))

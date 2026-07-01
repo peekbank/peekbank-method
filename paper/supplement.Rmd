@@ -239,7 +239,7 @@ fix_acc_interact <- function(df) {
                     End=str_c("End: ", t_end))
 }
 
-make_model_grid_plot(readRDS(here("cached_intermediates/1_acc_icc.rds")) |> filter(t_start %in% seq(0, 1000, 100) & t_end %in% seq(1800, 4000, 200)), readRDS(here("cached_intermediates/1_acc_cdi.rds")) |> filter(t_start %in% seq(0, 1000, 100) & t_end %in% seq(1800, 4000, 200)), readRDS(here("cached_intermediates/1_acc_test_retest.rds")) |> filter(t_start %in% seq(0, 1000, 100) & t_end %in% seq(1800, 4000, 200)), baseline_acc, "t_start * t_end", x = Start, facet = End, fix_function = fix_acc_interact, limits=c(-.3, .2), ref = 600)
+make_model_grid_plot(readRDS(here("cached_intermediates/1_acc_icc.rds")) |> filter(t_start %in% seq(0, 1000, 100) & t_end %in% seq(1800, 4000, 200)), readRDS(here("cached_intermediates/1_acc_cdi.rds")) |> filter(t_start %in% seq(0, 1000, 100) & t_end %in% seq(1800, 4000, 200)), readRDS(here("cached_intermediates/1_acc_test_retest.rds")) |> filter(t_start %in% seq(0, 1000, 100) & t_end %in% seq(1800, 4000, 200)), baseline_acc, "t_start * t_end", x = Start, facet = End, fix_function = fix_acc_interact, limits=c(-.3, .2), ref = 600, ref_facet = list(End = "End: 4000"))
 ```
 
 
@@ -254,7 +254,7 @@ baseline_acc <- function(df) {
 }
 
 
-make_model_grid_plot_age(readRDS(here("cached_intermediates/1_acc_icc_byage.rds")) |> filter(t_start %in% seq(0, 1000, 100) & t_end %in% seq(1800, 4000, 200)), readRDS(here("cached_intermediates/1_acc_cdi_byage.rds")) |> filter(t_start %in% seq(0, 1000, 100) & t_end %in% seq(1800, 4000, 200)), baseline_acc, "t_start * t_end", x = Start, facet = End, fix_function = fix_acc_interact, dodge = 50, limits = c(-.3, .2), ref = 600)
+make_model_grid_plot_age(readRDS(here("cached_intermediates/1_acc_icc_byage.rds")) |> filter(t_start %in% seq(0, 1000, 100) & t_end %in% seq(1800, 4000, 200)), readRDS(here("cached_intermediates/1_acc_cdi_byage.rds")) |> filter(t_start %in% seq(0, 1000, 100) & t_end %in% seq(1800, 4000, 200)), baseline_acc, "t_start * t_end", x = Start, facet = End, fix_function = fix_acc_interact, dodge = 50, limits = c(-.3, .2), ref = 600, ref_facet = list(End = "End: 4000"))
 ```
 
 
@@ -458,7 +458,7 @@ fix_rt_interact <- function(df) {
     filter(logged=="log", trimming=="untrimmed")
 }
 
-make_model_grid_plot(rt_icc, rt_cdi, rt_trt, baseline_rt, "min_rt * max_rt * trimming * logged * type", x = `Min RT`, col = type, facet = `Max RT`, fix_function = fix_rt_interact, dodge = 50, limits=c(-.5, .3), breaks=c(-.2, 0, .2), ref = 400)
+make_model_grid_plot(rt_icc, rt_cdi, rt_trt, baseline_rt, "min_rt * max_rt * trimming * logged * type", x = `Min RT`, col = type, facet = `Max RT`, fix_function = fix_rt_interact, dodge = 50, limits=c(-.5, .3), breaks=c(-.2, 0, .2), ref = 400, ref_facet = list(`Max RT` = "max_rt4000"))
 ```
 
 
@@ -486,7 +486,7 @@ baseline_rt <- function(df) {
 }
 
 
-make_model_grid_plot_age(rt_icc_age, rt_cdi_age,  baseline_rt, "min_rt * max_rt * trimming * logged * type", x = `Min RT`, facet = str_c(type, " " ,`Max RT`), fix_function = fix_rt_interact, dodge = 50, limits=c(-.6, .4), breaks=c(-.2, 0, .2), ref = 400)
+make_model_grid_plot_age(rt_icc_age, rt_cdi_age,  baseline_rt, "min_rt * max_rt * trimming * logged * type", x = `Min RT`, facet = str_c(type, " " ,`Max RT`), fix_function = fix_rt_interact, dodge = 50, limits=c(-.6, .4), breaks=c(-.2, 0, .2), ref = 400, ref_facet = list(type = "Land RT", `Max RT` = "max_rt4000"))
 ```
 
 
@@ -563,7 +563,7 @@ fix_trial_acc_interact <- function(df) {
     rename(`Min looking`=exclude_less_than)
   
 }
-make_model_grid_plot(trial_icc, trial_cdi, trial_trt, baseline_trial_acc, "exclude_less_than * look_at_start", x = `Min looking`, facet = look_at_start, col = pct, fix_function = fix_trial_acc_interact, legend_height=.2, limits=c(-.3, .2), ref = 0)
+make_model_grid_plot(trial_icc, trial_cdi, trial_trt, baseline_trial_acc, "exclude_less_than * look_at_start", x = `Min looking`, facet = look_at_start, col = pct, fix_function = fix_trial_acc_interact, legend_height=.2, limits=c(-.3, .2), ref = 0, ref_facet = list(look_at_start = "require look at t_0: no"))
 
 ```
 
@@ -574,7 +574,7 @@ trial_icc_age <- readRDS(here("cached_intermediates/4_acc_trial_icc_byage.rds"))
 
 trial_cdi_age <- readRDS(here("cached_intermediates/4_acc_trial_cdi_byage.rds")) |> filter(t_start == 600, t_end == 4000)
 
-make_model_grid_plot_age(trial_icc_age, trial_cdi_age, baseline_trial_acc, "exclude_less_than * look_at_start", x =`Min looking`, facet = look_at_start, fix_function = fix_trial_acc_interact, limits = c(-.2, .2), ref = 0)
+make_model_grid_plot_age(trial_icc_age, trial_cdi_age, baseline_trial_acc, "exclude_less_than * look_at_start", x =`Min looking`, facet = look_at_start, fix_function = fix_trial_acc_interact, limits = c(-.2, .2), ref = 0, ref_facet = list(look_at_start = "require look at t_0: no"))
 ```
 
 \FloatBarrier

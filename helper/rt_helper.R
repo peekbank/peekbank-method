@@ -151,6 +151,34 @@ get_rt <- function(rle_data, SAMPLING_RATE = 40, t_0 = TRUE, window_length_ms = 
   ))
 }
 
+# Time (ms after t = 0) of the first landing on target, and how long that
+# landing run lasts, in ms. Only trials on distractor at t = 0 are eligible
+# for a "landing" (this excludes target-at-onset, missing-at-onset, and
+# other-at-onset trials); trials that never reach target also return NA.
+# min_run_ms: a target run must last at least this long to count as the
+# landing; shorter glances are skipped in favor of the next target run.
+get_landing_run <- function(rle_data, SAMPLING_RATE = 40, min_run_ms = 0) {
+  ms_per_sample <- 1000 / SAMPLING_RATE
+
+  onset_aoi <- rle_data$values[1]
+  if (onset_aoi != "distractor") {
+    return(tibble(landing_rt = NA_real_, run_length = NA_real_))
+  }
+
+  target_idxs <- which(rle_data$values == "target")
+  qualifying_idx <- target_idxs[rle_data$lengths[target_idxs] * ms_per_sample >= min_run_ms][1]
+  if (is.na(qualifying_idx)) {
+    return(tibble(landing_rt = NA_real_, run_length = NA_real_))
+  }
+
+  samples_before_landing <- sum(rle_data$lengths[seq_len(qualifying_idx - 1)])
+
+  tibble(
+    landing_rt = samples_before_landing * ms_per_sample,
+    run_length = rle_data$lengths[qualifying_idx] * ms_per_sample
+  )
+}
+
 preprocess_rt_dt <- function(rts) {
   rts |>
     filter(shift_type == "D-T") |>
