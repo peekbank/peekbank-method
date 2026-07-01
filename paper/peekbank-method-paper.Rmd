@@ -1,5 +1,5 @@
 ---
-title             : "Data-driven recommendations for increasing reliability in measures of infant word recognition"
+title             : "Data-driven recommendations for increasing reliability and validity in measures of infant word recognition"
 shorttitle        : "Peekbank"
 
 author:
