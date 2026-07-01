@@ -251,5 +251,8 @@ cdi_data <- fuzzyjoin::difference_left_join(mutate(admin_info, subject_id = 10*s
   mutate(across(c("prod","comp"), ~ifelse(is.nan(.x), NA, .x))) |>
   ungroup()                     
 
+cdi_data <- cdi_data |> left_join(all_subjects |> select(subject_id, native_language))
 saveRDS(cdi_data, file=here("cached_intermediates", "0_cdi_subjects.rds"))
 ```
+
+

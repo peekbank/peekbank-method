@@ -270,8 +270,12 @@ set_of_lollis <- function(icc, cdi, trt, include_func, is_rt = F, use_icc_order 
   g <- ggplotGrob(a + theme(legend.position = "bottom", legend.title = element_blank()))
   leg <- g$grobs[[which(g$layout$name == "guide-box-bottom")]]
 
-  # plot_grid(plot_grid(a, d), plot_grid(b, c), leg, nrow = 3, rel_heights = c(1, 1, .1))
-  plot_grid(plot_grid(a, d, b, c, nrow = 1), leg, nrow = 2, rel_heights = c(1, .1))
+  inner <- plot_grid(plot_grid(a, d), NULL, plot_grid(b, c),
+                     nrow = 1, rel_widths = c(1, 0.05, 1))
+  labeled <- ggdraw(inner) +
+    draw_label("A", x = 0,          y = 1, hjust = 0, vjust = 1.5, size = 14, fontface = "bold") +
+    draw_label("B", x = 1.05 / 2.05, y = 1, hjust = 0, vjust = 1.5, size = 14, fontface = "bold")
+  plot_grid(labeled, leg, nrow = 2, rel_heights = c(1, .1))
 }
 
 do_model <- function(df, make_baseline, weight_df, form) {
