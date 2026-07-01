@@ -327,7 +327,7 @@ All code and data to reproduce the analyses is available at https://github.com/p
 ## Recommendation 1: Measure accuracy over a long analytic window. 
 
 Accuracy, or proportion of target looking, must be computed over a time window of interest. Typically, windows start shortly after the onset of the target word and continue until a few seconds later; this window is intended to capture the peak of children’s stimulus-driven looks to the target. However, in practice, studies vary in what windows are used, and often window selection is a locus for analytic flexibility (choosing windows post hoc to maximize a particular effect)  [@peelle2021].
-Common analysis windows include 300--1800 ms after target word onset [following @fernald2008] or 367--2000 ms after target word onset [e.g., @swingley2002], although windows that extend until 3 or 4 seconds after target word onset are also used [e.g., @bergelson2012;@bergelson2017a;@lopezperez2024]. In this analysis, we begin from first principles and ask when windows should start and end to maximize reliability and validity on word recognition trials. 
+Common analysis windows include 300--1800 ms after target word onset [following @fernald2008] or 367--2000 ms after target word onset [e.g., @swingley2002], although windows that extend until 3 or 4 seconds after target word onset are also used, especially at younger ages [e.g., @bergelson2012;@bergelson2017a;@lopezperez2024]. In this analysis, we begin from first principles and ask when windows should start and end to maximize reliability and validity on word recognition trials. 
 
 ```{r acc-heat-map, fig.cap="A heat map showing the average ICC across datasets for different start and end points for the accuracy window. A region with the highest ICC (best reliability) is outlined in black, and the region most commonly represented in the literature is outlined in blue.", fig.width=5, fig.height=3}
 acc_icc <- readRDS(here("cached_intermediates", "1_acc_icc.rds"))
@@ -353,10 +353,10 @@ ggplot(acc_icc_summary, aes(x = t_start, y = t_end, fill = mean_icc)) +
 
 ### Analytic approach
 
-We first calculated the ICC reliability for accuracy across datasets, computing average ICC across a range of different analysis window start and end points. The standardized Peekbank format allowed us to apply each combination of window start and end points consistently within each dataset. Next, we added the additional metrics of test-retest reliability and -- to assess validity -- CDI correlations, which were calculated by dataset for each combination of parameter values. To aggregate across datasets, we used a linear mixed-effects model with random intercepts by dataset, weighted by the number of sessions. We interpret the fixed-effect contrasts as what differences in outcome measure would be expected from switching from one set of parameters to another on a generic dataset. The best data-processing options might be different for children of different ages, so we ran the same linear mixed effect models separately for data just on children in each of 4 age groups: <18 months, 18--23 months, 24--35 months, and >=36 months. 
+We first calculated the ICC reliability for accuracy across datasets, computing average ICC across a range of different analysis window start and end points. The standardized Peekbank format allowed us to apply each combination of window start and end points consistently within each dataset. Next, we added the additional metrics of test-retest reliability and -- to assess validity -- CDI correlations, which were calculated by dataset for each combination of parameter values. To aggregate across datasets, we used a linear mixed-effects model with random intercepts by dataset, weighted by the number of sessions. We interpret the fixed-effect contrasts as the predicted difference in outcome when switching from one set of parameters to another on a generic dataset. The best data-processing options might be different for children of different ages, so we ran the same linear mixed-effects models separately for children in each of 4 age groups: <18 months, 18--23 months, 24--35 months, and >=36 months. 
 
 
-```{r acc-lolli, fig.height=3, fig.width=6, fig.pos="t", fig.cap="Per dataset outcome measures for two window options: 300--1800 ms (red) and 600--4000 ms (blue). Dot size is proportional within each panel to the number of sessions." }
+```{r acc-lolli, fig.height=3, fig.width=6, fig.pos="t", fig.cap="Per dataset outcome measures for two window options: 300--1800 ms (red) and 600--4000 ms (blue). Line color indicates whether the longer (blue) or shorter (red) window leads to a higher value. Dot size is proportional within each panel to the number of sessions." }
 acc_include <- function(df) {
   df |> mutate(combined = case_when(
     t_start == 600 & t_end == 4000 ~ "600–4000 ms",
@@ -368,7 +368,7 @@ acc_include <- function(df) {
 set_of_lollis(readRDS(here("cached_intermediates/1_acc_icc.rds")), readRDS(here("cached_intermediates/1_acc_cdi.rds")), readRDS(here("cached_intermediates/1_acc_test_retest.rds")), acc_include)
 ```
 
-```{r acc-lolli-age, fig.height=3, fig.width=6, fig.pos="t", fig.cap="Per dataset ICC measures for two window options: 300--1800 ms (red) and 600--4000 ms (blue), shown split by age category. Dot size is proportional within each panel to the number of sessions." }
+```{r acc-lolli-age, fig.height=3, fig.width=6, fig.pos="t", fig.cap="Per dataset ICC measures for two window options: 300--1800 ms (red) and 600--4000 ms (blue), split by age category. Line color indicates whether the longer (blue) or shorter (red) window leads to a higher value. Dot size is proportional within each panel to the number of sessions." }
 set_of_age_lollis(readRDS(here("cached_intermediates/1_acc_icc_byage.rds")), acc_include)
 
 
@@ -430,17 +430,18 @@ acc_comp_mod <- do_model(
   ) |> fix_acc_interact()
 ```
 
+### Results
 
-### Reliability
+#### Reliability
 
 <!-- Key Result -->
-Average ICCs across datasets for different windowing options are shown in Figure \ref{fig:acc-heat-map}. As expected, including time points from before the target word onset decreases reliability. Our initial exploration found a region of high reliability with start times around 600--800 ms and end times around 2800--4000 ms. A dataset by dataset comparison of the differences between a 300--1800 ms window (representative of common practice) and a 600--4000 ms window are shown in Figure \ref{fig:acc-lolli}. Nearly all datasets have higher ICC reliability for the later and longer window. All 5 test-retest reliability datasets also show increased reliability on this later and longer window. Our mixed effect model confirms that there are expected reliability gains from switching from a 300--1800 ms window to a 600--4000 ms one. ICC reliability is expected to increase by `r acc_icc_mod |> filter(t_start==300, t_end==1800) |> in_text_stats(sign_flip=T)` (square brackets indicate 95% CIs) and test-retest reliability by `r acc_trt_mod |> filter(t_start==300, t_end==1800) |> in_text_stats(sign_flip=T)`.
+Average ICCs across datasets for different windowing options are shown in Figure \ref{fig:acc-heat-map}. As expected, including time points from before the target word onset decreases reliability. Our initial exploration found a region of high reliability with start times around 600--800 ms and end times around 2800--4000 ms. A dataset by dataset comparison of the differences between a 300--1800 ms window (representative of common practice) and a 600--4000 ms window are shown in Figure \ref{fig:acc-lolli}. Nearly all datasets have higher ICC reliability for the later and longer window. All 5 test-retest reliability datasets also show increased reliability on this later and longer window. Our mixed-effects model confirms that there are expected reliability gains from switching from a 300--1800 ms window to a 600--4000 ms one. ICC reliability is expected to increase by `r acc_icc_mod |> filter(t_start==300, t_end==1800) |> in_text_stats(sign_flip=T)` (square brackets indicate 95% CIs) and test-retest reliability by `r acc_trt_mod |> filter(t_start==300, t_end==1800) |> in_text_stats(sign_flip=T)`.
 
 These patterns generally hold across age. The overall level of reliability rises with age, as older children generally fixate target images more consistently and experiments with younger children typically use fewer trials (Figure S3). However, the overall pattern of which time windows maximize reliability at any given age is remarkably consistent across the different age groups (Figure S5). For instance, across different ages there is an improvement in ICC for using a 600--4000 ms window compared to a 300--1800 ms one (Figure \ref{fig:acc-lolli-age}). For <18 months, the ICC difference is `r acc_icc_mod_age |> filter(t_start==300, t_end==1800, age_bin=="<18") |> in_text_stats(sign_flip=T)`; for 18--23 months, `r acc_icc_mod_age |> filter(t_start==300, t_end==1800, age_bin=="18-24") |> in_text_stats(sign_flip=T)`; for 24--35 months,  `r acc_icc_mod_age |> filter(t_start==300, t_end==1800, age_bin=="24-36") |> in_text_stats(sign_flip=T)`; and for >=36 months `r acc_icc_mod_age |> filter(t_start==300, t_end==1800, age_bin==">=36") |> in_text_stats(sign_flip=T)`. 
 
 
-### Validity
-There is no evidence of differences in validity between a 300--1800 ms window and a 600--4000 ms window (Figure \ref{fig:acc-lolli} right 2 panels). Switching to the longer window is associated with a change of `r acc_comp_mod |> filter(t_start==300, t_end==1800) |> in_text_stats(sign_flip=T)` in correlation with CDI comprehension and `r acc_prod_mod |> filter(t_start==300, t_end==1800) |> in_text_stats(sign_flip=T)` with CDI production. 
+#### Validity
+There is no evidence of differences in validity between a 300--1800 ms window and a 600--4000 ms window (Figure \ref{fig:acc-lolli}, right 2 panels). Switching to the longer window is associated with a change of `r acc_comp_mod |> filter(t_start==300, t_end==1800) |> in_text_stats(sign_flip=T)` in correlation with CDI comprehension and `r acc_prod_mod |> filter(t_start==300, t_end==1800) |> in_text_stats(sign_flip=T)` with CDI production. 
 
 ### Discussion
 
@@ -448,8 +449,8 @@ There is no evidence of differences in validity between a 300--1800 ms window an
 For instance, a 400 - 3000 ms window is not significantly different from a 600 - 4000 ms window on any of the outcome measures.
 Although we recommend starting between 400ms and 600 milliseconds to optimally balance validity and reliability, choosing when precisely the accuracy window starts is likely less important for maximizing reliability than choosing a long time window: regardless of window start time, increasing the window size consistently improves reliability (Figure 1).-->
 <!-- Recommendation -->
-Overall, we find that LWL accuracy measures are reliable across a wide range of window choices; however, to maximize reliability, we recommend windows that start somewhere in the 400--600 ms range and extend to 3000--4000 ms (longer than the canonical window that ends at 1800 or 2000 ms). Windowing choices seem to primarily affect reliability measures and have limited effects on our validity measures. 
-The finding that later starting and later ending windows increase reliability suggests that, even as looks target decline after 2000 ms, looking behavior still contains reliable signal. While some children may look quickly to the target and then look away, other children who look to the target later or who continue looking at the target are providing a useful signal during later portions of a given trial. Overall, children in many datasets continue to show consistent looking to the target over the distractor during later trial periods (Figure S2). An implication of these results is that choosing analysis windows based on the peak of the grand average proportion target looking time course generally leads to lower reliability estimates, with no gains in validity.
+Overall, we find that LWL accuracy measures are reliable across a wide range of window choices; however, to maximize reliability, we recommend windows that start somewhere in the 400--600 ms range and extend to 3000--4000 ms (longer than the canonical window that ends at 1800 or 2000 ms), regardless of child age. Windowing choices seem to primarily affect reliability measures and have limited effects on our validity measures. 
+The finding that later starting and later ending windows increase reliability suggests that, even as looks to the target decline after 2000 ms, looking behavior still contains reliable signal. While some children may look quickly to the target and then look away, other children who look to the target later or who continue looking at the target are providing a useful signal during later portions of a given trial. Overall, children in many datasets continue to show consistent looking to the target over the distractor during later trial periods (Figure S2). An implication of these results is that choosing analysis windows based on the peak of the grand average proportion target looking time course generally leads to lower reliability estimates, with no gains in validity.
 
 ## Recommendation 2: Do not use baseline-corrected accuracy.
 <!-- this mini intro could also get shortened up-->
@@ -457,9 +458,9 @@ One commonly acknowledged issue in LWL studies is that looking behavior could be
 
 ### Analytic approach
 
-We considered baseline-corrected accuracies with various pre-stimulus baseline windows, focusing on a 600--4000 ms critical window (although the results generalize to other critical windows). We restricted analysis to datasets with at least some data from 2000 ms or more before target word onset (see Figure S2 for which datasets have data when). We also computed a "no baseline" accuracy, based solely on accuracy within a 600--4000 ms time window with no correction. Baseline windows started at -1000, -2000, -3000 and -4000 ms and ended at target word onset.
+We considered baseline-corrected accuracies with various pre-stimulus baseline windows, focusing on a 600--4000 ms critical window (although the results generalize to other critical windows). We restricted analysis to datasets with at least some data from 2000 ms or more before target word onset. We also computed a "no baseline" accuracy, based solely on accuracy within a 600--4000 ms time window with no correction. Baseline windows started at -1000, -2000, -3000 and -4000 ms and ended at target word onset.
 
-```{r bc-lolli, fig.height=3, fig.width=6, fig.cap="Comparison between a baseline-corrected accuracy in red and accuracy in blue across datasets and measures. Both use a critical window of 600--4000 ms, the baseline window was -2000--0 ms.  " }
+```{r bc-lolli, fig.height=3, fig.width=6, fig.cap="Comparison between a baseline-corrected accuracy in red and accuracy in blue across datasets and measures. Both use a critical window of 600--4000 ms; the baseline window was -2000--0 ms. Line color indicates whether the longer (blue) or shorter (red) window leads to a higher value. Dot size is proportional within each panel to the number of sessions. " }
 baseline_lengths <- readRDS(here("cached_intermediates", "2_baseline_lengths.rds")) |> filter(t_min<=-2000)
 bc_icc <- readRDS(here("cached_intermediates", "2_bc_icc.rds")) |>
   bind_rows(readRDS(here("cached_intermediates", "1_acc_icc.rds"))) |> filter(t_start == 600) |>
@@ -548,14 +549,16 @@ bc_comp_mod <- do_model(
   
 ```
 
-### Reliability 
+### Results
+
+#### Reliability 
 <!-- Key Result and Age -->
 Baseline-corrected accuracy led to worse reliability than critical-window accuracy alone. As an illustrative example, Figure \ref{fig:bc-lolli} shows per-dataset results for accuracy compared to a baseline-corrected accuracy using a -2000--0 ms baseline window. 
 This result held generally: All baseline window sizes that we considered led to worse reliability compared to using normal accuracy without any correction. For a critical window of 600--4000 ms, baseline correction is expected to decrease ICC by at least `r bc_icc_mod |> filter(estimate==max(estimate)) |> in_text_stats(sign_flip=T)` and test-retest reliability by at least `r bc_trt_mod |> filter(estimate==max(estimate)) |> in_text_stats(sign_flip=T)`. Similar patterns hold for different accuracy windows (Figure S6) and across different age groups (Figure S8).
 
-### Validity
+#### Validity
 
-Baseline-correction also reduces the validity of accuracy measures (Figure \ref{fig:bc-lolli} right panels). All baseline window sizes that we considered led to worse correlations with productive vocabulary. For a critical window of 600--4000 ms, baseline correction is expected to decrease the correlation with receptive vocabulary by at least `r bc_comp_mod |> filter(estimate==max(estimate)) |> in_text_stats(sign_flip=T)` and correlation with productive vocabulary by at least `r bc_prod_mod |> filter(estimate==max(estimate)) |> in_text_stats(sign_flip=T)`. Similar patterns hold for different accuracy windows (Figure S6) and across different age groups (Figure S8).
+Baseline-correction also reduces the validity of accuracy measures (Figure \ref{fig:bc-lolli}, right panels). All baseline window sizes that we considered led to worse correlations with productive vocabulary (though results were less robust for receptive vocabulary). For a critical window of 600--4000 ms, baseline correction is expected to decrease the correlation with receptive vocabulary by at least `r bc_comp_mod |> filter(estimate==max(estimate)) |> in_text_stats(sign_flip=T)` and correlation with productive vocabulary by at least `r bc_prod_mod |> filter(estimate==max(estimate)) |> in_text_stats(sign_flip=T)`. Similar patterns hold for different accuracy windows (Figure S6) and across different age groups (Figure S8).
 
 ### Discussion
 
@@ -565,7 +568,7 @@ Why would incorporating baseline information lead to worse metrics? The literatu
 
 ## Recommendation 3: Measure landing reaction times with a minimum reaction time of around 400 ms.
 <!--intro paragraph needs smoothing-->
-Reaction time (RT) reflects the speed with which infants shift their gaze from the distractor to the target image. RT computations include many choice points. RTs can be computed based on when a child's eyes leave from the distractor (launch RT) or when a child's eyes arrive on the target image (landing RT) [@fernald2008]. A minimum and maximum RT may be set, as short and long RTs are often excluded because they are considered unlikely to be generated in response to the stimulus [@fernald2008].  Reaction time data are sometimes analyzed using a logarithmic transform (consistent with the idea that reaction times are log-normally distributed and that effects on them may be multiplicative rather than additive)  [@csibra2016;@frank2026].
+Reaction time (RT) reflects the speed with which infants shift their gaze from the distractor to the target image. RT computations include many choice points. RTs can be computed based on when a child's eyes leave from the distractor (launch RT) or when a child's eyes arrive on the target image (landing RT) [@fernald2008]. A minimum and maximum RT may be set, as short and long RTs are often excluded because they are considered unlikely to be generated in response to the stimulus [@fernald2008].  Reaction time data are sometimes analyzed as raw scores and sometimes analyzed using a logarithmic transform (consistent with the idea that reaction times are log-normally distributed and that effects on them may be multiplicative rather than additive)  [@csibra2016;@frank2026]. We systematically investigated the effect of each of these choice points on reliability and validity.
 
 ### Analytic approach
 
@@ -598,7 +601,7 @@ rt_icc <- readRDS(here("cached_intermediates/3_rt_icc.rds"))
 We considered a wide range of options for measuring RT, fulling crossing a) launch or landing RTs, b) a minimum RT threshold for inclusion between 0 and 1000 ms, c) a maximum RT threshold for inclusion between 1600 and 4000 ms, and d) raw or log-transformed RTs. 
 
 
-```{r rt-lolli, fig.height=3, fig.width=6, fig.cap="Comparison between two different sets of RT parameters. In red, an example of common practice, using a launch RT from 300--1800 ms. In blue, an RT that maximizes ICC, with a landing RT from 400--4000 ms, on the log scale. Note that correlations with the CDI are generally expected to be negative (as faster word recognition is associated with larger vocabulary)."}
+```{r rt-lolli, fig.height=3, fig.width=6, fig.cap="Comparison between two different sets of RT parameters. In red, an example of common practice, using a launch RT from 300--1800 ms. In blue, an RT that maximizes ICC, with a landing RT from 400--4000 ms, on the log scale. Note that correlations with the CDI are generally expected to be negative (as faster word recognition is associated with larger vocabulary). Line color indicates whether the longer (blue) or shorter (red) window leads to improved reliability or validity."}
 
 rt_icc <- readRDS(here("cached_intermediates/3_rt_icc.rds")) |>
   filter_icc("est") |> 
@@ -676,20 +679,22 @@ rt_trt_mod <- do_model(
   
 ```
 
-### Reliability
+### Results
+
+#### Reliability
 
 <!-- Key Result and Age -->
-An initial exploration of ICC reliability (Figure \ref{fig:rt-heat}) indicated that ICC reliability was maximized for landing RTs with a minimum RT around 400 ms and a high maximum RT. A comparison between a common set of parameters for calculating RT and an alternative that maximizes ICC are shown in Figure \ref{fig:rt-lolli}. Compared to computing the "standard" raw launch RTs restricted to 300--1800 ms, using log-scale landing RTs ranging between 400--4000 ms is expected to increase ICC by `r rt_icc_mod |> filter(type=="first_launch", min_rt==300, max_rt==1800, trimming=="untrimmed", logged=="raw") |> in_text_stats(sign_flip=T)`, with little change in  test-retest reliability (`r rt_trt_mod |> filter(type=="first_launch", min_rt==300, max_rt==1800, trimming=="untrimmed", logged=="raw") |> in_text_stats(sign_flip=T)`). Similar patterns hold for children of different ages (Figure S9 and Figure S11). 
+An initial exploration indicated that ICC reliability was maximized for landing RTs with a minimum RT around 400 ms and a high maximum RT (Figure \ref{fig:rt-heat}). A comparison between a common set of parameters for calculating RT and an alternative that maximizes ICC are shown in Figure \ref{fig:rt-lolli}. Compared to computing the "standard" raw launch RTs restricted to 300--1800 ms, using log-scale landing RTs ranging between 400--4000 ms is expected to increase ICC by `r rt_icc_mod |> filter(type=="first_launch", min_rt==300, max_rt==1800, trimming=="untrimmed", logged=="raw") |> in_text_stats(sign_flip=T)`, with little change in  test-retest reliability (`r rt_trt_mod |> filter(type=="first_launch", min_rt==300, max_rt==1800, trimming=="untrimmed", logged=="raw") |> in_text_stats(sign_flip=T)`). Similar patterns hold for children of different ages (Figure S9 and Figure S11). 
 
 
-### Validity
-Different methods for calculating RT had little impact on validity (Figure \ref{fig:rt-lolli} right panels). Compared to computing the "standard" launch, raw RTs restricted to 300--1800 ms, using landing log RTs ranging between 400--4000 ms is
+#### Validity
+Different methods for calculating RT had little impact on validity (Figure \ref{fig:rt-lolli}, right panels). Compared to computing the "standard" launch, raw RTs restricted to 300--1800 ms, using landing log RTs ranging between 400--4000 ms is
 expected to have little impact on CDI correlations (`r rt_comp_mod |> filter(type=="first_launch", trimming=="untrimmed", min_rt==300, max_rt==1800, logged=="raw") |> in_text_stats(sign_flip=T)` for comprehension, and `r rt_prod_mod |> filter(type=="first_launch", min_rt==300, max_rt==1800, trimming=="untrimmed", logged=="raw") |> in_text_stats(sign_flip=T) ` for production). 
 
 ### Discussion
 
 <!-- Summary and Recommendation -->
-Overall, RT measures capture substantial signal, as indicated by the moderate ICC values across all choice parameters. A wide range of parameter options have similar properties (Figure S10 and Figure S12), but computing landing RTs with an inclusion window of 400--4000 ms maximizes reliability without negatively impacting validity. Note that the recommendation to compute landing reaction times contradicts traditional approaches to reaction-time computation [@fernald2008] based on launch time; however, landing RTs generally led to higher ICCs across our dataset. Log-scale transformations should be considered, but may depend on modelling and theoretical considerations. 
+Overall, RT measures capture substantial signal, as indicated by the moderate ICC values across all choice parameters. A wide range of parameter options have similar properties (Figure S10 and Figure S12), but computing landing RTs with an inclusion window of 400--4000 ms maximizes reliability without negatively impacting validity. Note that the recommendation to compute landing reaction times contradicts traditional approaches to reaction-time computation [@fernald2008] based on launch time; however, landing RTs generally lead to higher ICCs in our dataset. Log-scale transformations should be considered, but may depend on modelling and theoretical considerations. 
 
 
 ## Recommendation 4: Trial-level and session-level exclusions for low amounts of data are generally unnecessary.  

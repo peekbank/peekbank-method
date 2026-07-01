@@ -366,7 +366,7 @@ make_model_grid_plot(bc_icc, bc_cdi, bc_test_retest, baseline_bc, "b_all", x = `
 
 
 
-```{r bc-mod-age, fig.height=3, fig.width=8, fig.cap="Model results by age group comparing the effect of different baseline windows for baseline correction to uncorrected accuracy. All use a post stimulus window of 600--4000 ms"}
+```{r bc-mod-age, fig.height=3, fig.width=8, fig.cap="Model results by age group comparing the effect of different baseline windows for baseline correction to uncorrected accuracy. All use a post stimulus window of 600--4000 ms."}
 bc_icc_age <- readRDS(here("cached_intermediates", "2_bc_icc_byage.rds")) |>
   bind_rows(readRDS(here("cached_intermediates", "1_acc_icc_byage.rds")) |> filter(t_start == 600)) |>
   filter(t_end == 4000) |>
