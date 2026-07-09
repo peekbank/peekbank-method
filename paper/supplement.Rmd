@@ -171,7 +171,7 @@ Here's what this ICC means in comparison to other possible ICCs:
 
 * It is "without interaction". This variant can be used when there are single ratings for a subject-rater combination (preventing the accurate determination of subject-rater interaction effects), or when subject-rater interactions are not of interest (and can be lumped into the overall error). This version is documented in @gwet2014handbook (p. 256). This measures the ratio of by-subject variance / (by-subject variance + by-rater variance + error variance). 
 
-* It is a consistency measure rather than an agreement measure. Rather than measure the exact agreement between raters, it instead measures whether the slopes across raters for different subjects are the same. It does not penalize situations where one rater is consistently lower (i.e. a later-learned word). This omits the by-rater variance from the denominator. We are unaware of the combination of random-factorial model and consistency being explicitly documented, but this formula aligns with the discussion of consistency in @gwet2014handbook (p. 274). 
+* It is a consistency measure rather than an agreement measure. Rather than measure the exact agreement between raters, it instead measures whether the slopes across raters for different subjects are the same. It does not penalize situations where one rater is consistently lower (i.e., a later-learned word). This omits the by-rater variance from the denominator. We are unaware of the combination of random-factorial model and consistency being explicitly documented, but this formula aligns with the discussion of consistency in @gwet2014handbook (p. 274). 
 
 * It measures consistency on average across a pool of raters by dividing the error term by the number of raters. 
 
@@ -179,7 +179,7 @@ The overall formula for ICC is then by-subject variance / (by-subject variance +
 
 We use the package "agreement" because it, unlike other ICC packages, handles cases where there is missing or uneven data (by using Gwet's formulations). This is essential because peekbank has uneven data, especially for cases involving RT or post-exclusion data. 
 
-We only use the ICC measure to compare across the same datasets with different processing methods applied. We do not interpet the ICC values against any external cutoffs of reliability. 
+We only use the ICC measure to compare across the same datasets with different processing methods applied. We do not interpret the ICC values against any external cutoffs of reliability. 
 
 \FloatBarrier
 
@@ -270,7 +270,7 @@ Figure \ref{fig:bc-lolli-short} shows how baseline corrected measures compare to
 
 
 
-```{r bc-lolli-short, fig.height=2.5, fig.width=6, fig.cap="Comparison between a baseline-corrected accuracy in red and accuracy in blue across datasets and measures. Both use a post-stimulus window of 300 - 1800ms, the baseline window was -2000 - 0ms.  " }
+```{r bc-lolli-short, fig.height=3, fig.width=6, fig.cap="Comparison between a baseline-corrected accuracy in red and accuracy in blue across datasets and measures. Both use a post-stimulus window of 300 - 1800ms, the baseline window was -2000--0ms.  " }
 baseline_lengths <- readRDS(here("cached_intermediates", "2_baseline_lengths.rds")) |> filter(t_min <=-2000)
 bc_icc_200 <- readRDS(here("cached_intermediates", "2_bc_icc.rds")) |>
   bind_rows(readRDS(here("cached_intermediates", "1_acc_icc.rds"))) |> filter(t_start == 300) |>
@@ -394,7 +394,7 @@ make_model_grid_plot_age(bc_icc_age, bc_cdi_age, baseline_bc, "b_all", x = `Base
 
 # Reaction time
 
-Figure \ref{fig:rt-heat-age} shows a heat map of ICC relability across different RT conditions, split by age. Younger children are less reliable overall, but there are not strong age-specific trends in what measurements are most reliable. 
+Figure \ref{fig:rt-heat-age} shows a heat map of ICC reliability across different RT conditions, split by age. Younger children are less reliable overall, but there are not strong age-specific trends in what measurements are most reliable. 
 
 ```{r rt-heat-age,  fig.width=6, fig.height=3.5, fig.cap="Heat map of different parameter options for measuring RT and how they on average affected ICC."}
 
@@ -523,7 +523,7 @@ make_model_grid_plot(rt_icc, rt_cdi, rt_trt, baseline_rt, "min_rt * max_rt * tri
 
 Figure \ref{fig:acc-trial-mod} shows effects of different trial-level exclusions on outcomes. Figure \ref{fig:acc-trial-age} shows age splits of the same. 
 
-Excessive requirements lead to an increase in ICC, but a decrease in other metrics. A requirements to look at the time of auditory stimulus onset just leads to data loss without reliability or validity gains. 
+Excessive requirements lead to an increase in ICC, but a decrease in other metrics. A requirement to look at the time of auditory stimulus onset just leads to data loss without reliability or validity gains. 
 
 ```{r acc-trial-mod, fig.cap="Model results for possible trial-level exclusions, compared to no exclusions. Colors are overall rate of trial-level data retention. ", fig.height=4, fig.width=8, }
 
@@ -783,7 +783,7 @@ We also considered a set of independent variables across different models:
 
 We fully crossed the 5 dependent variables with the 7 model predictor structures. 
 
-The coefficients from all these models are shown in Figure \ref{fig:order}. Effects related to trial order were multiplied by 10 for the effect of a difference in 10 trials for viewability. The effects of having a target image that has been seen 1 time previously (as distractor or target), versus a target image that is being seen for the first time are (if they exist) have central estimates around 1% of the time more or less looking (both for windows around 0 and actual accuracy). These effects may well interact with trial order, although again, effects and interactions, if they exist, are small. Log RT has a larger scale than the other measures that are all on 0--1. Switches to target may be a bit faster if the target was previously seen, but only when interaction with trial order is considered in the model. If anything, there is more looking to previous distractors on the accuracy window. At least across datasets, we cannot detect reliable effects of previously seen items or trial order on any of the dependent variables. 
+The coefficients from all these models are shown in Figure \ref{fig:order}. Effects related to trial order were multiplied by 10 for the effect of a difference in 10 trials for viewability. The effects of having a target image that has been seen 1 time previously (as distractor or target), versus a target image that is being seen for the first time are small, around 1% differences in looks. These effects may well interact with trial order, although again, effects and interactions, if they exist, are small. Log RT has a larger scale than the other measures that are all on 0--1. Switches to target may be a bit faster if the target was previously seen, but only when interaction with trial order is considered in the model. If anything, there is more looking to previous distractors on the accuracy window. At least across datasets, we cannot detect reliable effects of previously seen items or trial order on any of the dependent variables. 
 
 ```{r order, fig.cap="Fitted coefficient estimates from a series of models investigating potential order and repetition effects. For scaling, trial order effects are shown for every 10 trials.", fig.width=6, fig.height=4}
 results_summ <- readRDS(here("cached_intermediates/7_model_summary.rds"))

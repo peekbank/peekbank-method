@@ -271,9 +271,10 @@ set_of_lollis <- function(icc, cdi, trt, include_func, is_rt = F, use_icc_order 
   leg <- g$grobs[[which(g$layout$name == "guide-box-bottom")]]
 
   inner <- plot_grid(plot_grid(a, d), NULL, plot_grid(b, c),
-                     nrow = 1, rel_widths = c(1, 0.05, 1))
+    nrow = 1, rel_widths = c(1, 0.05, 1)
+  )
   labeled <- ggdraw(inner) +
-    draw_label("A", x = 0,          y = 1, hjust = 0, vjust = 1.5, size = 14, fontface = "bold") +
+    draw_label("A", x = 0, y = 1, hjust = 0, vjust = 1.5, size = 14, fontface = "bold") +
     draw_label("B", x = 1.05 / 2.05, y = 1, hjust = 0, vjust = 1.5, size = 14, fontface = "bold")
   plot_grid(labeled, leg, nrow = 2, rel_heights = c(1, .1))
 }
@@ -511,14 +512,14 @@ make_model_grid_plot_age <- function(icc, cdi, make_baseline, form, x, facet = N
 
 clean_names <- tribble(
   ~dataset_name, ~`Dataset Name`, ~`Language`,
-  "reflook_v4", "Yurovsky et al. (2017)", "English",
+  "reflook_v4", "Yurovsky et al. (2024)", "English",
   "yurovsky_2017", "Yurovsky & Frank (2017)", "English",
   "weaver_zettersten_2024", "Weaver et al. (2024)", "English",
   "fernald_marchman_2012", "Fernald & Marchman (2012)", "English",
   "frank_tablet_2016", "Frank et al. (2016)", "English",
   "fmw_2013", "Fernald et al. (2013)", "English",
   "adams_marchman_2018", "Adams et al. (2018)", "English",
-  "potter_canine", "Potter & Lew-Williams (2023)", "English",
+  "potter_canine", "Potter & Lew-Williams (2024)", "English",
   "fernald_totlot", "Fernald et al. (2006)", "English",
   "pomper_prime", "Pomper & Saffran (2015)", "English",
   "pomper_saffran_2016", "Pomper & Saffran (2016)", "English",
